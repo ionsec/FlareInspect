@@ -568,10 +568,13 @@ class CloudflareClient {
           this.client.zeroTrust?.tunnels?.list({ 
             account_id: accountId 
           }).catch(() => ({ result: [] })),
-          // Device Policies
-          this.client.zeroTrust?.devices?.policies?.list({ 
-            account_id: accountId 
-          }).catch(() => ({ result: [] })),
+          // Device Policies (check if method exists)
+          (this.client.zeroTrust?.devices?.policies?.list && 
+           typeof this.client.zeroTrust.devices.policies.list === 'function') 
+            ? this.client.zeroTrust.devices.policies.list({ 
+                account_id: accountId 
+              }).catch(() => ({ result: [] }))
+            : Promise.resolve({ result: [] }),
           // WARP Settings
           this.getWARPSettings(accountId),
           // Gateway Rules

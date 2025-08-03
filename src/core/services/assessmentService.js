@@ -727,13 +727,16 @@ class AssessmentService {
           service: "zerotrust",
           severity: "high",
           status: "FAIL",
-          description: `${appsWithoutPolicies.length} applications have no access policies configured.`,
-          remediation: "Configure access policies for all applications.",
+          description: `${appsWithoutPolicies.length} Zero Trust applications have no access policies configured. Applications: ${appsWithoutPolicies.map(a => a.name).join(', ')}.`,
+          remediation: `Configure access policies for these applications in Zero Trust > Access > Applications: ${appsWithoutPolicies.map(a => a.name).join(', ')}.`,
           resourceId: assessment.account.id,
           resourceType: "account",
+          resourceName: assessment.account.name,
           timestamp: new Date(),
           metadata: {
-            applicationsWithoutPolicies: appsWithoutPolicies.map(a => a.name)
+            accountName: assessment.account.name,
+            applicationsWithoutPolicies: appsWithoutPolicies.map(a => a.name),
+            applicationsCount: appsWithoutPolicies.length
           }
         });
       }
@@ -748,11 +751,16 @@ class AssessmentService {
         service: "zerotrust",
         severity: "medium",
         status: "FAIL",
-        description: "No device enrollment rules configured for Zero Trust.",
-        remediation: "Configure device enrollment rules to manage device access.",
+        description: `No device enrollment rules configured for Zero Trust account "${assessment.account.name}". This allows any device to potentially access Zero Trust protected resources.`,
+        remediation: "Configure device enrollment rules in Zero Trust > Settings > Device enrollment to control which devices can access your network.",
         resourceId: assessment.account.id,
         resourceType: "account",
-        timestamp: new Date()
+        resourceName: assessment.account.name,
+        timestamp: new Date(),
+        metadata: {
+          accountName: assessment.account.name,
+          recommendation: "Enable device enrollment to improve security posture"
+        }
       });
     }
 
