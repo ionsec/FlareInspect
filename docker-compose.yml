@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  flareinspect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: flareinspect:latest
+    container_name: flareinspect
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - CLOUDFLARE_DEBUG=${CLOUDFLARE_DEBUG:-false}
+    volumes:
+      # Mount output directory for reports
+      - ./output:/app/output
+      # Mount logs directory
+      - ./logs:/app/logs
+    working_dir: /app
+    # Override command to run assessment
+    # command: ["flareinspect", "assess", "--token", "${CLOUDFLARE_TOKEN}", "--output", "/app/output/report.json"]
+    
+  # Interactive mode for development
+  flareinspect-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    image: flareinspect:dev
+    container_name: flareinspect-dev
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+      - DEBUG=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+    working_dir: /app
+    command: ["sh"]
+    stdin_open: true
+    tty: true
+
+# Networks
+networks:
+  default:
+    name: flareinspect-network
