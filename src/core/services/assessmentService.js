@@ -821,7 +821,6 @@ class AssessmentService {
 
     assessment.findings.push(...findings);
   }
-  }
 
   /**
    * Check zone-level security configurations

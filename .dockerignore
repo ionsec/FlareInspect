@@ -1,19 +1,83 @@
+# Security: Node modules (copied explicitly in build)
 node_modules
-npm-debug.log
-.git
-.gitignore
+
+# Security: Environment and configuration files
 .env
 .env.*
 !.env.example
+.npmrc
+*.pem
+*.key
+*.crt
+*.csr
+
+# Security: Version control and development files
+.git
+.gitignore
+.github/
+.vscode/
+.idea/
+
+# Security: Log and output files
 logs
 output
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Security: Documentation and non-essential files
 *.md
+README*
+CHANGELOG*
+CONTRIBUTING*
+LICENSE*
+docs/
+
+# Security: OS generated files
 .DS_Store
-.idea
-.vscode
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Security: Test files
 coverage
 .nyc_output
 *.test.js
 *.spec.js
-docker-compose.override.yml
+test/
+tests/
+
+# Security: Build artifacts and temporary files
+dist/
+build/
+target/
+tmp/
+temp/
+*.tar.gz
+*.zip
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# Security: Docker composition files
+docker-compose*
+Dockerfile*
+.dockerignore
+
+# Security: CI/CD files
+.travis.yml
+.circleci/
+.gitlab-ci.yml
+azure-pipelines.yml
+Jenkinsfile
+
+# Security: Package manager lock files (keep package-lock.json for npm ci)
+# package-lock.json  # Keep this for reproducible builds
+yarn.lock
+pnpm-lock.yaml
