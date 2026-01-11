@@ -13,10 +13,18 @@ const ora = require('ora');
 const chalk = require('chalk');
 
 class AssessmentService {
-  constructor() {
+  constructor(options = {}) {
     this.securityBaseline = new SecurityBaseline();
     this.reportService = new ReportService();
     this.spinner = null;
+    this.useSpinner = options.useSpinner !== false;
+  }
+
+  startSpinner(text) {
+    if (!this.useSpinner) {
+      return null;
+    }
+    return ora({ text, spinner: 'dots' }).start();
   }
 
   /**
@@ -31,24 +39,25 @@ class AssessmentService {
       timestamp: new Date().toISOString()
     });
 
-    this.spinner = ora({
-      text: 'Initializing Cloudflare API connection...',
-      spinner: 'dots'
-    }).start();
+    this.spinner = this.startSpinner('Initializing Cloudflare API connection...');
     
     try {
       // Initialize Cloudflare client
       const client = new CloudflareClient(credentials.apiToken);
       
       // Test connection
-      this.spinner.text = 'Testing Cloudflare API connection...';
+      if (this.spinner) {
+        this.spinner.text = 'Testing Cloudflare API connection...';
+      }
       const connectionTest = await client.testConnection();
       
       if (!connectionTest.success) {
         throw new Error(`Failed to connect to Cloudflare API: ${connectionTest.error}`);
       }
 
-      this.spinner.succeed('Connected to Cloudflare API successfully');
+      if (this.spinner) {
+        this.spinner.succeed('Connected to Cloudflare API successfully');
+      }
       
       logger.assessment('Cloudflare API connection successful', {
         assessmentId,
@@ -72,6 +81,10 @@ class AssessmentService {
         provider: 'cloudflare',
         startedAt: new Date(startTime),
         status: 'running',
+        metadata: {
+          note: options.note || null,
+          totalApiCalls: 0
+        },
         account: {
           id: account.id,
           name: account.name,
@@ -103,22 +116,33 @@ class AssessmentService {
           zeroTrust: {},
           dns: {},
           waf: {},
-          ssl: {}
+          ssl: {},
+          apiGateway: {},
+          securityTxt: {},
+          logpush: {},
+          mtls: {},
+          attackSurface: {},
+          turnstile: {},
+          dnsFirewall: {}
         }
       };
 
       // Run account-level assessments
-      this.spinner = ora('Assessing account-level configurations...').start();
+      this.spinner = this.startSpinner('Assessing account-level configurations...');
       await this.assessAccount(client, account, assessment);
-      this.spinner.succeed('Account assessment completed');
+      if (this.spinner) {
+        this.spinner.succeed('Account assessment completed');
+      }
 
       // Run zone-level assessments for each zone
       const zoneCount = zones.length;
       for (let i = 0; i < zoneCount; i++) {
         const zone = zones[i];
-        this.spinner = ora(`Assessing zone ${i + 1}/${zoneCount}: ${zone.name}...`).start();
+        this.spinner = this.startSpinner(`Assessing zone ${i + 1}/${zoneCount}: ${zone.name}...`);
         await this.assessZone(client, zone, assessment);
-        this.spinner.succeed(`Zone ${zone.name} assessed`);
+        if (this.spinner) {
+          this.spinner.succeed(`Zone ${zone.name} assessed`);
+        }
       }
 
       // Calculate final summary
@@ -137,6 +161,7 @@ class AssessmentService {
       assessment.status = 'completed';
       assessment.completedAt = new Date();
       assessment.executionTime = Date.now() - startTime;
+      assessment.metadata.totalApiCalls = client.requestCount;
 
       logger.assessment('Cloudflare security assessment completed', {
         assessmentId,
@@ -165,7 +190,10 @@ class AssessmentService {
         error: error.message,
         startedAt: new Date(startTime),
         completedAt: new Date(),
-        executionTime: Date.now() - startTime
+        executionTime: Date.now() - startTime,
+        metadata: {
+          note: options.note || null
+        }
       };
     }
   }
@@ -181,7 +209,20 @@ class AssessmentService {
 
     try {
       // Get account members and audit logs
-      const [members, auditLogs, zeroTrustSettings, workers, pages, securityInsights] = await Promise.all([
+      const [
+        members,
+        auditLogs,
+        zeroTrustSettings,
+        workers,
+        pages,
+        securityInsights,
+        turnstileWidgets,
+        dnsFirewallRules,
+        logpushJobs,
+        accessCertificates,
+        mtlsCertificates,
+        attackSurface
+      ] = await Promise.all([
         client.getAccountMembers(account.id),
         client.getAuditLogs(account.id, { 
           since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -192,7 +233,13 @@ class AssessmentService {
         client.getSecurityInsights({ accountId: account.id }).catch(e => {
           logger.debug('Failed to get account security insights:', e.message);
           return { insights: [], error: e.message };
-        })
+        }),
+        client.getTurnstileWidgets ? client.getTurnstileWidgets(account.id) : [],
+        client.getDNSFirewall ? client.getDNSFirewall(account.id) : [],
+        client.getLogpushJobs ? client.getLogpushJobs({ accountId: account.id }) : [],
+        client.getAccessCertificates ? client.getAccessCertificates({ accountId: account.id }) : [],
+        client.getMtlsCertificates ? client.getMtlsCertificates({ accountId: account.id }) : [],
+        client.getAttackSurfaceIssues ? client.getAttackSurfaceIssues(account.id) : { issues: [], count: 0 }
       ]);
 
       // Store configuration data
@@ -204,11 +251,41 @@ class AssessmentService {
         zeroTrustEnabled: !zeroTrustSettings.error,
         workersCount: workers?.workers?.length || 0,
         pagesProjectsCount: pages?.projects?.length || 0,
-        securityInsights: securityInsights.summary || { total: 0 }
+        securityInsights: securityInsights.summary || { total: 0 },
+        turnstileWidgetsCount: turnstileWidgets?.length || 0,
+        dnsFirewallRulesCount: dnsFirewallRules?.length || 0,
+        logpushJobsCount: logpushJobs?.length || 0,
+        accessCertificatesCount: accessCertificates?.length || 0,
+        mtlsCertificatesCount: mtlsCertificates?.length || 0,
+        attackSurfaceIssuesCount: attackSurface?.count || 0
       };
       assessment.configuration.zeroTrust = zeroTrustSettings;
       assessment.configuration.securityInsights = {
         account: securityInsights
+      };
+      assessment.configuration.turnstile = {
+        account: {
+          widgets: turnstileWidgets || []
+        }
+      };
+      assessment.configuration.dnsFirewall = {
+        account: {
+          rules: dnsFirewallRules || []
+        }
+      };
+      assessment.configuration.logpush = {
+        account: {
+          jobs: logpushJobs || []
+        }
+      };
+      assessment.configuration.mtls = {
+        account: {
+          accessCertificates: accessCertificates || [],
+          mtlsCertificates: mtlsCertificates || []
+        }
+      };
+      assessment.configuration.attackSurface = {
+        account: attackSurface || { issues: [], count: 0 }
       };
 
       // Run account security checks
@@ -254,6 +331,15 @@ class AssessmentService {
         await this.assessSecurityInsights(securityInsights, 'account', account.id, assessment);
       }
 
+      await this.assessTurnstile(account, turnstileWidgets || [], assessment);
+      await this.assessDNSFirewall(account, dnsFirewallRules || [], assessment);
+      await this.assessLogpush(account, logpushJobs || [], 'account', assessment);
+      await this.assessMtls({ ...account, type: 'account' }, {
+        accessCertificates: accessCertificates || [],
+        mtlsCertificates: mtlsCertificates || []
+      }, assessment);
+      await this.assessAttackSurface(account, attackSurface || { issues: [], count: 0 }, assessment);
+
     } catch (error) {
       logger.error('Account assessment failed', {
         assessmentId: assessment.assessmentId,
@@ -291,7 +377,12 @@ class AssessmentService {
         apiShield,
         loadBalancers,
         emailRoutingRules,
-        securityInsights
+        securityInsights,
+        apiGateway,
+        securityTxt,
+        logpushJobs,
+        accessCertificates,
+        rulesets
       ] = await Promise.all([
         client.getZone(zone.id),
         client.getDNSRecords(zone.id),
@@ -312,7 +403,12 @@ class AssessmentService {
         client.getSecurityInsights({ zoneId: zone.id }).catch(e => {
           logger.debug('Failed to get zone security insights:', e.message);
           return { insights: [], error: e.message };
-        })
+        }),
+        client.getApiGateway ? client.getApiGateway(zone.id) : null,
+        client.getSecurityTxt ? client.getSecurityTxt(zone.id) : null,
+        client.getLogpushJobs ? client.getLogpushJobs({ zoneId: zone.id }) : [],
+        client.getAccessCertificates ? client.getAccessCertificates({ zoneId: zone.id }) : [],
+        client.getRulesets ? client.getRulesets(zone.id) : []
       ]);
 
       // Store configuration data
@@ -336,9 +432,14 @@ class AssessmentService {
         performanceSettings: performanceSettings || {},
         botManagementEnabled: botManagement?.enabled || false,
         apiShieldEnabled: apiShield?.enabled || false,
+        apiGatewayEnabled: apiGateway?.enabled || false,
         loadBalancersCount: loadBalancers?.load_balancers?.length || 0,
         emailRoutingRulesCount: emailRoutingRules?.length || 0,
-        securityInsights: securityInsights.summary || { total: 0 }
+        securityInsights: securityInsights.summary || { total: 0 },
+        securityTxtEnabled: securityTxt?.enabled || false,
+        logpushJobsCount: logpushJobs?.length || 0,
+        accessCertificatesCount: accessCertificates?.length || 0,
+        rulesetsCount: rulesets?.length || 0
       };
       
       // Store zone security insights separately
@@ -346,6 +447,14 @@ class AssessmentService {
         assessment.configuration.securityInsights.zones = {};
       }
       assessment.configuration.securityInsights.zones[zone.name] = securityInsights;
+
+      assessment.configuration.apiGateway[zone.name] = apiGateway || {};
+      assessment.configuration.securityTxt[zone.name] = securityTxt || {};
+      assessment.configuration.logpush[zone.name] = { jobs: logpushJobs || [] };
+      assessment.configuration.mtls[zone.name] = { accessCertificates: accessCertificates || [] };
+      assessment.configuration.waf[zone.name] = {
+        rulesets: rulesets || []
+      };
 
       // Run security assessments
       await this.assessDNSSecurity(zone, dnsRecords, dnssecSettings, assessment);
@@ -355,7 +464,8 @@ class AssessmentService {
         firewallRules,
         accessRules,
         rateLimitingRules,
-        securityLevel: allZoneSettings?.security_level
+        securityLevel: allZoneSettings?.security_level,
+        rulesets: rulesets || []
       }, assessment);
       
       // Run new assessments
@@ -363,8 +473,11 @@ class AssessmentService {
       if (botManagement) {
         await this.assessBotManagement(zone, botManagement, assessment);
       }
-      if (apiShield) {
+      if (apiShield?.source === 'legacy') {
         await this.assessAPIShield(zone, apiShield, assessment);
+      }
+      if (apiGateway) {
+        await this.assessAPIGateway(zone, apiGateway, assessment);
       }
       if (loadBalancers) {
         await this.assessLoadBalancing(zone, loadBalancers, assessment);
@@ -372,6 +485,9 @@ class AssessmentService {
       if (emailRoutingRules && emailRoutingRules.length > 0) {
         await this.assessEmailRouting(zone, emailRoutingRules, dnsRecords, assessment);
       }
+      await this.assessSecurityTxt(zone, securityTxt, assessment);
+      await this.assessLogpush(zone, logpushJobs || [], 'zone', assessment);
+      await this.assessMtls({ ...zone, type: 'zone' }, { accessCertificates: accessCertificates || [] }, assessment);
       
       // Assess Security Insights
       if (securityInsights && !securityInsights.error) {
@@ -623,6 +739,7 @@ class AssessmentService {
   async assessWAFSecurity(zone, wafData, assessment) {
     const findings = [];
     const wafChecks = this.securityBaseline.getChecksByCategory('waf');
+    const rulesets = wafData.rulesets || [];
 
     // Check security level
     const securityLevel = wafData.securityLevel?.value || 'medium';
@@ -667,7 +784,10 @@ class AssessmentService {
     }
 
     // Check rate limiting
-    if (wafData.rateLimitingRules.length === 0) {
+    const hasRateLimitingRuleset = rulesets.some(rs =>
+      rs.phase === 'http_ratelimit' || rs.phase === 'http_request_rate_limit'
+    );
+    if (wafData.rateLimitingRules.length === 0 && !hasRateLimitingRuleset) {
       findings.push({
         id: uuidv4(),
         checkId: 'CFL-WAF-003',
@@ -684,6 +804,295 @@ class AssessmentService {
           zoneName: zone.name
         }
       });
+    }
+
+    // Check managed rulesets (OWASP/managed WAF)
+    const managedRulesets = rulesets.filter(rs => rs.phase === 'http_request_firewall_managed');
+    if (managedRulesets.length === 0) {
+      findings.push(this.securityBaseline.createFinding(
+        wafChecks.find(c => c.id === 'CFL-WAF-005'),
+        'FAIL',
+        'Managed WAF rulesets not enabled',
+        'Enable managed WAF rulesets (OWASP) for HTTP traffic',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    }
+
+    assessment.findings.push(...findings);
+  }
+
+  async assessAPIGateway(zone, apiGateway, assessment) {
+    const findings = [];
+
+    if (!apiGateway?.enabled) {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-API-001',
+        checkTitle: 'API Gateway Not Configured',
+        service: 'api',
+        severity: 'medium',
+        status: 'WARNING',
+        description: 'API Gateway (API Shield) is not configured to protect API endpoints.',
+        remediation: 'Enable API Gateway and configure discovery and schema validation.',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: {
+          zoneName: zone.name
+        }
+      });
+    } else if ((apiGateway.schemas || []).length === 0) {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-API-002',
+        checkTitle: 'No API Schemas Configured',
+        service: 'api',
+        severity: 'low',
+        status: 'WARNING',
+        description: 'API Gateway is enabled but no schemas are configured for validation.',
+        remediation: 'Upload OpenAPI schemas to enable request validation.',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: {
+          zoneName: zone.name,
+          operationsDiscovered: apiGateway.discoveryOperations?.length || 0
+        }
+      });
+    }
+
+    assessment.findings.push(...findings);
+  }
+
+  async assessSecurityTxt(zone, securityTxt, assessment) {
+    const findings = [];
+    if (securityTxt?.error) {
+      return;
+    }
+    const enabled = securityTxt?.enabled;
+    const contacts = securityTxt?.contact || [];
+    const policies = securityTxt?.policy || [];
+    const expires = securityTxt?.expires || null;
+
+    const enabledCheck = this.securityBaseline.getChecksByCategory('securitytxt')
+      .find(c => c.id === 'CFL-SEC-001');
+    const fieldsCheck = this.securityBaseline.getChecksByCategory('securitytxt')
+      .find(c => c.id === 'CFL-SEC-002');
+
+    if (!enabled) {
+      findings.push(this.securityBaseline.createFinding(
+        enabledCheck,
+        'FAIL',
+        'security.txt not enabled',
+        'security.txt enabled with contact and expiry',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    } else {
+      findings.push(this.securityBaseline.createFinding(
+        enabledCheck,
+        'PASS',
+        'security.txt enabled',
+        'security.txt enabled with contact and expiry',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    }
+
+    const hasRequired = contacts.length > 0 && policies.length > 0 && Boolean(expires);
+    if (!hasRequired) {
+      findings.push(this.securityBaseline.createFinding(
+        fieldsCheck,
+        'FAIL',
+        'Missing required fields in security.txt',
+        'Contact, policy, and expires fields configured',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    } else {
+      findings.push(this.securityBaseline.createFinding(
+        fieldsCheck,
+        'PASS',
+        'Required fields present in security.txt',
+        'Contact, policy, and expires fields configured',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    }
+
+    assessment.findings.push(...findings);
+  }
+
+  async assessTurnstile(account, widgets, assessment) {
+    const findings = [];
+    const check = this.securityBaseline.getChecksByCategory('turnstile')
+      .find(c => c.id === 'CFL-TURN-001');
+
+    if ((widgets || []).length === 0) {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'WARNING',
+        'No Turnstile widgets configured',
+        'Turnstile widgets configured for protected applications',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    } else {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'PASS',
+        `${widgets.length} Turnstile widgets configured`,
+        'Turnstile widgets configured for protected applications',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+
+    assessment.findings.push(...findings);
+  }
+
+  async assessDNSFirewall(account, dnsFirewallRules, assessment) {
+    const findings = [];
+    const check = this.securityBaseline.getChecksByCategory('dns-firewall')
+      .find(c => c.id === 'CFL-DNS-005');
+
+    if ((dnsFirewallRules || []).length === 0) {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'WARNING',
+        'No DNS Firewall policies configured',
+        'DNS Firewall policies configured for upstream resolver protection',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    } else {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'PASS',
+        `${dnsFirewallRules.length} DNS Firewall policies configured`,
+        'DNS Firewall policies configured for upstream resolver protection',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+
+    assessment.findings.push(...findings);
+  }
+
+  async assessLogpush(resource, logpushJobs, scope, assessment) {
+    const findings = [];
+    const check = this.securityBaseline.getChecksByCategory('logpush')
+      .find(c => c.id === 'CFL-LOG-001');
+    const datasets = (logpushJobs || []).map(job => job.dataset).filter(Boolean);
+    const hasSecurityDataset = datasets.some(dataset =>
+      /firewall|http|dns|spectrum|audit|waf/i.test(dataset)
+    );
+
+    if (logpushJobs.length === 0 || !hasSecurityDataset) {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'WARNING',
+        'No security-focused Logpush datasets configured',
+        'Logpush configured for security datasets (firewall, HTTP, DNS)',
+        { id: resource.id, type: scope, name: resource.name }
+      ));
+    } else {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'PASS',
+        `Security Logpush datasets configured (${datasets.length} datasets)`,
+        'Logpush configured for security datasets (firewall, HTTP, DNS)',
+        { id: resource.id, type: scope, name: resource.name }
+      ));
+    }
+
+    assessment.findings.push(...findings);
+  }
+
+  async assessMtls(resource, mtlsData, assessment) {
+    const findings = [];
+    const certificates = mtlsData?.accessCertificates || [];
+    const mtlsCertificates = mtlsData?.mtlsCertificates || [];
+    const check = this.securityBaseline.getChecksByCategory('mtls')
+      .find(c => c.id === 'CFL-MTLS-001');
+    const expiryCheck = this.securityBaseline.getChecksByCategory('mtls')
+      .find(c => c.id === 'CFL-MTLS-002');
+
+    const totalCerts = certificates.length + mtlsCertificates.length;
+    if (totalCerts === 0) {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'WARNING',
+        'No mTLS/Access certificates configured',
+        'mTLS certificates configured for sensitive services',
+        { id: resource.id, type: resource.type || 'account', name: resource.name }
+      ));
+    } else {
+      findings.push(this.securityBaseline.createFinding(
+        check,
+        'PASS',
+        `${totalCerts} mTLS/Access certificates configured`,
+        'mTLS certificates configured for sensitive services',
+        { id: resource.id, type: resource.type || 'account', name: resource.name }
+      ));
+    }
+
+    const expiringSoon = [...certificates, ...mtlsCertificates].filter(cert => {
+      const expiry = cert.expires_on || cert.expiresOn || cert.not_after || cert.notAfter;
+      if (!expiry) return false;
+      const expiryDate = new Date(expiry);
+      if (Number.isNaN(expiryDate.getTime())) return false;
+      const days = (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+      return days < 30;
+    });
+
+    if (expiringSoon.length > 0) {
+      findings.push(this.securityBaseline.createFinding(
+        expiryCheck,
+        'FAIL',
+        `${expiringSoon.length} certificates expiring within 30 days`,
+        'No mTLS certificates expiring within 30 days',
+        { id: resource.id, type: resource.type || 'account', name: resource.name }
+      ));
+    } else {
+      findings.push(this.securityBaseline.createFinding(
+        expiryCheck,
+        'PASS',
+        'No mTLS certificates expiring soon',
+        'No mTLS certificates expiring within 30 days',
+        { id: resource.id, type: resource.type || 'account', name: resource.name }
+      ));
+    }
+
+    assessment.findings.push(...findings);
+  }
+
+  async assessAttackSurface(account, attackSurface, assessment) {
+    const findings = [];
+    const issues = attackSurface?.issues || [];
+    if (issues.length === 0) {
+      return;
+    }
+
+    const criticalIssues = issues.filter(issue => issue.severity === 'Critical');
+    const moderateIssues = issues.filter(issue => issue.severity === 'Moderate');
+    const lowIssues = issues.filter(issue => issue.severity === 'Low');
+
+    const criticalCheck = this.securityBaseline.getChecksByCategory('attack-surface')
+      .find(c => c.id === 'CFL-ASM-001');
+    const moderateCheck = this.securityBaseline.getChecksByCategory('attack-surface')
+      .find(c => c.id === 'CFL-ASM-002');
+
+    if (criticalIssues.length > 0) {
+      findings.push(this.securityBaseline.createFinding(
+        criticalCheck,
+        'FAIL',
+        `${criticalIssues.length} critical attack surface issues`,
+        'No critical attack surface issues',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+
+    if (moderateIssues.length > 0 || lowIssues.length > 0) {
+      findings.push(this.securityBaseline.createFinding(
+        moderateCheck,
+        'WARNING',
+        `${moderateIssues.length + lowIssues.length} moderate/low attack surface issues`,
+        'Minimize moderate/low attack surface issues',
+        { id: account.id, type: 'account', name: account.name }
+      ));
     }
 
     assessment.findings.push(...findings);
@@ -1385,20 +1794,7 @@ class AssessmentService {
         low: 0,
         informational: 0
       },
-      byService: {
-        account: 0,
-        zerotrust: 0,
-        dns: 0,
-        waf: 0,
-        ssl: 0,
-        performance: 0,
-        workers: 0,
-        api: 0,
-        bot: 0,
-        loadbalancing: 0,
-        pages: 0,
-        email: 0
-      }
+      byService: {}
     };
 
     assessment.findings.forEach(finding => {
@@ -1470,9 +1866,7 @@ class AssessmentService {
 
       // Count by service
       const service = finding.service || 'general';
-      if (summary.byService.hasOwnProperty(service)) {
-        summary.byService[service]++;
-      }
+      summary.byService[service] = (summary.byService[service] || 0) + 1;
     });
 
     // Calculate compliance score

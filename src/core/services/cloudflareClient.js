@@ -152,6 +152,41 @@ class CloudflareClient {
   }
 
   /**
+   * Execute raw API request using fetch
+   */
+  async rawRequest(path, options = {}) {
+    const method = options.method || 'GET';
+    const body = options.body ? JSON.stringify(options.body) : undefined;
+
+    return this.executeWithRateLimit(async () => {
+      const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${this.apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body
+      });
+
+      const headers = {};
+      response.headers.forEach((value, key) => {
+        headers[key.toLowerCase()] = value;
+      });
+      this.updateRateLimit(headers);
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok || (data && data.success === false)) {
+        const errorMessage = data?.errors?.[0]?.message || response.statusText || 'Unknown error';
+        const error = new Error(`Cloudflare API request failed (${response.status}): ${errorMessage}`);
+        error.response = { status: response.status, data };
+        throw error;
+      }
+
+      return data;
+    });
+  }
+
+  /**
    * Test API connection and get account info
    */
   async testConnection() {
@@ -1214,6 +1249,7 @@ class CloudflareClient {
         ]);
         
         return {
+          source: 'legacy',
           enabled: (schemas.result?.length || 0) > 0 || (endpoints.result?.length || 0) > 0,
           schemas: schemas.result || [],
           endpoints: endpoints.result || []
@@ -1386,6 +1422,173 @@ class CloudflareClient {
         return pages.result || [];
       } catch (error) {
         logger.debug('Custom error pages not available:', error.message);
+        return [];
+      }
+    });
+  }
+
+  /**
+   * Get Turnstile widgets for account
+   */
+  async getTurnstileWidgets(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/challenges/widgets`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Turnstile widgets not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get DNS Firewall policies for account
+   */
+  async getDNSFirewall(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/dns_firewall`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('DNS Firewall not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Logpush jobs for account or zone
+   */
+  async getLogpushJobs({ accountId, zoneId }) {
+    try {
+      const basePath = accountId
+        ? `/accounts/${accountId}`
+        : `/zones/${zoneId}`;
+      const response = await this.rawRequest(`${basePath}/logpush/jobs`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Logpush not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Access certificates for account or zone
+   */
+  async getAccessCertificates({ accountId, zoneId }) {
+    try {
+      const basePath = accountId
+        ? `/accounts/${accountId}`
+        : `/zones/${zoneId}`;
+      const response = await this.rawRequest(`${basePath}/access/certificates`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Access certificates not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get mTLS certificates for account
+   */
+  async getMtlsCertificates({ accountId }) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/mtls_certificates`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('mTLS certificates not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Attack Surface Report issues
+   */
+  async getAttackSurfaceIssues(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/intel/attack-surface-report/issues?per_page=100`);
+      const result = response?.result || {};
+      return {
+        issues: result.issues || [],
+        count: result.count || (result.issues ? result.issues.length : 0)
+      };
+    } catch (error) {
+      logger.debug('Attack Surface Report not available:', error.message);
+      return { issues: [], count: 0 };
+    }
+  }
+
+  /**
+   * Get API Gateway configuration
+   */
+  async getApiGateway(zoneId) {
+    try {
+      const [
+        configuration,
+        discovery,
+        discoveryOperations,
+        operations,
+        schemas,
+        schemaValidation
+      ] = await Promise.all([
+        this.rawRequest(`/zones/${zoneId}/api_gateway/configuration`).catch(() => null),
+        this.rawRequest(`/zones/${zoneId}/api_gateway/discovery`).catch(() => null),
+        this.rawRequest(`/zones/${zoneId}/api_gateway/discovery/operations?per_page=100`).catch(() => null),
+        this.rawRequest(`/zones/${zoneId}/api_gateway/operations?per_page=100`).catch(() => null),
+        this.rawRequest(`/zones/${zoneId}/api_gateway/schemas?per_page=100`).catch(() => null),
+        this.rawRequest(`/zones/${zoneId}/api_gateway/settings/schema_validation`).catch(() => null)
+      ]);
+
+      const schemaList = Array.isArray(schemas?.result) ? schemas.result : [];
+      const discoveryOps = Array.isArray(discoveryOperations?.result) ? discoveryOperations.result : [];
+      const operationsList = Array.isArray(operations?.result) ? operations.result : [];
+      const enabled = Boolean(
+        configuration?.result?.enabled ||
+        schemaList.length ||
+        operationsList.length ||
+        (Array.isArray(discoveryOps) && discoveryOps.length)
+      );
+
+      return {
+        enabled,
+        configuration: configuration?.result || null,
+        discovery: discovery?.result || null,
+        discoveryOperations: Array.isArray(discoveryOps) ? discoveryOps : [],
+        operations: operationsList,
+        schemas: schemaList,
+        schemaValidation: schemaValidation?.result || null
+      };
+    } catch (error) {
+      logger.debug('API Gateway not available:', error.message);
+      return { enabled: false, schemas: [], operations: [] };
+    }
+  }
+
+  /**
+   * Get security.txt configuration
+   */
+  async getSecurityTxt(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/security-center/securitytxt`);
+      return response?.result || {};
+    } catch (error) {
+      logger.debug('security.txt not available:', error.message);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Get rulesets for zone
+   */
+  async getRulesets(zoneId) {
+    return this.executeWithRateLimit(async () => {
+      try {
+        if (this.client.zones?.rulesets?.list) {
+          const rulesets = await this.client.zones.rulesets.list({ zone_id: zoneId });
+          return rulesets.result || [];
+        }
+
+        const response = await this.rawRequest(`/zones/${zoneId}/rulesets`);
+        return response?.result || [];
+      } catch (error) {
+        logger.debug('Rulesets not available:', error.message);
         return [];
       }
     });

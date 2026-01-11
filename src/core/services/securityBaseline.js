@@ -376,6 +376,90 @@ class SecurityBaseline {
         compliance: ['CIS', 'NIST']
       },
 
+      // security.txt Checks
+      {
+        id: 'CFL-SEC-001',
+        category: 'securitytxt',
+        title: 'security.txt Enabled',
+        description: 'Publish a security.txt file for vulnerability disclosure',
+        severity: 'medium',
+        compliance: ['SOC2', 'ISO27001', 'NIST']
+      },
+      {
+        id: 'CFL-SEC-002',
+        category: 'securitytxt',
+        title: 'security.txt Required Fields',
+        description: 'security.txt should include contact, policy, and expires fields',
+        severity: 'low',
+        compliance: ['SOC2', 'ISO27001']
+      },
+
+      // Turnstile Checks
+      {
+        id: 'CFL-TURN-001',
+        category: 'turnstile',
+        title: 'Turnstile Widget Configuration',
+        description: 'Configure Turnstile widgets for human verification',
+        severity: 'low',
+        compliance: ['OWASP']
+      },
+
+      // DNS Firewall Checks
+      {
+        id: 'CFL-DNS-005',
+        category: 'dns-firewall',
+        title: 'DNS Firewall Policies',
+        description: 'Configure DNS Firewall policies to protect upstream resolvers',
+        severity: 'medium',
+        compliance: ['NIST', 'CIS']
+      },
+
+      // Logpush Checks
+      {
+        id: 'CFL-LOG-001',
+        category: 'logpush',
+        title: 'Security Logpush Datasets',
+        description: 'Stream security-relevant logs for monitoring and response',
+        severity: 'medium',
+        compliance: ['SOC2', 'ISO27001', 'NIST']
+      },
+
+      // mTLS Checks
+      {
+        id: 'CFL-MTLS-001',
+        category: 'mtls',
+        title: 'mTLS Certificate Configuration',
+        description: 'Configure mTLS or Access certificates for sensitive services',
+        severity: 'medium',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-MTLS-002',
+        category: 'mtls',
+        title: 'mTLS Certificate Expiry',
+        description: 'Monitor mTLS certificates for upcoming expiration',
+        severity: 'high',
+        compliance: ['SOC2', 'ISO27001']
+      },
+
+      // Attack Surface Report Checks
+      {
+        id: 'CFL-ASM-001',
+        category: 'attack-surface',
+        title: 'Critical Attack Surface Issues',
+        description: 'No critical attack surface issues should be present',
+        severity: 'critical',
+        compliance: ['SOC2', 'ISO27001', 'NIST']
+      },
+      {
+        id: 'CFL-ASM-002',
+        category: 'attack-surface',
+        title: 'Moderate Attack Surface Issues',
+        description: 'Minimize moderate and low attack surface issues',
+        severity: 'medium',
+        compliance: ['SOC2', 'ISO27001']
+      },
+
       // Security Insights Checks
       {
         id: 'CFL-INSIGHT-001',
@@ -533,6 +617,16 @@ class SecurityBaseline {
       'CFL-EMAIL-001': 'Add SPF TXT record with "v=spf1 include:_spf.mx.cloudflare.net ~all".',
       'CFL-EMAIL-002': 'Configure DKIM in Email > Email Routing > DKIM keys.',
       'CFL-EMAIL-003': 'Add DMARC TXT record at _dmarc subdomain with appropriate policy.',
+
+      'CFL-SEC-001': 'Enable security.txt in Cloudflare Security Center > security.txt.',
+      'CFL-SEC-002': 'Add contact, policy, and expires fields to your security.txt.',
+      'CFL-TURN-001': 'Create Turnstile widgets in the Cloudflare dashboard and integrate them with your apps.',
+      'CFL-DNS-005': 'Configure DNS Firewall policies in Cloudflare Gateway to protect upstream resolvers.',
+      'CFL-LOG-001': 'Create Logpush jobs for firewall events, HTTP requests, and DNS logs.',
+      'CFL-MTLS-001': 'Configure mTLS certificates in Zero Trust or Access to protect sensitive services.',
+      'CFL-MTLS-002': 'Rotate or renew mTLS certificates before expiration.',
+      'CFL-ASM-001': 'Address critical attack surface issues reported in Security Center > Attack Surface.',
+      'CFL-ASM-002': 'Reduce moderate and low attack surface issues by hardening exposed assets.',
       
       // Security Insights remediations
       'CFL-INSIGHT-001': 'Immediately address all critical security insights in the Cloudflare Security Center dashboard.',

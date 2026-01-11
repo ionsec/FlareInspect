@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node src/cli/index.js",
+    "web": "node web/server.js",
     "interactive": "node src/cli/interactive.js",
     "test": "jest",
     "lint": "eslint src/",
@@ -42,6 +43,7 @@
     "figlet": "^1.7.0",
     "inquirer": "^8.2.6",
     "cli-table3": "^0.6.3",
+    "express": "^4.19.2",
     "progress": "^2.0.3"
   },
   "devDependencies": {

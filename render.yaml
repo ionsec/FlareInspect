@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: flareinspect-web
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run web
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0

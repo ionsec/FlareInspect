@@ -17,6 +17,23 @@ services:
     working_dir: /app
     # Override command to run assessment
     # command: ["flareinspect", "assess", "--token", "${CLOUDFLARE_TOKEN}", "--output", "/app/output/report.json"]
+
+  flareinspect-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: flareinspect:web
+    container_name: flareinspect-web
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - HOST=0.0.0.0
+      - PORT=3000
+    entrypoint: ["node", "web/server.js"]
+    volumes:
+      - ./web/data:/app/web/data
+    ports:
+      - "3000:3000"
     
   # Interactive mode for development
   flareinspect-dev:

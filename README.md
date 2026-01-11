@@ -1,7 +1,7 @@
 # FlareInspect 🔍
 
 <div align="center">
-  <img src="flare-inspect-logo.svg" alt="FlareInspect Logo" width="200">
+  <img src="flareinspect-logo.png" alt="FlareInspect Logo" width="200">
   
   <br><br>
   
@@ -752,6 +752,36 @@ flareinspect assess --token TOKEN --debug
 # Environment variable
 DEBUG=true flareinspect assess --token TOKEN
 ```
+
+## 🌐 Web App
+
+Run the local web dashboard:
+
+```bash
+npm run web
+```
+
+Notes:
+- The server auto-selects a free port when `PORT` is not set.
+- Assessments are stored locally in `web/data/assessments`.
+- Useful endpoints:
+  - `GET /api/assessment` (latest)
+  - `GET /api/assessments` (history)
+  - `GET /api/assessments/:id`
+  - `GET /api/health`
+
+Run the web app with Docker Compose:
+
+```bash
+docker-compose up flareinspect-web
+```
+
+## 🚀 One-Click Deploy
+
+Deploy the web dashboard with a single click:
+
+- Heroku: https://heroku.com/deploy?template=https://github.com/ionsec/flareinspect
+- Render: https://render.com/deploy?repo=https://github.com/ionsec/flareinspect
 
 ## 🤝 Contributing
 

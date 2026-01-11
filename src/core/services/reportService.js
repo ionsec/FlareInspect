@@ -128,6 +128,11 @@ class ReportService {
   generateSecurityPosture(assessment) {
     const summary = assessment.summary || {};
     const findings = assessment.findings || [];
+    const categories = [...new Set(findings.map(f => f.service))].sort();
+    const securityCategories = categories.reduce((acc, category) => {
+      acc[category] = this.analyzeSecurityCategory(findings, category);
+      return acc;
+    }, {});
 
     return {
       overallPosture: {
@@ -135,15 +140,7 @@ class ReportService {
         grade: assessment.score?.grade || 'F'
       },
       
-      securityCategories: {
-        account: this.analyzeSecurityCategory(findings, 'account'),
-        dns: this.analyzeSecurityCategory(findings, 'dns'),
-        ssl: this.analyzeSecurityCategory(findings, 'ssl'),
-        waf: this.analyzeSecurityCategory(findings, 'waf'),
-        zerotrust: this.analyzeSecurityCategory(findings, 'zerotrust'),
-        performance: this.analyzeSecurityCategory(findings, 'performance'),
-        securityInsights: this.analyzeSecurityCategory(findings, 'security-insights')
-      },
+      securityCategories: securityCategories,
       
       riskDistribution: {
         critical: summary.criticalFindings || 0,
@@ -160,6 +157,11 @@ class ReportService {
    */
   generateSecurityFindings(assessment) {
     const findings = assessment.findings || [];
+    const categories = [...new Set(findings.map(f => f.service))].sort();
+    const findingsByCategory = categories.reduce((acc, category) => {
+      acc[category] = findings.filter(f => f.service === category);
+      return acc;
+    }, {});
     
     return {
       criticalFindings: findings.filter(f => f.severity === 'critical'),
@@ -168,15 +170,7 @@ class ReportService {
       lowRiskFindings: findings.filter(f => f.severity === 'low'),
       informationalFindings: findings.filter(f => f.severity === 'informational'),
       
-      findingsByCategory: {
-        account: findings.filter(f => f.service === 'account'),
-        dns: findings.filter(f => f.service === 'dns'),
-        ssl: findings.filter(f => f.service === 'ssl'),
-        waf: findings.filter(f => f.service === 'waf'),
-        zerotrust: findings.filter(f => f.service === 'zerotrust'),
-        performance: findings.filter(f => f.service === 'performance'),
-        securityInsights: findings.filter(f => f.service === 'security-insights')
-      },
+      findingsByCategory: findingsByCategory,
       
       remediationPriority: this.prioritizeRemediation(findings)
     };
