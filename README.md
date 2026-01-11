@@ -5,18 +5,52 @@
   <p>Cloudflare security assessment CLI + web dashboard</p>
 </div>
 
-## What it does
+## Overview
 
-FlareInspect audits Cloudflare accounts and zones, highlights risks, and exports reports (JSON, HTML, OCSF). It also ships with a local web dashboard for running assessments and downloading reports.
+FlareInspect assesses Cloudflare accounts and zones, highlights security gaps, and exports reports in JSON, HTML, or OCSF. It includes a local web dashboard that runs assessments and manages report downloads.
+
+## Key features
+
+- Account and zone security checks
+- DNS, SSL/TLS, WAF, bot management, rate limiting
+- Zero Trust, Access, mTLS, Turnstile
+- API Gateway (API Shield) discovery and schema validation checks
+- Security Center insights, security.txt checks, and Attack Surface checks
+- Logpush coverage checks for security datasets
+- HTML, JSON, and OCSF exports
+- Local web dashboard with history and downloads
+- Docker and one-click deploy support
+
+## Installation
+
+### NPM
+
+```bash
+npm install -g flareinspect
+```
+
+### Docker
+
+```bash
+docker pull ionsec/flareinspect:latest
+```
+
+### From source
+
+```bash
+git clone https://github.com/ionsec/flareinspect.git
+cd flareinspect
+npm install
+```
 
 ## Quick start
 
 ```bash
-# Install deps
-npm install
+# Run assessment
+flareinspect assess --token YOUR_TOKEN
 
-# Run CLI assessment
-node src/cli/index.js assess --token YOUR_TOKEN
+# Export HTML report
+flareinspect export -i assessment.json -o report.html -f html
 
 # Run web app
 npm run web
@@ -24,9 +58,13 @@ npm run web
 
 ## Web app
 
-- Local dashboard: `npm run web`
-- Auto-picks a free port if `PORT` is not set
-- Stores results in `web/data/assessments`
+```bash
+npm run web
+```
+
+Notes:
+- Auto-selects a free port if `PORT` is not set
+- Stores results locally in `web/data/assessments`
 
 Endpoints:
 - `GET /api/assessment` (latest)
@@ -36,10 +74,15 @@ Endpoints:
 - `GET /api/download/json`
 - `GET /api/download/html`
 
-## Docker
+## One-click deploy
+
+- Heroku: https://heroku.com/deploy?template=https://github.com/ionsec/flareinspect
+- Render: https://render.com/deploy?repo=https://github.com/ionsec/flareinspect
+
+## Docker usage
 
 ```bash
-# Build
+# Build locally
 docker build -t flareinspect .
 
 # Interactive CLI
@@ -49,25 +92,9 @@ docker run -it --rm flareinspect
 docker run --rm -v $(pwd):/app/output flareinspect \
   assess --token YOUR_TOKEN --output /app/output/assessment.json
 
-# Web app
+# Web app via docker-compose
 docker-compose up flareinspect-web
 ```
-
-## One-click deploy
-
-- Heroku: https://heroku.com/deploy?template=https://github.com/ionsec/flareinspect
-- Render: https://render.com/deploy?repo=https://github.com/ionsec/flareinspect
-
-## Features
-
-- Account + zone security checks
-- DNS, SSL/TLS, WAF, bot management, rate limits
-- Zero Trust, Access, mTLS, Turnstile
-- API Gateway (API Shield) discovery + schemas
-- Security Center insights and security.txt checks
-- Logpush and Attack Surface checks
-- HTML + JSON + OCSF exports
-- Local storage + history in the web app
 
 ## Cloudflare API token permissions
 
@@ -86,17 +113,61 @@ Recommended for full coverage:
 - Logpush:Read
 - API Gateway:Read
 
+![Cloudflare API Token Permissions](permissions.png)
+
+## Usage
+
+### CLI
+
+```bash
+flareinspect assess --token YOUR_TOKEN
+flareinspect assess --token YOUR_TOKEN --output assessment.json
+flareinspect assess --token YOUR_TOKEN --output report.html --format html
+```
+
+### Export
+
+```bash
+flareinspect export -i assessment.json -o report.html -f html
+flareinspect export -i assessment.json -o ocsf.json -f ocsf
+```
+
 ## Output formats
 
 - JSON: full assessment data
 - HTML: executive report + charts
 - OCSF: SIEM-ready findings
 
+## Assessment coverage
+
+Account:
+- MFA enforcement and admin access
+- Audit log visibility
+- Zero Trust configuration (IdP, policies, device rules, DLP, gateway)
+- Workers and Pages inventory checks
+- Turnstile widgets
+- DNS Firewall policies
+- Logpush jobs (security datasets)
+- Access and mTLS certificates
+- Security Center insights
+- Attack Surface issues
+
+Zone:
+- DNSSEC, CAA, wildcard records, proxy status
+- SSL mode, minimum TLS, HSTS, Always Use HTTPS
+- WAF security level, firewall rules, rate limiting rulesets
+- Bot management
+- API Shield and API Gateway checks
+- Security Center insights and security.txt
+- Load balancer checks
+- Email routing checks
+
 ## Troubleshooting
 
-- 403 errors: check token scope and account access
-- No zones: token may be scoped too narrowly
-- Security Insights missing: requires Security Center + permission
+- 403 errors: token lacks required permissions
+- No zones: token scope too narrow or no zones available
+- Security Insights missing: requires Security Center and permission
+- Web report styling: ensure CSP allows inline styles and chart CDN
 
 ## Development
 
