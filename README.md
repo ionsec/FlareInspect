@@ -3,6 +3,11 @@
 <div align="center">
   <img src="flareinspect-logo.png" alt="FlareInspect Logo" width="200">
   <p>Cloudflare security assessment CLI and local web dashboard</p>
+  <p>
+    <a href="https://github.com/ionsec/flareinspect/actions"><img src="https://img.shields.io/badge/node-%3E%3D20.0.0-green" alt="Node.js ≥20"></a>
+    <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
+    <img src="https://img.shields.io/badge/version-1.1.0-orange" alt="Version 1.1.0">
+  </p>
 </div>
 
 ## Overview
@@ -18,18 +23,19 @@ The current `1.1.0` release includes:
 - exporters for `json`, `html`, `ocsf`, `sarif`, `markdown`, `csv`, and `asff`
 - shared config file support
 - local web APIs with optional header-based API key protection
+- **full documentation at [flareinspect.readthedocs.io](https://flareinspect.readthedocs.io)**
 
 ## Key Features
 
-- Cloudflare account and zone security assessments
+- Cloudflare account and zone security assessments — 40+ checks across 21 categories
 - Evidence-rich findings for key controls such as MFA, admin access, audit logs, DNS, TLS, and WAF posture
 - Detailed HTML and Markdown review sections including analysis and affected entities
 - Drift detection between assessment runs with `flareinspect diff`
 - Compliance mapping for `cis`, `soc2`, `pci`, and `nist`
-- Contextual scoring and CI/CD gate support
+- Contextual scoring (CVSS-inspired) with CI/CD gate support
 - Export formats for `json`, `html`, `ocsf`, `sarif`, `markdown`, `csv`, and `asff`
-- Local web dashboard with assessment history and report downloads
-- Shared config file support for repeatable team workflows
+- Local web dashboard with assessment history, compliance reports, and report downloads
+- Shared config file support (`.flareinspect.yml`, `.flareinspect.yaml`, `flareinspect.config.json`)
 - Docker and Render deployment support
 - Plugin scaffold support for trusted local extensions
 
@@ -85,6 +91,27 @@ The HTML and Markdown reports also include:
 - `Traffic Protection Analysis`
 - `Logging and Forensics Analysis`
 
+## Security Checks
+
+FlareInspect runs 40+ security checks across 21 categories:
+
+| Category | Checks | Key Areas |
+|----------|--------|------------|
+| Account | 5 | MFA, admin access, audit logs, token security |
+| DNS | 5 | DNSSEC, proxy status, wildcards, CAA, DoH |
+| SSL/TLS | 5 | SSL mode, TLS version, HSTS, cert validity |
+| WAF | 5 | Security level, custom rules, rate limiting, OWASP |
+| Zero Trust | 6+ | IdP, access policies, device enrollment, tunnels, gateway |
+| Workers & Pages | 4 | Route security, resource limits, deployment protection |
+| API Gateway | 2 | API Shield, API Discovery |
+| Bot Management | 2 | Bot Fight Mode, Turnstile |
+| Email Security | 3 | Routing, SPF/DKIM/DMARC, encryption |
+| Attack Surface | 7 | Security Center, exposed credentials, origin IP exposure |
+| Modern Features | 9+ | DLP, Page Shield, AI Gateway, Cache Deception, Snippets, Tunnels, Gateway, Custom Hostnames, Origin Certs |
+| and more | | Logpush, mTLS, security.txt, Load Balancing |
+
+See the [full check catalog](https://flareinspect.readthedocs.io/en/latest/checks/) for every check ID, severity, compliance mapping, and remediation guidance.
+
 ## Configuration
 
 FlareInspect can load settings from:
@@ -122,7 +149,7 @@ ci:
   failOn: high
 ```
 
-CLI flags override config file values.
+CLI flags override config file values. See [Configuration Docs](https://flareinspect.readthedocs.io/en/latest/configuration/config-file/) for details.
 
 ## CLI Usage
 
@@ -136,35 +163,9 @@ flareinspect assess --compliance cis --sensitivity high
 flareinspect assess --ci --threshold 80 --fail-on high
 ```
 
-Important notes:
-
-- `--checks` now filters validated assessment categories instead of being a no-op.
-- `--zones` only assesses named zones visible to the supplied token.
-- if your token can only enumerate one zone, the assessment will only cover that visible zone even if the account owns more elsewhere.
-
 Supported `--checks` categories include:
 
-- `account`
-- `dns`
-- `ssl`
-- `waf`
-- `zerotrust`
-- `workers`
-- `pages`
-- `api`
-- `bot`
-- `logpush`
-- `mtls`
-- `securitytxt`
-- `attack-surface`
-- `dlp`
-- `tunnels`
-- `gateway`
-- `page-shield`
-- `cache`
-- `snippets`
-- `custom-hostnames`
-- `ai-gateway`
+`account` · `dns` · `ssl` · `waf` · `zerotrust` · `workers` · `pages` · `api` · `bot` · `logpush` · `mtls` · `securitytxt` · `attack-surface` · `dlp` · `tunnels` · `gateway` · `page-shield` · `cache` · `snippets` · `custom-hostnames` · `ai-gateway`
 
 ### Export
 
@@ -184,15 +185,45 @@ flareinspect diff --baseline previous.json --current current.json
 flareinspect diff --baseline previous.json --current current.json -f markdown -o drift.md
 ```
 
+## Compliance Mapping
+
+Map findings to industry frameworks:
+
+```bash
+flareinspect assess --token $TOKEN --compliance cis
+flareinspect assess --token $TOKEN --compliance soc2
+flareinspect assess --token $TOKEN --compliance pci
+flareinspect assess --token $TOKEN --compliance nist
+```
+
+Each framework produces a report with control mappings, pass rates, and overall scores. See [Compliance Docs](https://flareinspect.readthedocs.io/en/latest/compliance/).
+
+## Contextual Scoring
+
+Adjust severity based on zone plan, exposure, and data sensitivity:
+
+```bash
+flareinspect assess --token $TOKEN --sensitivity critical
+```
+
+| Plan | Multiplier | Sensitivity | Multiplier |
+|------|-----------|-------------|-----------|
+| Free | 1.3× | Critical (PII, financial) | 1.5× |
+| Pro | 1.1× | High (business-sensitive) | 1.3× |
+| Business | 1.0× | Medium (standard) | 1.0× |
+| Enterprise | 0.9× | Low (public info) | 0.8× |
+
 ## Output Formats
 
-- `json`: native FlareInspect assessment output, including full findings, report model, and configuration snapshot
-- `html`: human-readable report with detailed findings review and analysis sections
-- `ocsf`: OCSF-oriented JSON document
-- `sarif`: static-analysis style findings for code scanning tools
-- `markdown`: lightweight review report suitable for tickets, PRs, and audit notes
-- `csv`: flattened findings with evidence columns such as observed, expected, affected entities, and counts
-- `asff`: AWS Security Finding Format for Security Hub style ingestion
+| Format | Best For |
+|--------|----------|
+| `json` | Programmatic access, re-import, full fidelity |
+| `html` | Human review, management reporting, interactive charts |
+| `ocsf` | SIEM ingestion, OCSF-compliant pipelines |
+| `sarif` | GitHub Code Scanning, static analysis tools |
+| `markdown` | Tickets, PRs, audit notes, wikis |
+| `csv` | Spreadsheet analysis, filtered evidence review |
+| `asff` | AWS Security Hub, Security Finding Format pipelines |
 
 ## Web App
 
@@ -212,25 +243,23 @@ Assessment data is stored in `web/data/assessments`.
 
 API endpoints:
 
-- `POST /api/assess`
-- `GET /api/assessment`
-- `GET /api/assessments`
-- `GET /api/assessments/:id`
-- `GET /api/compliance/:framework`
-- `POST /api/diff`
-- `GET /api/download/json`
-- `GET /api/download/html`
-- `GET /api/download/sarif`
-- `GET /api/download/markdown`
-- `GET /api/download/csv`
-- `GET /api/download/asff`
-- `GET /api/health`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/assess` | Run a new assessment |
+| GET | `/api/assessment` | Get latest assessment |
+| GET | `/api/assessments` | List assessment history |
+| GET | `/api/assessments/:id` | Get assessment by ID |
+| GET | `/api/compliance/:framework` | Get compliance report (cis/soc2/pci/nist) |
+| POST | `/api/diff` | Compare two assessments |
+| GET | `/api/download/json` | Download JSON |
+| GET | `/api/download/html` | Download HTML report |
+| GET | `/api/download/sarif` | Download SARIF |
+| GET | `/api/download/markdown` | Download Markdown |
+| GET | `/api/download/csv` | Download CSV |
+| GET | `/api/download/asff` | Download ASFF |
+| GET | `/api/health` | Health check |
 
-Web API notes:
-
-- API key authentication is header-only. Use `X-API-Key`.
-- The server validates assessment IDs, framework names, concurrency values, and zone list sizes before processing requests.
-- Unexpected server errors return generic responses rather than internal stack traces.
+See the [API Reference](https://flareinspect.readthedocs.io/en/latest/web-dashboard/api-reference/) for full details.
 
 ## Docker
 
@@ -254,6 +283,20 @@ The compose file exposes:
 - `flareinspect` for CLI execution
 - `flareinspect-web` for the dashboard
 - `flareinspect-dev` for interactive development
+
+## CI/CD Integration
+
+Use FlareInspect in CI pipelines to gate deployments on security posture:
+
+```yaml
+# GitHub Actions example
+- name: Cloudflare Security Assessment
+  run: |
+    node src/cli/index.js assess --token ${{ secrets.CLOUDFLARE_TOKEN }} \
+      --ci --threshold 80 --fail-on high
+```
+
+See [CI/CD Docs](https://flareinspect.readthedocs.io/en/latest/ci-cd/github-actions/) for GitHub Actions, GitLab CI, and exit code details.
 
 ## Security Notes
 
@@ -290,6 +333,22 @@ Recommended for broader coverage:
 
 ![Cloudflare API Token Permissions](permissions.png)
 
+## Documentation
+
+Full documentation is available at [flareinspect.readthedocs.io](https://flareinspect.readthedocs.io):
+
+- [Getting Started](https://flareinspect.readthedocs.io/en/latest/getting-started/) — Run your first assessment
+- [CLI Reference](https://flareinspect.readthedocs.io/en/latest/cli/assess/) — All commands and options
+- [Security Checks](https://flareinspect.readthedocs.io/en/latest/checks/) — Full check catalog with remediation
+- [Export Formats](https://flareinspect.readthedocs.io/en/latest/export-formats/) — JSON, HTML, OCSF, SARIF, Markdown, CSV, ASFF
+- [Compliance Mapping](https://flareinspect.readthedocs.io/en/latest/compliance/) — CIS, SOC 2, PCI-DSS, NIST CSF
+- [Drift Detection](https://flareinspect.readthedocs.io/en/latest/drift-detection/) — Compare assessments for regressions
+- [Web Dashboard](https://flareinspect.readthedocs.io/en/latest/web-dashboard/) — API reference and authentication
+- [CI/CD Integration](https://flareinspect.readthedocs.io/en/latest/ci-cd/github-actions/) — GitHub Actions and GitLab CI
+- [Deployment](https://flareinspect.readthedocs.io/en/latest/deployment/docker/) — Docker, Render, standalone
+- [Architecture](https://flareinspect.readthedocs.io/en/latest/architecture/overview/) — Data flow and module map
+- [Plugin Development](https://flareinspect.readthedocs.io/en/latest/plugins/writing-plugins/) — Extend FlareInspect
+
 ## Development
 
 ```bash
@@ -307,6 +366,7 @@ Helpful files:
 - `templates/report.html` for the HTML report template
 - `web/` for the local dashboard and API
 - `tests/` for regression coverage
+- `docs/` for the MkDocs documentation source
 
 ## Contributing
 
