@@ -5,6 +5,7 @@
  */
 
 const logger = require('../utils/logger');
+const pkg = require('../../../package.json');
 
 class ReportService {
   constructor() {
@@ -26,6 +27,8 @@ class ReportService {
       findingsCount: assessment.findings?.length || 0
     });
 
+    const detailedFindings = this.buildDetailedFindings(assessment.findings || []);
+
     const report = {
       // Executive Summary
       executiveSummary: this.generateExecutiveSummary(assessment),
@@ -37,7 +40,10 @@ class ReportService {
       securityPosture: this.generateSecurityPosture(assessment),
       
       // Security Findings
-      securityFindings: this.generateSecurityFindings(assessment),
+      securityFindings: this.generateSecurityFindings(assessment, detailedFindings),
+
+      // Analysis
+      analysis: this.generateAnalysis(assessment, detailedFindings),
       
       // Security Insights Details
       securityInsightsDetails: this.generateSecurityInsightsDetails(assessment),
@@ -50,7 +56,7 @@ class ReportService {
         assessmentId: assessment.assessmentId,
         timestamp: assessment.startedAt,
         duration: assessment.executionTime,
-        toolVersion: '1.0.0',
+        toolVersion: pkg.version,
         vendor: 'IONSEC.IO'
       }
     };
@@ -155,22 +161,31 @@ class ReportService {
   /**
    * Generate security findings section
    */
-  generateSecurityFindings(assessment) {
+  generateSecurityFindings(assessment, detailedFindings = this.buildDetailedFindings(assessment.findings || [])) {
     const findings = assessment.findings || [];
     const categories = [...new Set(findings.map(f => f.service))].sort();
     const findingsByCategory = categories.reduce((acc, category) => {
-      acc[category] = findings.filter(f => f.service === category);
+      acc[category] = detailedFindings.filter(f => f.service === category);
       return acc;
     }, {});
+    const findingsBySeverity = {
+      critical: detailedFindings.filter(f => f.severity === 'critical'),
+      high: detailedFindings.filter(f => f.severity === 'high'),
+      medium: detailedFindings.filter(f => f.severity === 'medium'),
+      low: detailedFindings.filter(f => f.severity === 'low'),
+      informational: detailedFindings.filter(f => f.severity === 'informational')
+    };
     
     return {
-      criticalFindings: findings.filter(f => f.severity === 'critical'),
-      highRiskFindings: findings.filter(f => f.severity === 'high'),
-      mediumRiskFindings: findings.filter(f => f.severity === 'medium'),
-      lowRiskFindings: findings.filter(f => f.severity === 'low'),
-      informationalFindings: findings.filter(f => f.severity === 'informational'),
+      criticalFindings: findingsBySeverity.critical,
+      highRiskFindings: findingsBySeverity.high,
+      mediumRiskFindings: findingsBySeverity.medium,
+      lowRiskFindings: findingsBySeverity.low,
+      informationalFindings: findingsBySeverity.informational,
       
       findingsByCategory: findingsByCategory,
+      findingsBySeverity,
+      detailedFindings,
       
       remediationPriority: this.prioritizeRemediation(findings)
     };
@@ -257,6 +272,37 @@ class ReportService {
       byType: insightsByType,
       findings: insightsFindings,
       recommendations: this.generateInsightsRecommendations(allInsights)
+    };
+  }
+
+  generateAnalysis(assessment, detailedFindings = this.buildDetailedFindings(assessment.findings || [])) {
+    return {
+      identityAccess: this.generateFocusedAnalysis(
+        detailedFindings,
+        ['account', 'zero-trust'],
+        'Identity and access controls show the highest leverage fixes around MFA coverage, named administrators, and auditability.'
+      ),
+      zoneExposure: this.generateFocusedAnalysis(
+        detailedFindings,
+        ['dns', 'security-insights'],
+        'Zone exposure analysis focuses on origin exposure, wildcard DNS, and other records that broaden public attack surface.'
+      ),
+      transportTls: this.generateFocusedAnalysis(
+        detailedFindings,
+        ['ssl', 'mtls', 'custom-hostnames', 'origin-certificates'],
+        'Transport analysis highlights weak TLS, missing HSTS, certificate hygiene, and encryption posture gaps.'
+      ),
+      trafficProtection: this.generateFocusedAnalysis(
+        detailedFindings,
+        ['waf', 'api', 'bot', 'gateway'],
+        'Traffic protection analysis highlights missing WAF, rate limiting, managed rulesets, and API-layer guardrails.'
+      ),
+      loggingForensics: this.generateFocusedAnalysis(
+        detailedFindings,
+        ['logpush', 'account', 'security-insights'],
+        'Logging and forensics readiness depend on retained audit trails and telemetry export for critical security actions.'
+      ),
+      reviewerSummary: this.generateReviewerSummary(assessment, detailedFindings)
     };
   }
 
@@ -394,7 +440,7 @@ class ReportService {
   }
 
   getTopRisks(assessment, limit = 5) {
-    const findings = assessment.findings || [];
+    const findings = this.buildDetailedFindings(assessment.findings || []);
     
     const severityWeight = {
       'critical': 10,
@@ -413,7 +459,11 @@ class ReportService {
         severity: finding.severity,
         service: finding.service,
         description: finding.description,
-        remediation: finding.remediation
+        remediation: finding.remediation,
+        resource: finding.resourceName || finding.resourceId,
+        evidenceSummary: finding.evidence?.summary,
+        observed: finding.evidence?.observed,
+        affectedEntities: finding.evidence?.affectedEntities || []
       }));
   }
 
@@ -521,6 +571,110 @@ class ReportService {
       phase1: 'Critical and High severity issues (0-30 days)',
       phase2: 'Medium severity issues and quick wins (30-90 days)',
       phase3: 'Long-term improvements and optimization (90+ days)'
+    };
+  }
+
+  buildDetailedFindings(findings) {
+    const severityOrder = ['critical', 'high', 'medium', 'low', 'informational'];
+
+    return findings
+      .map(finding => this.normalizeFindingForReport(finding))
+      .sort((a, b) => {
+        const severityDelta = severityOrder.indexOf(a.severity) - severityOrder.indexOf(b.severity);
+        if (severityDelta !== 0) return severityDelta;
+        if (a.status !== b.status) return a.status === 'FAIL' ? -1 : 1;
+        return a.checkTitle.localeCompare(b.checkTitle);
+      });
+  }
+
+  normalizeFindingForReport(finding) {
+    const evidence = this.normalizeEvidence(finding.evidence, finding);
+
+    return {
+      ...finding,
+      resourceName: finding.metadata?.resourceName || finding.resourceId,
+      evidence,
+      reviewSummary: this.buildReviewSummary(finding, evidence),
+      analysis: this.buildFindingAnalysis(finding, evidence)
+    };
+  }
+
+  normalizeEvidence(evidence, finding) {
+    return {
+      summary: evidence?.summary || finding.description,
+      expected: evidence?.expected ?? finding.metadata?.expectedValue ?? null,
+      observed: evidence?.observed ?? finding.metadata?.actualValue ?? null,
+      affectedEntities: Array.isArray(evidence?.affectedEntities) ? evidence.affectedEntities : [],
+      counts: evidence?.counts && typeof evidence.counts === 'object' ? evidence.counts : {},
+      source: evidence?.source && typeof evidence.source === 'object' ? evidence.source : {},
+      raw: evidence?.raw && typeof evidence.raw === 'object' ? evidence.raw : {},
+      reviewGuidance: evidence?.reviewGuidance || 'Review the observed state and validate that the affected identities/resources are expected.'
+    };
+  }
+
+  buildReviewSummary(finding, evidence) {
+    const entityCount = evidence.affectedEntities.length;
+    const countText = entityCount > 0 ? `${entityCount} named item(s) affected.` : 'No named affected entities were returned.';
+    return `${evidence.summary} ${countText} ${evidence.reviewGuidance}`.trim();
+  }
+
+  buildFindingAnalysis(finding, evidence) {
+    const parts = [];
+
+    if (finding.status === 'FAIL' || finding.status === 'WARNING') {
+      parts.push(`Observed state: ${String(evidence.observed ?? 'unknown')}.`);
+      if (evidence.expected) {
+        parts.push(`Expected state: ${String(evidence.expected)}.`);
+      }
+      if (evidence.affectedEntities.length > 0) {
+        parts.push(`Affected objects: ${evidence.affectedEntities.slice(0, 5).map(entity => entity.name || entity.email || entity.id || entity.resource || 'unknown').join(', ')}.`);
+      }
+    } else {
+      parts.push(`Control validated with observed state: ${String(evidence.observed ?? 'compliant')}.`);
+    }
+
+    return parts.join(' ');
+  }
+
+  generateFocusedAnalysis(findings, services, defaultNarrative) {
+    const relevantFindings = findings.filter(f => services.includes(f.service));
+    const failingFindings = relevantFindings.filter(f => ['FAIL', 'WARNING'].includes(f.status));
+
+    return {
+      summary: failingFindings.length > 0
+        ? `${defaultNarrative} ${failingFindings.length} finding(s) require review in this area.`
+        : `No failing findings were recorded in this area. ${defaultNarrative}`,
+      failingFindings: failingFindings.slice(0, 10),
+      topAffectedEntities: this.collectTopAffectedEntities(failingFindings),
+      quickWins: failingFindings.slice(0, 3).map(f => ({
+        title: f.checkTitle,
+        action: this.formatRemediationAction(f.remediation),
+        reviewGuidance: f.evidence.reviewGuidance
+      }))
+    };
+  }
+
+  collectTopAffectedEntities(findings) {
+    return findings
+      .flatMap(f => f.evidence.affectedEntities || [])
+      .slice(0, 10);
+  }
+
+  generateReviewerSummary(assessment, findings) {
+    const failingFindings = findings.filter(f => ['FAIL', 'WARNING'].includes(f.status));
+    const topFixes = failingFindings.slice(0, 5).map(f => ({
+      title: f.checkTitle,
+      service: f.service,
+      resource: f.resourceName || f.resourceId,
+      observed: f.evidence.observed,
+      reviewGuidance: f.evidence.reviewGuidance
+    }));
+
+    return {
+      accountName: assessment.account?.name || 'Unknown',
+      totalFailingFindings: failingFindings.length,
+      namedAffectedEntities: this.collectTopAffectedEntities(failingFindings),
+      topFixes
     };
   }
 }

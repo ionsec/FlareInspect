@@ -108,6 +108,7 @@ class HTMLExporter {
     const findings = report.securityFindings || {};
     const recommendations = report.recommendations || {};
     const insightsDetails = report.securityInsightsDetails || {};
+    const analysis = report.analysis || {};
 
     // Calculate score circle values
     const score = assessment.score?.overallScore || 0;
@@ -177,6 +178,7 @@ class HTMLExporter {
       // Findings arrays filtered by status - only show failures
       criticalFindings: (findings.criticalFindings || []).filter(f => f.status === 'FAIL'),
       highRiskFindings: (findings.highRiskFindings || []).filter(f => f.status === 'FAIL'),
+      detailedFindings: this.prepareDetailedFindings(findings.detailedFindings || []),
       
       // Recommendations
       immediateActions: recommendations.immediate || [],
@@ -190,7 +192,10 @@ class HTMLExporter {
       hasSecurityInsights: insightsDetails.available && insightsDetails.insights?.length > 0,
       securityInsights: this.prepareSecurityInsights(insightsDetails),
       securityInsightsSummary: overview.securityInsights || {},
-      insightsBySeverity: this.prepareInsightsBySeverity(insightsDetails.insights || [])
+      insightsBySeverity: this.prepareInsightsBySeverity(insightsDetails.insights || []),
+
+      // Narrative analysis
+      analysisSections: this.prepareAnalysisSections(analysis)
     };
   }
 
@@ -257,6 +262,63 @@ class HTMLExporter {
       statusClass: data.status || 'unknown',
       findings: data.findings || 0,
       criticalIssues: data.criticalIssues || 0
+    }));
+  }
+
+  prepareDetailedFindings(findings) {
+    return findings
+      .filter(finding => ['FAIL', 'WARNING'].includes(finding.status))
+      .map(finding => ({
+        ...finding,
+        severityClass: (finding.severity || 'informational').toLowerCase(),
+        resourceDisplay: finding.resourceName || finding.metadata?.resourceName || finding.resourceId || 'N/A',
+        evidenceSummary: finding.evidence?.summary || finding.description,
+        observed: finding.evidence?.observed ?? 'Unknown',
+        expected: finding.evidence?.expected ?? 'Not specified',
+        reviewGuidance: finding.evidence?.reviewGuidance || 'Review the affected resources and validate the expected state.',
+        counts: this.formatKeyValuePairs(finding.evidence?.counts),
+        sourceDetails: this.formatKeyValuePairs(finding.evidence?.source),
+        affectedEntities: this.prepareAffectedEntities(finding.evidence?.affectedEntities || [])
+      }));
+  }
+
+  prepareAffectedEntities(entities) {
+    return entities.map(entity => ({
+      primary: entity.name || entity.email || entity.id || entity.resource || 'Unknown',
+      secondary: [entity.email, entity.type, entity.action, entity.resource]
+        .filter(Boolean)
+        .join(' | '),
+      detail: this.formatKeyValuePairs(entity)
+    }));
+  }
+
+  prepareAnalysisSections(analysis) {
+    const sectionLabels = {
+      identityAccess: 'Identity and Access Analysis',
+      zoneExposure: 'Zone Exposure Analysis',
+      transportTls: 'Transport and TLS Analysis',
+      trafficProtection: 'Traffic Protection Analysis',
+      loggingForensics: 'Logging and Forensics Analysis'
+    };
+
+    return Object.entries(sectionLabels)
+      .filter(([key]) => analysis[key])
+      .map(([key, label]) => ({
+        title: label,
+        summary: analysis[key].summary,
+        quickWins: analysis[key].quickWins || [],
+        affectedEntities: this.prepareAffectedEntities(analysis[key].topAffectedEntities || [])
+      }));
+  }
+
+  formatKeyValuePairs(value) {
+    if (!value || typeof value !== 'object') {
+      return [];
+    }
+
+    return Object.entries(value).map(([key, entryValue]) => ({
+      key: this.capitalizeFirst(String(key).replace(/_/g, ' ')),
+      value: Array.isArray(entryValue) ? entryValue.join(', ') : String(entryValue)
     }));
   }
 

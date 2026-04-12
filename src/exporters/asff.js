@@ -5,6 +5,7 @@
  */
 
 const logger = require('../core/utils/logger');
+const pkg = require('../../package.json');
 
 class ASFFExporter {
   async export(assessment) {
@@ -18,7 +19,7 @@ class ASFFExporter {
       ProductArn: 'arn:aws:securityhub:::product:ionsec/flareinspect',
       ProductFields: {
         Product: 'FlareInspect',
-        Version: '1.0.0',
+        Version: pkg.version,
         CheckId: finding.checkId,
         Service: finding.service,
         Provider: 'Cloudflare'

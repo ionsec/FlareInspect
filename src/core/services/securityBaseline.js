@@ -642,7 +642,29 @@ class SecurityBaseline {
   /**
    * Create a finding from a check
    */
-  createFinding(check, status, actualValue, expectedValue, resource) {
+  createFinding(check, status, actualValue, expectedValue, resource, options = {}) {
+    const metadata = {
+      actualValue,
+      expectedValue,
+      resourceName: resource?.name,
+      ...(options.metadata || {})
+    };
+
+    const evidence = this.normalizeEvidence({
+      summary: options.evidence?.summary || `${check.title}: expected ${expectedValue}, observed ${actualValue}.`,
+      expected: options.evidence?.expected ?? expectedValue,
+      observed: options.evidence?.observed ?? actualValue,
+      affectedEntities: options.evidence?.affectedEntities,
+      counts: options.evidence?.counts,
+      source: options.evidence?.source || {
+        category: check.category,
+        checkId: check.id,
+        resourceType: resource?.type || 'resource'
+      },
+      raw: options.evidence?.raw,
+      reviewGuidance: options.evidence?.reviewGuidance
+    });
+
     return {
       id: uuidv4(),
       checkId: check.id,
@@ -652,15 +674,25 @@ class SecurityBaseline {
       status: status,
       description: `${check.description}. Expected: ${expectedValue}, Actual: ${actualValue}`,
       remediation: this.getRemediation(check.id),
-      resourceId: resource.id,
-      resourceType: resource.type,
+      resourceId: resource?.id,
+      resourceType: resource?.type,
       timestamp: new Date(),
       compliance: check.compliance,
-      metadata: {
-        actualValue,
-        expectedValue,
-        resourceName: resource.name
-      }
+      metadata,
+      evidence
+    };
+  }
+
+  normalizeEvidence(evidence = {}) {
+    return {
+      summary: evidence.summary || 'No detailed evidence captured.',
+      expected: evidence.expected ?? null,
+      observed: evidence.observed ?? null,
+      affectedEntities: Array.isArray(evidence.affectedEntities) ? evidence.affectedEntities : [],
+      counts: evidence.counts && typeof evidence.counts === 'object' ? evidence.counts : {},
+      source: evidence.source && typeof evidence.source === 'object' ? evidence.source : {},
+      raw: evidence.raw && typeof evidence.raw === 'object' ? evidence.raw : {},
+      reviewGuidance: evidence.reviewGuidance || 'Review the affected resource and compare the observed state with the expected baseline.'
     };
   }
 

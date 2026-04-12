@@ -5,6 +5,7 @@
  */
 
 const logger = require('../core/utils/logger');
+const pkg = require('../../package.json');
 
 class SARIFExporter {
   async export(assessment) {
@@ -21,7 +22,7 @@ class SARIFExporter {
         tool: {
           driver: {
             name: 'FlareInspect',
-            version: '1.0.0',
+            version: pkg.version,
             informationUri: 'https://github.com/ionsec/flareinspect',
             organization: 'IONSEC.IO',
             rules

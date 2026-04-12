@@ -6,6 +6,7 @@
 
 const { toOCSF, convertFindingsToOCSF } = require('../core/utils/ocsf');
 const logger = require('../core/utils/logger');
+const pkg = require('../../package.json');
 
 class JSONExporter {
   /**
@@ -18,7 +19,7 @@ class JSONExporter {
       metadata: {
         exportedAt: new Date().toISOString(),
         exportFormat: 'flareinspect-json',
-        version: '1.0.0',
+        version: pkg.version,
         vendor: 'IONSEC.IO'
       },
       assessment: {
@@ -54,12 +55,12 @@ class JSONExporter {
         version: '1.1.0',
         extension: {
           name: 'cloudflare',
-          version: '1.0.0'
+          version: pkg.version
         },
         product: {
           name: 'FlareInspect',
           vendor_name: 'IONSEC.IO',
-          version: '1.0.0',
+          version: pkg.version,
           lang: 'en'
         },
         profiles: ['cloud', 'security_control'],

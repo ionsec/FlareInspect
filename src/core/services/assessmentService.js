@@ -687,6 +687,23 @@ class AssessmentService {
   async checkAccountSecurity(account, members, auditLogs, assessment) {
     const findings = [];
     const accountChecks = this.securityBaseline.getChecksByCategory('account');
+    const accountResource = { id: account.id, type: 'account', name: account.name };
+    const sanitizeMember = (member) => ({
+      id: member.id || member.user?.id || null,
+      name: member.user?.first_name && member.user?.last_name
+        ? `${member.user.first_name} ${member.user.last_name}`
+        : member.user?.email || member.user?.username || member.id || 'Unknown',
+      email: member.user?.email || null,
+      status: member.status || null,
+      roles: (member.roles || []).map(role => role.name).filter(Boolean)
+    });
+    const sampleAuditLog = (entry) => ({
+      id: entry.id || null,
+      action: entry.action?.type || entry.action?.result || entry.action || null,
+      actor: entry.actor?.email || entry.actor?.ip || entry.actor?.id || null,
+      when: entry.when || entry.created_on || entry.timestamp || null,
+      resource: entry.resource?.id || entry.resource?.name || null
+    });
 
     // Check 1: MFA Enforcement
     const mfaCheck = accountChecks.find(c => c.id === 'CFL-ACC-001');
@@ -712,7 +729,33 @@ class AssessmentService {
         'FAIL',
         `${membersWithoutMfa.length} members without MFA`,
         'All members with MFA enabled',
-        { id: account.id, type: 'account', name: account.name }
+        accountResource,
+        {
+          metadata: {
+            membersWithoutMfa: membersWithoutMfa.length
+          },
+          evidence: {
+            summary: `${membersWithoutMfa.length} account members can access Cloudflare without MFA.`,
+            expected: 'All account members should have MFA enabled.',
+            observed: `${membersWithoutMfa.length} members do not have MFA enabled.`,
+            affectedEntities: membersWithoutMfa.map(sanitizeMember),
+            counts: {
+              totalMembers: members.length,
+              membersWithoutMfa: membersWithoutMfa.length
+            },
+            source: {
+              category: 'account-members',
+              endpoint: 'accounts.members.list'
+            },
+            raw: {
+              membersWithoutMfa: membersWithoutMfa.map(member => ({
+                id: member.id || member.user?.id || null,
+                email: member.user?.email || null
+              }))
+            },
+            reviewGuidance: 'Review the listed identities, require MFA for all of them, and verify the access path uses enforced MFA or SSO controls.'
+          }
+        }
       ));
     } else {
       findings.push(this.securityBaseline.createFinding(
@@ -720,7 +763,23 @@ class AssessmentService {
         'PASS',
         'All members have MFA enabled',
         'All members with MFA enabled',
-        { id: account.id, type: 'account', name: account.name }
+        accountResource,
+        {
+          evidence: {
+            summary: 'All discovered account members have MFA enabled.',
+            expected: 'All account members should have MFA enabled.',
+            observed: 'No members without MFA were detected.',
+            counts: {
+              totalMembers: members.length,
+              membersWithoutMfa: 0
+            },
+            source: {
+              category: 'account-members',
+              endpoint: 'accounts.members.list'
+            },
+            reviewGuidance: 'Keep auditing new member invitations and SSO enforcement so this remains true.'
+          }
+        }
       ));
     }
 
@@ -736,7 +795,30 @@ class AssessmentService {
         'FAIL',
         `${adminUsers.length} admin users`,
         '3 or fewer admin users',
-        { id: account.id, type: 'account', name: account.name }
+        accountResource,
+        {
+          metadata: {
+            adminUsers: adminUsers.length
+          },
+          evidence: {
+            summary: `${adminUsers.length} identities currently hold administrative roles in the account.`,
+            expected: 'Administrative access should be limited to 3 or fewer trusted operators.',
+            observed: `${adminUsers.length} admin users were discovered.`,
+            affectedEntities: adminUsers.map(sanitizeMember),
+            counts: {
+              totalMembers: members.length,
+              adminUsers: adminUsers.length
+            },
+            source: {
+              category: 'account-members',
+              endpoint: 'accounts.members.list'
+            },
+            raw: {
+              adminRoleNames: [...new Set(adminUsers.flatMap(member => (member.roles || []).map(role => role.name).filter(Boolean)))]
+            },
+            reviewGuidance: 'Confirm each listed admin still needs elevated access, reduce standing admin privileges, and move routine users to least-privilege roles.'
+          }
+        }
       ));
     } else {
       findings.push(this.securityBaseline.createFinding(
@@ -744,7 +826,24 @@ class AssessmentService {
         'PASS',
         `${adminUsers.length} admin users`,
         '3 or fewer admin users',
-        { id: account.id, type: 'account', name: account.name }
+        accountResource,
+        {
+          evidence: {
+            summary: `Administrative access is limited to ${adminUsers.length} user(s).`,
+            expected: 'Administrative access should be limited to 3 or fewer trusted operators.',
+            observed: `${adminUsers.length} admin users were discovered.`,
+            affectedEntities: adminUsers.map(sanitizeMember),
+            counts: {
+              totalMembers: members.length,
+              adminUsers: adminUsers.length
+            },
+            source: {
+              category: 'account-members',
+              endpoint: 'accounts.members.list'
+            },
+            reviewGuidance: 'Maintain a named roster of administrators and review it during joiner/mover/leaver changes.'
+          }
+        }
       ));
     }
 
@@ -757,7 +856,22 @@ class AssessmentService {
         'FAIL',
         'Audit logs not available',
         'Audit logs enabled and monitored',
-        { id: account.id, type: 'account', name: account.name }
+        accountResource,
+        {
+          evidence: {
+            summary: 'No recent audit log records were available to the assessment.',
+            expected: 'Audit logs should be available and monitored for security-relevant actions.',
+            observed: 'No audit log events were returned.',
+            counts: {
+              recentAuditEvents: 0
+            },
+            source: {
+              category: 'audit-logs',
+              endpoint: 'accounts.audit_logs.list'
+            },
+            reviewGuidance: 'Verify audit logging entitlements, retention, export configuration, and monitoring coverage for administrative actions.'
+          }
+        }
       ));
     } else {
       findings.push(this.securityBaseline.createFinding(
@@ -765,7 +879,26 @@ class AssessmentService {
         'PASS',
         `Audit logs available (${auditLogs.length} recent events)`,
         'Audit logs enabled and monitored',
-        { id: account.id, type: 'account', name: account.name }
+        accountResource,
+        {
+          evidence: {
+            summary: `${auditLogs.length} recent audit events were available for review.`,
+            expected: 'Audit logs should be available and monitored for security-relevant actions.',
+            observed: `${auditLogs.length} recent audit events were returned.`,
+            affectedEntities: auditLogs.slice(0, 5).map(sampleAuditLog),
+            counts: {
+              recentAuditEvents: auditLogs.length
+            },
+            source: {
+              category: 'audit-logs',
+              endpoint: 'accounts.audit_logs.list'
+            },
+            raw: {
+              sampleEvents: auditLogs.slice(0, 5).map(sampleAuditLog)
+            },
+            reviewGuidance: 'Review the sample events, verify critical actions are exported to your SIEM, and confirm alerting exists for privilege or DNS changes.'
+          }
+        }
       ));
     }
 
@@ -778,6 +911,15 @@ class AssessmentService {
   async assessDNSSecurity(zone, dnsRecords, dnssecSettings, assessment) {
     const findings = [];
     const dnsChecks = this.securityBaseline.getChecksByCategory('dns');
+    const zoneResource = { id: zone.id, type: 'zone', name: zone.name };
+    const sanitizeDnsRecord = (record) => ({
+      id: record.id || null,
+      name: record.name || null,
+      type: record.type || null,
+      content: record.content || null,
+      proxied: typeof record.proxied === 'boolean' ? record.proxied : null,
+      ttl: record.ttl || null
+    });
 
     // Check DNSSEC
     const dnssecCheck = dnsChecks.find(c => c.id === 'CFL-DNS-001');
@@ -795,7 +937,28 @@ class AssessmentService {
         'PASS',
         `DNSSEC is ${dnssecSettings.status}`,
         'DNSSEC enabled',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `DNSSEC is currently ${dnssecSettings.status} for ${zone.name}.`,
+            expected: 'DNSSEC should be enabled for every production zone.',
+            observed: dnssecSettings.status,
+            counts: {
+              dnsRecordsReviewed: dnsRecords.length
+            },
+            source: {
+              category: 'dnssec',
+              endpoint: 'zones.dnssec.get'
+            },
+            raw: {
+              status: dnssecSettings.status,
+              ds: dnssecSettings.ds || null,
+              keyTag: dnssecSettings.key_tag || null,
+              algorithm: dnssecSettings.algorithm || null
+            },
+            reviewGuidance: 'Confirm the DS record is published correctly at the registrar and monitor for unexpected key rollovers.'
+          }
+        }
       ));
     } else {
       findings.push(this.securityBaseline.createFinding(
@@ -803,7 +966,25 @@ class AssessmentService {
         'FAIL',
         `DNSSEC is ${dnssecSettings?.status || 'not active'}`,
         'Enable DNSSEC for enhanced DNS security',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `DNSSEC is not active for ${zone.name}.`,
+            expected: 'DNSSEC should be enabled for every production zone.',
+            observed: dnssecSettings?.status || 'not active',
+            counts: {
+              dnsRecordsReviewed: dnsRecords.length
+            },
+            source: {
+              category: 'dnssec',
+              endpoint: 'zones.dnssec.get'
+            },
+            raw: {
+              status: dnssecSettings?.status || null
+            },
+            reviewGuidance: 'Enable DNSSEC in Cloudflare and publish the DS record with the registrar to prevent DNS spoofing and cache poisoning.'
+          }
+        }
       ));
     }
 
@@ -825,6 +1006,24 @@ class AssessmentService {
         metadata: {
           zoneName: zone.name,
           wildcardCount: wildcardRecords.length
+        },
+        evidence: {
+          summary: `${wildcardRecords.length} wildcard DNS record(s) are present in ${zone.name}.`,
+          expected: 'Wildcard records should be minimized and only used when explicitly required.',
+          observed: `${wildcardRecords.length} wildcard record(s) found.`,
+          affectedEntities: wildcardRecords.map(sanitizeDnsRecord),
+          counts: {
+            wildcardRecords: wildcardRecords.length,
+            totalDnsRecords: dnsRecords.length
+          },
+          source: {
+            category: 'dns-records',
+            endpoint: 'zones.dns_records.list'
+          },
+          raw: {
+            wildcardNames: wildcardRecords.map(record => record.name)
+          },
+          reviewGuidance: 'Review each wildcard record, confirm the use case, and replace broad matches with explicit hostnames where possible.'
         }
       });
     }
@@ -838,6 +1037,7 @@ class AssessmentService {
   async assessSSLSecurity(zone, sslSettings, assessment, zoneSettings) {
     const findings = [];
     const sslChecks = this.securityBaseline.getChecksByCategory('ssl');
+    const zoneResource = { id: zone.id, type: 'zone', name: zone.name };
 
     // Check SSL mode
     const sslMode = sslSettings?.settings?.value || 'off';
@@ -849,7 +1049,22 @@ class AssessmentService {
         'PASS',
         `SSL mode is ${sslMode}`,
         'Full or Strict SSL mode',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `${zone.name} uses ${sslMode} SSL mode.`,
+            expected: 'Full or Strict SSL mode should be enforced.',
+            observed: sslMode,
+            source: {
+              category: 'ssl',
+              endpoint: 'zones.settings.ssl.get'
+            },
+            raw: {
+              sslSetting: sslSettings?.settings || sslSettings || null
+            },
+            reviewGuidance: 'Keep origin certificates valid and use Full (Strict) wherever the origin certificate chain is trusted.'
+          }
+        }
       ));
     } else {
       findings.push(this.securityBaseline.createFinding(
@@ -857,7 +1072,22 @@ class AssessmentService {
         'FAIL',
         `SSL mode is ${sslMode}`,
         'Use Full or Strict SSL mode for better security',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `${zone.name} is running an insecure SSL mode.`,
+            expected: 'Full or Strict SSL mode should be enforced.',
+            observed: sslMode,
+            source: {
+              category: 'ssl',
+              endpoint: 'zones.settings.ssl.get'
+            },
+            raw: {
+              sslSetting: sslSettings?.settings || sslSettings || null
+            },
+            reviewGuidance: 'Move the zone to Full (Strict) after confirming the origin certificate is valid and trusted.'
+          }
+        }
       ));
     }
 
@@ -871,7 +1101,19 @@ class AssessmentService {
         'PASS',
         `Minimum TLS version is ${minTLSVersion}`,
         'TLS 1.2 or higher',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `${zone.name} requires TLS ${minTLSVersion} or newer.`,
+            expected: 'TLS 1.2 or higher',
+            observed: minTLSVersion,
+            source: {
+              category: 'ssl',
+              endpoint: 'zones.settings.min_tls_version.get'
+            },
+            reviewGuidance: 'Retest legacy clients before tightening further to TLS 1.3-only requirements.'
+          }
+        }
       ));
     } else {
       findings.push(this.securityBaseline.createFinding(
@@ -879,7 +1121,19 @@ class AssessmentService {
         'FAIL',
         `Minimum TLS version is ${minTLSVersion}`,
         'Set minimum TLS version to 1.2 or higher',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `${zone.name} still allows outdated TLS protocol versions.`,
+            expected: 'TLS 1.2 or higher',
+            observed: minTLSVersion,
+            source: {
+              category: 'ssl',
+              endpoint: 'zones.settings.min_tls_version.get'
+            },
+            reviewGuidance: 'Raise the minimum TLS version to 1.2 or 1.3 and identify any clients that still depend on weaker protocols.'
+          }
+        }
       ));
     }
 
@@ -893,7 +1147,25 @@ class AssessmentService {
         'PASS',
         'HSTS is enabled',
         'HSTS enabled with appropriate settings',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `HSTS is enabled for ${zone.name}.`,
+            expected: 'HSTS should be enabled with a defined max-age and optional preload/subdomain settings as appropriate.',
+            observed: 'enabled',
+            counts: {
+              maxAge: hsts.max_age || 0
+            },
+            source: {
+              category: 'http-security-headers',
+              endpoint: 'zones.settings.security_header.get'
+            },
+            raw: {
+              strictTransportSecurity: hsts
+            },
+            reviewGuidance: 'Review max-age, preload, and includeSubdomains settings to confirm they match production rollout expectations.'
+          }
+        }
       ));
     } else {
       findings.push(this.securityBaseline.createFinding(
@@ -901,7 +1173,22 @@ class AssessmentService {
         'FAIL',
         'HSTS is not enabled',
         'Enable HSTS to prevent protocol downgrade attacks',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `HSTS is not enabled for ${zone.name}.`,
+            expected: 'HSTS should be enabled with a defined max-age and optional preload/subdomain settings as appropriate.',
+            observed: 'disabled',
+            source: {
+              category: 'http-security-headers',
+              endpoint: 'zones.settings.security_header.get'
+            },
+            raw: {
+              strictTransportSecurity: hsts || null
+            },
+            reviewGuidance: 'Enable HSTS after validating HTTPS coverage for all relevant hosts and redirects.'
+          }
+        }
       ));
     }
 
@@ -915,6 +1202,14 @@ class AssessmentService {
     const findings = [];
     const wafChecks = this.securityBaseline.getChecksByCategory('waf');
     const rulesets = wafData.rulesets || [];
+    const zoneResource = { id: zone.id, type: 'zone', name: zone.name };
+    const summarizeRule = (rule) => ({
+      id: rule.id || null,
+      description: rule.description || rule.expression || rule.ref || null,
+      action: rule.action || null,
+      enabled: typeof rule.enabled === 'boolean' ? rule.enabled : null,
+      phase: rule.phase || null
+    });
 
     // Check security level
     const securityLevel = wafData.securityLevel?.value || 'medium';
@@ -934,6 +1229,24 @@ class AssessmentService {
         metadata: {
           zoneName: zone.name,
           currentLevel: securityLevel
+        },
+        evidence: {
+          summary: `${zone.name} is configured with a low Cloudflare security level.`,
+          expected: 'Security level should be Medium or High.',
+          observed: securityLevel,
+          counts: {
+            firewallRules: wafData.firewallRules.length,
+            rateLimitingRules: wafData.rateLimitingRules.length,
+            managedRulesets: rulesets.filter(rs => rs.phase === 'http_request_firewall_managed').length
+          },
+          source: {
+            category: 'waf',
+            endpoint: 'zones.settings.security_level.get'
+          },
+          raw: {
+            securityLevel
+          },
+          reviewGuidance: 'Raise the Cloudflare security level and validate the effect alongside custom WAF and bot controls.'
         }
       });
     }
@@ -954,6 +1267,19 @@ class AssessmentService {
         timestamp: new Date(),
         metadata: {
           zoneName: zone.name
+        },
+        evidence: {
+          summary: `${zone.name} has no custom firewall rules configured.`,
+          expected: 'At least one custom firewall rule should exist for zone-specific abuse and exposure controls.',
+          observed: '0 custom firewall rules',
+          counts: {
+            customFirewallRules: 0
+          },
+          source: {
+            category: 'waf',
+            endpoint: 'zones.firewall.rules.list'
+          },
+          reviewGuidance: 'Review application-specific attack paths and add custom firewall rules for admin panels, sensitive paths, and abusive geographies as needed.'
         }
       });
     }
@@ -977,6 +1303,20 @@ class AssessmentService {
         timestamp: new Date(),
         metadata: {
           zoneName: zone.name
+        },
+        evidence: {
+          summary: `${zone.name} has no rate limiting rules configured.`,
+          expected: 'Rate limiting should protect high-risk endpoints and abusive request patterns.',
+          observed: '0 rate limiting rules',
+          counts: {
+            rateLimitingRules: 0,
+            rateLimitRulesets: hasRateLimitingRuleset ? 1 : 0
+          },
+          source: {
+            category: 'rate-limiting',
+            endpoint: 'zones.rate_limits.list'
+          },
+          reviewGuidance: 'Add rate limiting for login, registration, API, and expensive backend endpoints.'
         }
       });
     }
@@ -989,7 +1329,25 @@ class AssessmentService {
         'FAIL',
         'Managed WAF rulesets not enabled',
         'Enable managed WAF rulesets (OWASP) for HTTP traffic',
-        { id: zone.id, type: 'zone', name: zone.name }
+        zoneResource,
+        {
+          evidence: {
+            summary: `${zone.name} does not have a managed WAF ruleset attached to the HTTP firewall phase.`,
+            expected: 'Managed WAF rulesets should protect HTTP traffic.',
+            observed: '0 managed rulesets',
+            counts: {
+              managedRulesets: 0
+            },
+            source: {
+              category: 'waf',
+              endpoint: 'zones.rulesets.list'
+            },
+            raw: {
+              rulesets: rulesets.slice(0, 10).map(summarizeRule)
+            },
+            reviewGuidance: 'Enable Cloudflare managed rulesets, then review exceptions and false-positive handling instead of leaving the baseline disabled.'
+          }
+        }
       ));
     }
 
