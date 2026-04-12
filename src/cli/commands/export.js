@@ -10,6 +10,10 @@ const chalk = require('chalk');
 const ora = require('ora');
 const JSONExporter = require('../../exporters/json');
 const HTMLExporter = require('../../exporters/html');
+const SARIFExporter = require('../../exporters/sarif');
+const MarkdownExporter = require('../../exporters/markdown');
+const CSVExporter = require('../../exporters/csv');
+const ASFFExporter = require('../../exporters/asff');
 const logger = require('../../core/utils/logger');
 
 /**
@@ -76,9 +80,34 @@ async function exportAssessment(options) {
       const htmlContent = await htmlExporter.export(assessment);
       await fs.writeFile(output, htmlContent, 'utf8');
       break;
+
+    case 'sarif':
+      const sarifExporter = new SARIFExporter();
+      const sarifData = await sarifExporter.export(assessment);
+      await fs.writeFile(output, JSON.stringify(sarifData, null, 2), 'utf8');
+      break;
+
+    case 'markdown':
+    case 'md':
+      const mdExporter = new MarkdownExporter();
+      const mdContent = await mdExporter.export(assessment);
+      await fs.writeFile(output, mdContent, 'utf8');
+      break;
+
+    case 'csv':
+      const csvExporter = new CSVExporter();
+      const csvContent = await csvExporter.export(assessment);
+      await fs.writeFile(output, csvContent, 'utf8');
+      break;
+
+    case 'asff':
+      const asffExporter = new ASFFExporter();
+      const asffData = await asffExporter.export(assessment);
+      await fs.writeFile(output, JSON.stringify(asffData, null, 2), 'utf8');
+      break;
       
     default:
-      throw new Error(`Unsupported export format: ${format}`);
+      throw new Error(`Unsupported export format: ${format}. Supported: json, html, ocsf, sarif, markdown, csv, asff`);
   }
 }
 

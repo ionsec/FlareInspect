@@ -1,6 +1,6 @@
 {
   "name": "flareinspect",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "FlareInspect - Cloudflare Security Assessment CLI Tool by IONSEC.IO",
   "main": "src/cli/index.js",
   "bin": {
@@ -9,9 +9,10 @@
   "scripts": {
     "start": "node src/cli/index.js",
     "web": "node web/server.js",
+    "dev": "nodemon web/server.js",
     "interactive": "node src/cli/interactive.js",
     "test": "jest",
-    "lint": "eslint src/",
+    "lint": "eslint src tests web *.js",
     "docker:build": "docker build -t flareinspect .",
     "docker:run": "docker run -it --rm flareinspect"
   },
@@ -30,25 +31,26 @@
     "url": "https://github.com/ionsec/flareinspect"
   },
   "dependencies": {
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.3",
     "cloudflare": "^4.5.0",
     "commander": "^11.1.0",
-    "chalk": "^4.1.2",
-    "ora": "^5.4.1",
+    "dayjs": "^1.11.20",
     "dotenv": "^16.4.5",
-    "winston": "^3.13.1",
-    "uuid": "^10.0.0",
-    "lodash": "^4.17.21",
-    "handlebars": "^4.7.8",
-    "moment": "^2.30.1",
-    "figlet": "^1.7.0",
-    "inquirer": "^8.2.6",
-    "cli-table3": "^0.6.3",
     "express": "^4.19.2",
-    "progress": "^2.0.3"
+    "figlet": "^1.7.0",
+    "handlebars": "^4.7.8",
+    "helmet": "^8.1.0",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
+    "p-limit": "^7.3.0",
+    "progress": "^2.0.3",
+    "uuid": "^10.0.0",
+    "winston": "^3.13.1"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
     "eslint": "^9.7.0",
+    "jest": "^29.7.0",
     "nodemon": "^3.1.4"
   },
   "engines": {

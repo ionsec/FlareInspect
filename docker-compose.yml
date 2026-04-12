@@ -9,6 +9,7 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - CLOUDFLARE_DEBUG=${CLOUDFLARE_DEBUG:-false}
+      - CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN:-}
     volumes:
       # Mount output directory for reports
       - ./output:/app/output
@@ -16,7 +17,7 @@ services:
       - ./logs:/app/logs
     working_dir: /app
     # Override command to run assessment
-    # command: ["flareinspect", "assess", "--token", "${CLOUDFLARE_TOKEN}", "--output", "/app/output/report.json"]
+    # command: ["assess", "--token", "${CLOUDFLARE_TOKEN}", "--output", "/app/output/report.json"]
 
   flareinspect-web:
     build:
@@ -29,6 +30,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - HOST=0.0.0.0
       - PORT=3000
+      - FLAREINSPECT_API_KEY=${FLAREINSPECT_API_KEY:-}
     entrypoint: ["node", "web/server.js"]
     volumes:
       - ./web/data:/app/web/data
@@ -40,7 +42,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: builder
     image: flareinspect:dev
     container_name: flareinspect-dev
     environment:

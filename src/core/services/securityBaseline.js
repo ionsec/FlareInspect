@@ -500,7 +500,112 @@ class SecurityBaseline {
         description: 'Origin IP addresses should not be exposed',
         severity: 'high',
         compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-DLP-001',
+        category: 'dlp',
+        title: 'DLP Configuration',
+        description: 'Configure Data Loss Prevention profiles and rules',
+        severity: 'high',
+        compliance: ['SOC2', 'PCI-DSS', 'NIST']
+      },
+      {
+        id: 'CFL-PAGESHIELD-001',
+        category: 'page-shield',
+        title: 'Page Shield Enablement',
+        description: 'Enable Page Shield to monitor JavaScript dependencies',
+        severity: 'high',
+        compliance: ['OWASP', 'NIST']
+      },
+      {
+        id: 'CFL-TUNNEL-001',
+        category: 'tunnels',
+        title: 'Cloudflare Tunnel Configuration',
+        description: 'Use Cloudflare Tunnels to expose services without open ingress ports',
+        severity: 'high',
+        compliance: ['CIS', 'NIST']
+      },
+      {
+        id: 'CFL-GW-001',
+        category: 'gateway',
+        title: 'Gateway Policy Configuration',
+        description: 'Configure DNS and HTTP gateway policies for Zero Trust filtering',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-SPECTRUM-001',
+        category: 'spectrum',
+        title: 'Spectrum Application Protection',
+        description: 'Secure Spectrum applications with proper TLS and access controls',
+        severity: 'medium',
+        compliance: ['CIS']
+      },
+      {
+        id: 'CFL-AIGW-001',
+        category: 'ai-gateway',
+        title: 'AI Gateway Security',
+        description: 'Configure AI Gateway to monitor and control LLM API calls',
+        severity: 'medium',
+        compliance: ['NIST']
+      },
+      {
+        id: 'CFL-CDA-001',
+        category: 'cache',
+        title: 'Cache Deception Armor',
+        description: 'Enable Cache Deception Armor to prevent web cache deception attacks',
+        severity: 'high',
+        compliance: ['OWASP']
+      },
+      {
+        id: 'CFL-SNIPPET-001',
+        category: 'snippets',
+        title: 'Snippets Security Review',
+        description: 'Review edge snippets for security-sensitive code patterns',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-CH-001',
+        category: 'custom-hostnames',
+        title: 'Custom Hostname Validation',
+        description: 'Validate custom hostname certificates and ownership',
+        severity: 'medium',
+        compliance: ['PCI-DSS']
+      },
+      {
+        id: 'CFL-ORIGCERT-001',
+        category: 'ssl',
+        title: 'Origin Certificate Expiry',
+        description: 'Monitor origin certificates for impending expiration',
+        severity: 'critical',
+        compliance: ['PCI-DSS', 'SOC2']
+      },
+      {
+        id: 'CFL-CFRULE-001',
+        category: 'rules',
+        title: 'Configuration Rules Review',
+        description: 'Review configuration rules for unintended security overrides',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-TXRULE-001',
+        category: 'rules',
+        title: 'Transform Rules Security',
+        description: 'Review URL rewrite and header modification rules for security implications',
+        severity: 'medium',
+        compliance: ['OWASP']
+      },
+      {
+        id: 'CFL-DEVICE-001',
+        category: 'zerotrust',
+        title: 'Device Enrollment Policy',
+        description: 'Configure device enrollment and posture checks for Zero Trust',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
       }
+
     ];
   }
 
@@ -633,7 +738,23 @@ class SecurityBaseline {
       'CFL-INSIGHT-002': 'Review and resolve high severity insights within 24-48 hours to maintain security posture.',
       'CFL-INSIGHT-003': 'Set up regular reviews of Security Center insights and create processes to address them promptly.',
       'CFL-INSIGHT-004': 'Rotate exposed credentials immediately, review access logs, and implement credential scanning in CI/CD.',
-      'CFL-INSIGHT-005': 'Enable Cloudflare proxy (orange cloud) for all DNS records that point to origin servers.'
+      'CFL-INSIGHT-005': 'Enable Cloudflare proxy (orange cloud) for all DNS records that point to origin servers.',
+
+      // New Cloudflare technology checks
+      'CFL-DLP-001': 'Configure DLP profiles and rules in Zero Trust > Data Loss Prevention to detect and prevent sensitive data exfiltration.',
+      'CFL-PAGESHIELD-001': 'Enable Page Shield in Security > Page Shield to monitor JavaScript dependencies and detect supply chain attacks.',
+      'CFL-TUNNEL-001': 'Replace open ingress ports with Cloudflare Tunnels in Zero Trust > Networks > Tunnels for secure origin connectivity.',
+      'CFL-GW-001': 'Configure DNS and HTTP gateway policies in Zero Trust > Gateway to filter and inspect traffic.',
+      'CFL-SPECTRUM-001': 'Ensure Spectrum applications use TLS 1.2+ and restrict access with IP allowlists or Access policies.',
+      'CFL-AIGW-001': 'Configure AI Gateway to log, rate-limit, and monitor LLM API calls for data leakage and prompt injection.',
+      'CFL-CDA-001': 'Enable Cache Deception Armor in Caching > Configuration to prevent web cache deception attacks.',
+      'CFL-SNIPPET-001': 'Review edge snippets for hardcoded secrets, insecure redirects, and security-impacting logic.',
+      'CFL-CH-001': 'Validate custom hostname certificates and enable hostname fallback origin in SSL/TLS > Custom Hostnames.',
+      'CFL-ORIGCERT-001': 'Monitor origin certificate expiration and set up renewal alerts. Expired certificates break Full(Strict) SSL.',
+      'CFL-CFRULE-001': 'Review configuration rules to ensure they do not override security settings like WAF or SSL enforcement.',
+      'CFL-TXRULE-001': 'Audit URL rewrite and header modification rules for security implications such as removing security headers.',
+      'CFL-DEVICE-001': 'Configure device enrollment and posture checks in Zero Trust > Devices to ensure only compliant devices can access resources.',
+
     };
 
     return remediations[checkId] || 'Review Cloudflare documentation for remediation steps.';

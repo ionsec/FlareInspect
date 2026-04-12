@@ -11,38 +11,75 @@ const logger = require('../../core/utils/logger');
 const chalk = require('chalk');
 const fs = require('fs').promises;
 const path = require('path');
-const moment = require('moment');
+const dayjs = require('dayjs');
+const ComplianceEngine = require('../../core/services/complianceEngine');
+const ContextualScoring = require('../../core/services/contextualScoring');
+const ConfigManager = require('../../core/config');
+
+/**
+ * Format milliseconds into human-readable duration
+ */
+function formatDuration(ms) {
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
 
 /**
  * Execute the assessment command
  */
 async function execute(options) {
   try {
+    const configManager = new ConfigManager();
+    const resolvedOptions = configManager.mergeWithCLIOptions(options);
+
     // Set debug mode if requested
     if (options.debug || process.env.DEBUG === 'true') {
       process.env.CLOUDFLARE_DEBUG = 'true';
       logger.level = 'debug';
     }
 
-    // Display assessment banner
-    if (!options.quiet) {
+    // Display assessment banner (skip in CI mode)
+    if (!resolvedOptions.ci && !options.quiet) {
       displayAssessmentBanner();
     }
 
     // Validate API token
-    if (!options.token || options.token.length < 10) {
+    if (!resolvedOptions.token || resolvedOptions.token.length < 10) {
       throw new Error('Invalid Cloudflare API token provided');
     }
 
     // Initialize assessment service
-    const assessmentService = new AssessmentService();
+    const assessmentService = new AssessmentService({ useSpinner: !resolvedOptions.ci });
+
+    // Build assessment options
+    const assessOptions = {};
+    if (resolvedOptions.zones) {
+      assessOptions.zones = resolvedOptions.zones;
+    }
+    if (resolvedOptions.excludeZones) {
+      assessOptions.excludeZones = resolvedOptions.excludeZones;
+    }
+    if (resolvedOptions.concurrency) {
+      assessOptions.concurrency = parseInt(resolvedOptions.concurrency, 10);
+    }
+    if (resolvedOptions.checks) {
+      assessOptions.checks = resolvedOptions.checks;
+    }
 
     // Run assessment
-    console.log(chalk.cyan('Starting Cloudflare security assessment...\n'));
+    if (!resolvedOptions.ci) {
+      console.log(chalk.cyan('Starting Cloudflare security assessment...\n'));
+    }
     
     const assessment = await assessmentService.runAssessment({
-      apiToken: options.token
-    });
+      apiToken: resolvedOptions.token
+    }, assessOptions);
 
     // Check if assessment failed
     if (assessment.status === 'failed') {
@@ -50,9 +87,65 @@ async function execute(options) {
       process.exit(1);
     }
 
+    // Apply contextual scoring if sensitivity specified
+    if (resolvedOptions.sensitivity) {
+      const contextualScoring = new ContextualScoring();
+      const scored = contextualScoring.calculateAssessmentScores(assessment, { sensitivity: resolvedOptions.sensitivity });
+      assessment.contextualScores = scored.contextualSummary;
+      assessment.findings = scored.findings;
+    }
+
+    // Generate compliance report if requested
+    if (resolvedOptions.compliance) {
+      const complianceEngine = new ComplianceEngine();
+      assessment.complianceReport = complianceEngine.getComplianceReport(assessment.findings || []);
+      if (!resolvedOptions.ci) {
+        const report = assessment.complianceReport[resolvedOptions.compliance.toLowerCase()];
+        if (report) {
+          console.log(chalk.cyan('\nCompliance Report (' + resolvedOptions.compliance.toUpperCase() + '):'));
+          console.log(chalk.gray('  Score: ' + report.overallScore + '%'));
+          console.log(chalk.green('  Passed: ' + report.passedControls + '/' + report.totalControls + ' controls'));
+          if (report.failedControls > 0) {
+            console.log(chalk.red('  Failed: ' + report.failedControls + ' controls'));
+          }
+        }
+      }
+    }
+
+    // CI/CD mode: output JSON to stdout and handle exit codes
+    if (resolvedOptions.ci) {
+      process.stdout.write(JSON.stringify(assessment, null, 2));
+      
+      // Check threshold
+      if (resolvedOptions.threshold) {
+        const minScore = parseInt(resolvedOptions.threshold, 10);
+        const actualScore = assessment.score?.overallScore || 0;
+        if (actualScore < minScore) {
+          process.exitCode = 1;
+          return;
+        }
+      }
+      
+      // Check fail-on severity
+      if (resolvedOptions.failOn) {
+        const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+        const failLevel = severityOrder[resolvedOptions.failOn.toLowerCase()] || 0;
+        const hasFailingSeverity = (assessment.findings || []).some(f => {
+          const findingLevel = severityOrder[f.severity?.toLowerCase()] || 0;
+          return f.status === 'FAIL' && findingLevel >= failLevel;
+        });
+        if (hasFailingSeverity) {
+          process.exitCode = 1;
+          return;
+        }
+      }
+      
+      return; // In CI mode, skip further output
+    }
+
     // Display completion banner with stats
     const stats = {
-      duration: moment.duration(assessment.executionTime).humanize(),
+      duration: formatDuration(assessment.executionTime),
       findings: assessment.findings?.length || 0,
       critical: assessment.summary?.criticalFindings || 0,
       high: assessment.summary?.highFindings || 0
@@ -68,7 +161,7 @@ async function execute(options) {
       console.log(chalk.cyan('\nExporting results...'));
       
       const exportOptions = {
-        format: options.format || 'json',
+        format: resolvedOptions.format || 'json',
         output: options.output,
         assessment: assessment
       };
@@ -77,8 +170,11 @@ async function execute(options) {
       console.log(chalk.green(`✓ Results exported to: ${options.output}`));
     } else if (!options.output) {
       // Save to default location
-      const timestamp = moment().format('YYYYMMDD-HHmmss');
-      const defaultOutput = `flareinspect-${timestamp}.json`;
+      const timestamp = dayjs().format('YYYYMMDD-HHmmss');
+      const outputDirectory = resolvedOptions.output || '.';
+      const defaultOutput = path.join(outputDirectory, `flareinspect-${timestamp}.json`);
+
+      await fs.mkdir(path.dirname(defaultOutput), { recursive: true });
       
       await fs.writeFile(
         defaultOutput,

@@ -9,6 +9,7 @@ const SecurityBaseline = require('./securityBaseline');
 const ReportService = require('./reportService');
 const logger = require('../utils/logger');
 const { v4: uuidv4 } = require('uuid');
+const pLimit = require('p-limit').default;
 const ora = require('ora');
 const chalk = require('chalk');
 
@@ -18,6 +19,10 @@ class AssessmentService {
     this.reportService = new ReportService();
     this.spinner = null;
     this.useSpinner = options.useSpinner !== false;
+    this.availableCheckCategories = new Set(
+      this.securityBaseline.getAllChecks().map(check => check.category)
+    );
+    this.checkCategoryAliases = this.createCheckCategoryAliases();
   }
 
   startSpinner(text) {
@@ -134,16 +139,60 @@ class AssessmentService {
         this.spinner.succeed('Account assessment completed');
       }
 
-      // Run zone-level assessments for each zone
-      const zoneCount = zones.length;
-      for (let i = 0; i < zoneCount; i++) {
-        const zone = zones[i];
-        this.spinner = this.startSpinner(`Assessing zone ${i + 1}/${zoneCount}: ${zone.name}...`);
-        await this.assessZone(client, zone, assessment);
-        if (this.spinner) {
-          this.spinner.succeed(`Zone ${zone.name} assessed`);
+      // Filter zones if specified
+      let zonesToAssess = zones;
+      if (options.zones && options.zones.length > 0) {
+        const zoneSet = new Set(options.zones.map(z => z.toLowerCase()));
+        zonesToAssess = zones.filter(z => zoneSet.has(z.name.toLowerCase()));
+        if (zonesToAssess.length === 0) {
+          throw new Error('No matching zones found for filter: ' + options.zones.join(', '));
         }
+        logger.info('Filtered to zones:', { zones: zonesToAssess.map(z => z.name) });
       }
+      if (options.excludeZones && options.excludeZones.length > 0) {
+        const excludeSet = new Set(options.excludeZones.map(z => z.toLowerCase()));
+        zonesToAssess = zonesToAssess.filter(z => !excludeSet.has(z.name.toLowerCase()));
+      }
+
+      // Run zone-level assessments with configurable concurrency
+      const concurrency = options.concurrency || 3;
+      const limit = pLimit(concurrency);
+      const zoneCount = zonesToAssess.length;
+      let completedZones = 0;
+
+      const zonePromises = zonesToAssess.map(zone => 
+        limit(async () => {
+          logger.assessment('Assessing zone', { zoneName: zone.name, zoneId: zone.id });
+          const result = { zone: zone.name, success: false };
+          try {
+            await this.assessZone(client, zone, assessment);
+            result.success = true;
+          } catch (error) {
+            logger.error('Zone assessment failed', { zoneName: zone.name, error: error.message });
+          }
+          completedZones++;
+          if (this.spinner) {
+            this.spinner.text = `Assessing zones: ${completedZones}/${zoneCount} completed...`;
+          }
+          return result;
+        })
+      );
+
+      const zoneResults = await Promise.all(zonePromises);
+      const successfulZones = zoneResults.filter(r => r.success).length;
+      
+      if (this.spinner) {
+        this.spinner.succeed(`${successfulZones}/${zoneCount} zones assessed successfully`);
+      }
+      
+      logger.assessment('Zone assessments completed', {
+        total: zoneCount,
+        successful: successfulZones,
+        failed: zoneCount - successfulZones
+      });
+
+      // Apply requested check filtering before summary generation.
+      this.applyCheckFilter(assessment, options.checks);
 
       // Calculate final summary
       logger.info('Calculating assessment summary');
@@ -198,6 +247,98 @@ class AssessmentService {
     }
   }
 
+  createCheckCategoryAliases() {
+    return {
+      'ai-gateway': 'ai-gateway',
+      aigateway: 'ai-gateway',
+      api: 'api',
+      'api-gateway': 'api',
+      'api-shield': 'api',
+      attacksurface: 'attack-surface',
+      'attack-surface': 'attack-surface',
+      bot: 'bot',
+      bots: 'bot',
+      cache: 'cache',
+      'cache-deception-armor': 'cache',
+      'custom-hostnames': 'custom-hostnames',
+      customhostnames: 'custom-hostnames',
+      dlp: 'dlp',
+      dns: 'dns',
+      'dns-firewall': 'dns-firewall',
+      dnsfirewall: 'dns-firewall',
+      email: 'email',
+      'email-routing': 'email',
+      gateway: 'gateway',
+      loadbalancing: 'loadbalancing',
+      'load-balancing': 'loadbalancing',
+      loadbalancer: 'loadbalancing',
+      logpush: 'logpush',
+      mtls: 'mtls',
+      'page-shield': 'page-shield',
+      pages: 'pages',
+      performance: 'performance',
+      rules: 'rules',
+      'security-insights': 'security-insights',
+      securityinsights: 'security-insights',
+      securitytxt: 'securitytxt',
+      'security-txt': 'securitytxt',
+      snippets: 'snippets',
+      spectrum: 'spectrum',
+      ssl: 'ssl',
+      tunnels: 'tunnels',
+      turnstile: 'turnstile',
+      waf: 'waf',
+      workers: 'workers',
+      zerotrust: 'zerotrust',
+      'zero-trust': 'zerotrust'
+    };
+  }
+
+  normalizeCheckCategories(requestedChecks = []) {
+    const invalid = [];
+    const normalized = [];
+
+    for (const rawCategory of requestedChecks) {
+      const key = String(rawCategory || '').trim().toLowerCase();
+      if (!key) {
+        continue;
+      }
+
+      const normalizedCategory = this.checkCategoryAliases[key] || key;
+      if (!this.availableCheckCategories.has(normalizedCategory)) {
+        invalid.push(rawCategory);
+        continue;
+      }
+
+      if (!normalized.includes(normalizedCategory)) {
+        normalized.push(normalizedCategory);
+      }
+    }
+
+    return { invalid, normalized };
+  }
+
+  applyCheckFilter(assessment, requestedChecks) {
+    if (!Array.isArray(requestedChecks) || requestedChecks.length === 0) {
+      return;
+    }
+
+    const { invalid, normalized } = this.normalizeCheckCategories(requestedChecks);
+    if (invalid.length > 0) {
+      const available = Array.from(this.availableCheckCategories).sort().join(', ');
+      throw new Error(`Unknown check categories: ${invalid.join(', ')}. Available categories: ${available}`);
+    }
+
+    const allowedCategories = new Set(normalized);
+    const originalCount = assessment.findings.length;
+
+    assessment.findings = assessment.findings.filter(finding =>
+      allowedCategories.has(finding.service)
+    );
+    assessment.metadata.requestedChecks = normalized;
+    assessment.metadata.filteredFromTotalFindings = originalCount;
+  }
+
   /**
    * Assess account-level configurations
    */
@@ -221,7 +362,12 @@ class AssessmentService {
         logpushJobs,
         accessCertificates,
         mtlsCertificates,
-        attackSurface
+        attackSurface,
+        dlpData,
+        tunnels,
+        gatewayPolicies,
+        aiGateways,
+        devicePolicy
       ] = await Promise.all([
         client.getAccountMembers(account.id),
         client.getAuditLogs(account.id, { 
@@ -239,7 +385,12 @@ class AssessmentService {
         client.getLogpushJobs ? client.getLogpushJobs({ accountId: account.id }) : [],
         client.getAccessCertificates ? client.getAccessCertificates({ accountId: account.id }) : [],
         client.getMtlsCertificates ? client.getMtlsCertificates({ accountId: account.id }) : [],
-        client.getAttackSurfaceIssues ? client.getAttackSurfaceIssues(account.id) : { issues: [], count: 0 }
+        client.getAttackSurfaceIssues ? client.getAttackSurfaceIssues(account.id) : { issues: [], count: 0 },
+        client.getDLPProfiles ? client.getDLPProfiles(account.id).catch(() => ({ profiles: [], rules: [] })) : { profiles: [], rules: [] },
+        client.getTunnels ? client.getTunnels(account.id).catch(() => []) : [],
+        client.getGatewayPolicies ? client.getGatewayPolicies(account.id).catch(() => ({ dns: [], http: [], l4: [] })) : { dns: [], http: [], l4: [] },
+        client.getAIGateway ? client.getAIGateway(account.id).catch(() => []) : [],
+        client.getDevicePolicy ? client.getDevicePolicy(account.id).catch(() => ({ error: 'not available' })) : { error: 'not available' }
       ]);
 
       // Store configuration data
@@ -340,6 +491,13 @@ class AssessmentService {
       }, assessment);
       await this.assessAttackSurface(account, attackSurface || { issues: [], count: 0 }, assessment);
 
+      // New technology assessments
+      await this.assessDLP(account, dlpData || { profiles: [], rules: [] }, assessment);
+      await this.assessTunnels(account, tunnels || [], assessment);
+      await this.assessGateway(account, gatewayPolicies || { dns: [], http: [], l4: [] }, assessment);
+      await this.assessAIGateway(account, aiGateways || [], assessment);
+      await this.assessDeviceEnrollment(account, devicePolicy || { error: 'not available' }, assessment);
+
     } catch (error) {
       logger.error('Account assessment failed', {
         assessmentId: assessment.assessmentId,
@@ -382,7 +540,12 @@ class AssessmentService {
         securityTxt,
         logpushJobs,
         accessCertificates,
-        rulesets
+        rulesets,
+        pageShield,
+        cacheDeceptionArmor,
+        snippets,
+        customHostnames,
+        originCertificates
       ] = await Promise.all([
         client.getZone(zone.id),
         client.getDNSRecords(zone.id),
@@ -408,7 +571,12 @@ class AssessmentService {
         client.getSecurityTxt ? client.getSecurityTxt(zone.id) : null,
         client.getLogpushJobs ? client.getLogpushJobs({ zoneId: zone.id }) : [],
         client.getAccessCertificates ? client.getAccessCertificates({ zoneId: zone.id }) : [],
-        client.getRulesets ? client.getRulesets(zone.id) : []
+        client.getRulesets ? client.getRulesets(zone.id) : [],
+        client.getPageShield ? client.getPageShield(zone.id).catch(() => ({ error: 'not available' })) : { error: 'not available' },
+        client.getCacheDeceptionArmor ? client.getCacheDeceptionArmor(zone.id).catch(() => ({ error: 'not available' })) : { error: 'not available' },
+        client.getSnippets ? client.getSnippets(zone.id).catch(() => []) : [],
+        client.getCustomHostnames ? client.getCustomHostnames(zone.id).catch(() => []) : [],
+        client.getOriginCertificates ? client.getOriginCertificates(zone.id).catch(() => []) : []
       ]);
 
       // Store configuration data
@@ -493,6 +661,13 @@ class AssessmentService {
       if (securityInsights && !securityInsights.error) {
         await this.assessSecurityInsights(securityInsights, 'zone', zone.id, assessment);
       }
+
+      // New technology assessments
+      await this.assessPageShield(zone, pageShield || { error: 'not available' }, assessment);
+      await this.assessCacheDeceptionArmor(zone, cacheDeceptionArmor || { error: 'not available' }, assessment);
+      await this.assessSnippets(zone, snippets || [], assessment);
+      await this.assessCustomHostnames(zone, customHostnames || [], assessment);
+      await this.assessOriginCertificates(zone, originCertificates || [], assessment);
 
       // Run general zone security checks
       await this.checkZoneSecurity(zone, zoneDetails, analytics, assessment, allZoneSettings);
@@ -1989,6 +2164,304 @@ class AssessmentService {
 
     assessment.findings.push(...findings);
   }
+
+  /**
+   * Assess DLP configuration
+   */
+  async assessDLP(account, dlpData, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('dlp')[0];
+    if (!check) return;
+    
+    const hasProfiles = dlpData.profiles && dlpData.profiles.length > 0;
+    const hasRules = dlpData.rules && dlpData.rules.length > 0;
+    
+    if (!hasProfiles && !hasRules) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'FAIL',
+        'No DLP profiles or rules configured',
+        'DLP profiles and rules configured',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    } else {
+      const detail = [];
+      if (hasProfiles) detail.push(`${dlpData.profiles.length} profiles`);
+      if (hasRules) detail.push(`${dlpData.rules.length} rules`);
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        `DLP configured with ${detail.join(' and ')}`,
+        'DLP profiles and rules configured',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+  }
+
+  /**
+   * Assess Page Shield configuration
+   */
+  async assessPageShield(zone, pageShield, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('page-shield')[0];
+    if (!check) return;
+
+    if (pageShield.error) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'WARNING',
+        'Page Shield not available or not enabled',
+        'Page Shield enabled and monitoring JS dependencies',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    } else {
+      const enabled = pageShield.enabled || pageShield.status === 'active';
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check,
+        enabled ? 'PASS' : 'FAIL',
+        enabled ? 'Page Shield is enabled and monitoring' : 'Page Shield is not enabled',
+        'Page Shield enabled and monitoring JS dependencies',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    }
+  }
+
+  /**
+   * Assess Cloudflare Tunnels
+   */
+  async assessTunnels(account, tunnels, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('tunnels')[0];
+    if (!check) return;
+
+    const activeTunnels = tunnels.filter(t => t.status === 'active');
+    
+    if (activeTunnels.length > 0) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        `${activeTunnels.length} active Cloudflare Tunnels configured`,
+        'Cloudflare Tunnels configured for secure connectivity',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    } else if (tunnels.length > 0) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'WARNING',
+        `${tunnels.length} tunnels exist but none are active`,
+        'Active Cloudflare Tunnels for secure connectivity',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+    // No tunnels is informational only, not a failure
+  }
+
+  /**
+   * Assess Gateway policies
+   */
+  async assessGateway(account, gatewayPolicies, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('gateway')[0];
+    if (!check) return;
+
+    const hasDns = gatewayPolicies.dns && gatewayPolicies.dns.length > 0;
+    const hasHttp = gatewayPolicies.http && gatewayPolicies.http.length > 0;
+    const hasL4 = gatewayPolicies.l4 && gatewayPolicies.l4.length > 0;
+
+    if (!hasDns && !hasHttp && !hasL4) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'FAIL',
+        'No Gateway DNS or HTTP filtering policies configured',
+        'Gateway policies for DNS and HTTP filtering',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    } else {
+      const details = [];
+      if (hasDns) details.push(`${gatewayPolicies.dns.length} DNS policies`);
+      if (hasHttp) details.push(`${gatewayPolicies.http.length} HTTP policies`);
+      if (hasL4) details.push(`${gatewayPolicies.l4.length} L4 policies`);
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        `Gateway policies configured: ${details.join(', ')}`,
+        'Gateway policies for DNS and HTTP filtering',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+  }
+
+  /**
+   * Assess Cache Deception Armor
+   */
+  async assessCacheDeceptionArmor(zone, cdaData, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('cache')[0];
+    if (!check) return;
+
+    if (cdaData.error) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'WARNING',
+        'Cache Deception Armor not available',
+        'Cache Deception Armor enabled',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    } else {
+      const enabled = cdaData.enabled || cdaData.status === 'active';
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check,
+        enabled ? 'PASS' : 'FAIL',
+        enabled ? 'Cache Deception Armor is enabled' : 'Cache Deception Armor is not enabled',
+        'Cache Deception Armor enabled',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    }
+  }
+
+  /**
+   * Assess Snippets
+   */
+  async assessSnippets(zone, snippets, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('snippets')[0];
+    if (!check) return;
+
+    if (snippets.length === 0) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        'No edge snippets configured',
+        'Snippets reviewed for security patterns',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    } else {
+      // Check for potential security issues in snippets
+      const riskySnippets = snippets.filter(s => {
+        const code = s.modified_data || s.code || '';
+        return code.includes('password') || code.includes('secret') || code.includes('api_key');
+      });
+      
+      if (riskySnippets.length > 0) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          check, 'FAIL',
+          `${riskySnippets.length} snippets may contain hardcoded secrets or sensitive data`,
+          'Snippets free of hardcoded secrets',
+          { id: zone.id, type: 'zone', name: zone.name }
+        ));
+      } else {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          check, 'PASS',
+          `${snippets.length} snippets reviewed, no hardcoded secrets detected`,
+          'Snippets reviewed for security patterns',
+          { id: zone.id, type: 'zone', name: zone.name }
+        ));
+      }
+    }
+  }
+
+  /**
+   * Assess Custom Hostnames
+   */
+  async assessCustomHostnames(zone, customHostnames, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('custom-hostnames')[0];
+    if (!check) return;
+
+    if (customHostnames.length === 0) {
+      return; // Not applicable if no custom hostnames
+    }
+
+    const pendingOrFailed = customHostnames.filter(ch =>
+      ch.status === 'pending' || ch.status === 'moved' || ch.ssl?.status === 'validation_failed'
+    );
+
+    if (pendingOrFailed.length > 0) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'FAIL',
+        `${pendingOrFailed.length} custom hostnames have validation issues`,
+        'All custom hostnames properly validated',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    } else {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        `All ${customHostnames.length} custom hostnames properly validated`,
+        'All custom hostnames properly validated',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    }
+  }
+
+  /**
+   * Assess Origin Certificates
+   */
+  async assessOriginCertificates(zone, originCerts, assessment) {
+    const check = this.securityBaseline.getAllChecks().find(c => c.id === 'CFL-ORIGCERT-001');
+    if (!check) return;
+
+    if (!originCerts || originCerts.length === 0) {
+      return; // Not applicable
+    }
+
+    const now = new Date();
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    const expiringCerts = originCerts.filter(cert => {
+      const expires = new Date(cert.expires_on || cert.expiry);
+      return expires.getTime() - now.getTime() < thirtyDays;
+    });
+
+    if (expiringCerts.length > 0) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'FAIL',
+        `${expiringCerts.length} origin certificates expiring within 30 days`,
+        'All origin certificates valid and not near expiry',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    } else {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        `All ${originCerts.length} origin certificates are valid`,
+        'All origin certificates valid and not near expiry',
+        { id: zone.id, type: 'zone', name: zone.name }
+      ));
+    }
+  }
+
+  /**
+   * Assess AI Gateway
+   */
+  async assessAIGateway(account, aiGateways, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('ai-gateway')[0];
+    if (!check) return;
+
+    if (aiGateways.length === 0) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'WARNING',
+        'No AI Gateways configured for LLM API monitoring',
+        'AI Gateway configured for LLM security',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    } else {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        `${aiGateways.length} AI Gateway(s) configured for LLM API monitoring`,
+        'AI Gateway configured for LLM security',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+  }
+
+  /**
+   * Assess Device Enrollment Policy
+   */
+  async assessDeviceEnrollment(account, devicePolicy, assessment) {
+    const check = this.securityBaseline.getAllChecks().find(c => c.id === 'CFL-DEVICE-001');
+    if (!check) return;
+
+    if (devicePolicy.error) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'FAIL',
+        'No device enrollment policy configured',
+        'Device enrollment and posture checks configured',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    } else {
+      const hasPolicy = devicePolicy.enabled || devicePolicy.require_posture || Object.keys(devicePolicy).length > 1;
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check,
+        hasPolicy ? 'PASS' : 'FAIL',
+        hasPolicy ? 'Device enrollment policy is configured' : 'Device enrollment policy is not configured',
+        'Device enrollment and posture checks configured',
+        { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+  }
+
 }
 
 module.exports = AssessmentService;

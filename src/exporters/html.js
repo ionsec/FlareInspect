@@ -7,7 +7,7 @@
 const Handlebars = require('handlebars');
 const fs = require('fs').promises;
 const path = require('path');
-const moment = require('moment');
+const dayjs = require('dayjs');
 const logger = require('../core/utils/logger');
 
 class HTMLExporter {
@@ -21,7 +21,7 @@ class HTMLExporter {
   registerHelpers() {
     // Format date helper
     Handlebars.registerHelper('formatDate', (date) => {
-      return moment(date).format('MMMM DD, YYYY HH:mm');
+      return dayjs(date).format('MMMM DD, YYYY HH:mm');
     });
 
     // Lowercase helper
@@ -116,8 +116,8 @@ class HTMLExporter {
       // Basic info
       assessmentId: assessment.assessmentId,
       accountName: summary.accountName || 'Unknown',
-      assessmentDate: moment(summary.assessmentDate).format('MMMM DD, YYYY'),
-      generatedAt: moment().format('MMMM DD, YYYY HH:mm'),
+      assessmentDate: dayjs(summary.assessmentDate).format('MMMM DD, YYYY'),
+      generatedAt: dayjs().format('MMMM DD, YYYY HH:mm'),
       
       // Scores and grades
       overallScore: score,
@@ -152,7 +152,7 @@ class HTMLExporter {
       topRisks: summary.topRisks || [],
       
       // Domains
-      domains: this.prepareDomains(overview.domainPortfolio?.domains || [], categories),
+      domains: this.prepareDomains(overview.domainPortfolio?.domains || [], categories, assessment.findings || []),
       zonesCount: overview.domainPortfolio?.totalDomains || 0,
       
       // Findings arrays filtered by status - only show failures
@@ -200,13 +200,30 @@ class HTMLExporter {
   /**
    * Prepare domains data
    */
-  prepareDomains(domains, categories) {
+  /**
+   * Calculate actual score for a domain from its findings
+   */
+  calculateDomainScore(domainName, findings) {
+    const weights = { critical: 10, high: 7, medium: 4, low: 2, informational: 1 };
+    const domainFindings = findings.filter(f => f.resourceId === domainName || f.resourceId?.endsWith(domainName));
+    if (domainFindings.length === 0) return 100;
+    let totalWeight = 0;
+    let passedWeight = 0;
+    domainFindings.forEach(f => {
+      const w = weights[f.severity] || 1;
+      totalWeight += w;
+      if (f.status === 'PASS') passedWeight += w;
+    });
+    return totalWeight > 0 ? Math.round((passedWeight / totalWeight) * 100) : 0;
+  }
+
+  prepareDomains(domains, categories, findings) {
     return domains.map(domain => ({
       name: domain.name,
       status: domain.status,
       statusClass: domain.status === 'active' ? 'pass' : 'warning',
       plan: domain.plan || 'Free',
-      score: Math.floor(Math.random() * 30) + 70 // TODO: Calculate actual score per domain
+      score: this.calculateDomainScore(domain.name, findings || [])
     }));
   }
 
@@ -255,7 +272,7 @@ class HTMLExporter {
         subject: insight.subject || 'Unknown',
         description: insight.subject || insight.issue_type || 'Security issue detected',
         scope: insight.scope === 'account' ? 'Account' : `Zone: ${insight.resourceId}`,
-        since: insight.since ? moment(insight.since).format('MMM DD, YYYY') : 'Unknown',
+        since: insight.since ? dayjs(insight.since).format('MMM DD, YYYY') : 'Unknown',
         resolveText: insight.resolve_text || 'Follow Cloudflare recommendations',
         resolveLink: insight.resolve_link
       })),

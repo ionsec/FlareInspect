@@ -18,7 +18,7 @@ class CloudflareClient {
     logger.cloudflare('Initializing Cloudflare client', {
       hasApiToken: true,
       tokenLength: apiToken?.length || 0,
-      tokenPrefix: apiToken?.substring(0, 10) + '...',
+      tokenPrefix: '***' + (apiToken?.substring(apiToken.length - 4) || '') + '...',
       debugMode: this.debugMode
     });
 
@@ -1592,6 +1592,223 @@ class CloudflareClient {
         return [];
       }
     });
+  }
+
+  /**
+   * Get DLP profiles and rules for account
+   */
+  async getDLPProfiles(accountId) {
+    try {
+      const [profiles, rules] = await Promise.all([
+        this.rawRequest(`/accounts/${accountId}/dlp/profiles?per_page=100`).catch(() => null),
+        this.rawRequest(`/accounts/${accountId}/dlp/rules?per_page=100`).catch(() => null)
+      ]);
+      return {
+        profiles: profiles?.result || [],
+        rules: rules?.result || []
+      };
+    } catch (error) {
+      logger.debug('DLP not available:', error.message);
+      return { profiles: [], rules: [] };
+    }
+  }
+
+  /**
+   * Get Page Shield configuration for zone
+   */
+  async getPageShield(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/page_shield`);
+      return response?.result || {};
+    } catch (error) {
+      logger.debug('Page Shield not available:', error.message);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Get Cloudflare Tunnels for account
+   */
+  async getTunnels(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/cfd_tunnel?per_page=100`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Tunnels not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Gateway policies (DNS and HTTP) for account
+   */
+  async getGatewayPolicies(accountId) {
+    try {
+      const [dns, http, l4] = await Promise.all([
+        this.rawRequest(`/accounts/${accountId}/gateway/dns?per_page=100`).catch(() => null),
+        this.rawRequest(`/accounts/${accountId}/gateway/http?per_page=100`).catch(() => null),
+        this.rawRequest(`/accounts/${accountId}/gateway/l4?per_page=100`).catch(() => null)
+      ]);
+      return {
+        dns: dns?.result || [],
+        http: http?.result || [],
+        l4: l4?.result || []
+      };
+    } catch (error) {
+      logger.debug('Gateway policies not available:', error.message);
+      return { dns: [], http: [], l4: [] };
+    }
+  }
+
+  /**
+   * Get Spectrum applications for account
+   */
+  async getSpectrumApps(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/spectrum/apps?per_page=100`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Spectrum not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get AI Gateway configuration for account
+   */
+  async getAIGateway(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/ai-gateway?per_page=100`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('AI Gateway not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Cache Deception Armor for zone
+   */
+  async getCacheDeceptionArmor(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/cache_deception_armor`);
+      return response?.result || {};
+    } catch (error) {
+      logger.debug('Cache Deception Armor not available:', error.message);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Get Snippets for zone
+   */
+  async getSnippets(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/snippets?per_page=100`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Snippets not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Custom Hostnames for zone
+   */
+  async getCustomHostnames(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/custom_hostnames?per_page=100`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Custom Hostnames not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Waiting Rooms for zone
+   */
+  async getWaitingRooms(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/waiting_rooms?per_page=100`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Waiting Rooms not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Origin Certificates for zone
+   */
+  async getOriginCertificates(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/origin_tls_client_auth/hostnames/certificates?per_page=100`);
+      return response?.result || [];
+    } catch (error) {
+      logger.debug('Origin Certificates not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get Configuration Rules for zone
+   */
+  async getConfigurationRules(zoneId) {
+    try {
+      const response = await this.rawRequest(`/zones/${zoneId}/rulesets/phases/http_request_config/entrypoint`);
+      return response?.result || {};
+    } catch (error) {
+      logger.debug('Configuration Rules not available:', error.message);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Get Transform Rules for zone
+   */
+  async getTransformRules(zoneId) {
+    try {
+      const [requestMods, responseMods, urlRewrites] = await Promise.all([
+        this.rawRequest(`/zones/${zoneId}/rulesets/phases/http_request_late/entrypoint`).catch(() => null),
+        this.rawRequest(`/zones/${zoneId}/rulesets/phases/http_response_headers/entrypoint`).catch(() => null),
+        this.rawRequest(`/zones/${zoneId}/rulesets/phases/http_request_transform/entrypoint`).catch(() => null)
+      ]);
+      return {
+        requestModifications: requestMods?.result?.rules || [],
+        responseModifications: responseMods?.result?.rules || [],
+        urlRewrites: urlRewrites?.result?.rules || []
+      };
+    } catch (error) {
+      logger.debug('Transform Rules not available:', error.message);
+      return { requestModifications: [], responseModifications: [], urlRewrites: [] };
+    }
+  }
+
+  /**
+   * Get Radar insights for account
+   */
+  async getRadarInsights(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/radar/attacks/layer3/timeseries?per_page=100`);
+      return response?.result || {};
+    } catch (error) {
+      logger.debug('Radar not available:', error.message);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Get Cloudflare One Agent enrollment status for account
+   */
+  async getDevicePolicy(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/devices/policy?per_page=100`);
+      return response?.result || {};
+    } catch (error) {
+      logger.debug('Device policy not available:', error.message);
+      return { error: error.message };
+    }
   }
 }
 

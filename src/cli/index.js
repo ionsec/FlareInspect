@@ -11,6 +11,7 @@ const chalk = require('chalk');
 const { displayBanner, displayCredits } = require('./utils/banner');
 const assessCommand = require('./commands/assess');
 const exportCommand = require('./commands/export');
+const diffCommand = require('./commands/diff');
 const helpCommand = require('./commands/help');
 const pkg = require('../../package.json');
 
@@ -38,10 +39,19 @@ program
 program
   .command('assess')
   .description('Run a comprehensive Cloudflare security assessment')
-  .requiredOption('-t, --token <token>', 'Cloudflare API token')
+  .option('-t, --token <token>', 'Cloudflare API token')
   .option('-o, --output <file>', 'Output file for assessment results')
-  .option('-f, --format <format>', 'Output format (json|html)', 'json')
+  .option('-f, --format <format>', 'Output format (json|html|sarif|markdown|csv|ocsf)', 'json')
   .option('--no-export', 'Skip automatic export of results')
+  .option('--ci', 'CI/CD mode: JSON to stdout, no spinners, exit codes by threshold')
+  .option('--threshold <score>', 'Minimum security score (0-100) to pass (CI mode)')
+  .option('--fail-on <severity>', 'Fail if any finding at or above this severity (critical|high|medium|low)')
+  .option('--zones <zones>', 'Comma-separated list of zone names to assess')
+  .option('--exclude-zones <zones>', 'Comma-separated list of zone names to exclude')
+  .option('--checks <checks>', 'Comma-separated list of check categories to run (dns,ssl,waf,zerotrust,etc.)')
+  .option('--concurrency <n>', 'Number of zones to assess in parallel', parseInt, 3)
+  .option('--compliance <framework>', 'Generate compliance report for framework (cis|soc2|pci|nist)')
+  .option('--sensitivity <level>', 'Data sensitivity level for contextual scoring (critical|high|medium|low)')
   .action(assessCommand.execute);
 
 // Export command
@@ -50,8 +60,18 @@ program
   .description('Export assessment results to different formats')
   .requiredOption('-i, --input <file>', 'Input assessment file (JSON)')
   .requiredOption('-o, --output <file>', 'Output file path')
-  .option('-f, --format <format>', 'Export format (json|html|ocsf)', 'json')
+  .option('-f, --format <format>', 'Export format (json|html|ocsf|sarif|markdown|csv|asff)', 'json')
   .action(exportCommand.execute);
+
+// Diff command
+program
+  .command('diff')
+  .description('Compare two assessments for security posture drift')
+  .requiredOption('--baseline <file>', 'Baseline assessment file (JSON)')
+  .requiredOption('--current <file>', 'Current assessment file (JSON)')
+  .option('-o, --output <file>', 'Output file for diff results')
+  .option('-f, --format <format>', 'Output format (json|markdown)', 'json')
+  .action(diffCommand.execute);
 
 // Help command (custom)
 program
@@ -69,10 +89,8 @@ program
 
 // Launch interactive mode if no command provided
 if (!process.argv.slice(2).length && !process.env.FLAREINSPECT_INTERACTIVE) {
-  // Launch interactive mode directly without parsing
   process.env.FLAREINSPECT_INTERACTIVE = 'true';
   require('./interactive');
 } else {
-  // Parse arguments only if we have commands
   program.parse(process.argv);
 }

@@ -1,0 +1,30 @@
+# FlareInspect Configuration
+# Copy to .flareinspect.yml and customize
+
+# Cloudflare API token (or use CLOUDFLARE_TOKEN env var)
+token: null
+
+# Output settings
+output:
+  format: json          # json, html, sarif, markdown, csv, ocsf, asff
+  directory: ./output
+
+# Assessment settings
+assessment:
+  concurrency: 3        # Parallel zone assessment
+  # checks: dns,ssl,waf  # Only run these check categories
+  # zones: prod.com      # Only assess these zones
+  # excludeZones: dev.com # Exclude these zones
+
+# Compliance framework filter
+compliance:
+  framework: null        # cis, soc2, pci, nist
+
+# Contextual scoring
+scoring:
+  sensitivity: medium    # critical, high, medium, low
+
+# CI/CD gate settings
+ci:
+  threshold: null        # Minimum security score (0-100)
+  failOn: null          # Fail on severity: critical, high, medium, low

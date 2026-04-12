@@ -5,6 +5,7 @@
 
 const figlet = require('figlet');
 const chalk = require('chalk');
+const pkg = require('../../../package.json');
 
 /**
  * Display the FlareInspect banner
@@ -25,7 +26,7 @@ function displayBanner() {
   
   // Subtitle and credits
   console.log(chalk.yellow('  ═══════════════════════════════════════════════════════════════════════'));
-  console.log(chalk.white.bold('            Cloudflare Security Assessment Tool v1.0.0'));
+  console.log(chalk.white.bold(`            Cloudflare Security Assessment Tool v${pkg.version}`));
   console.log(chalk.green.bold('                      Powered by IONSEC.IO'));
   console.log(chalk.yellow('  ═══════════════════════════════════════════════════════════════════════'));
   console.log();
@@ -42,7 +43,7 @@ function displayBanner() {
  */
 function displaySimpleHeader() {
   console.log(chalk.cyan('FlareInspect') + ' - ' + chalk.white('Cloudflare Security Assessment Tool'));
-  console.log(chalk.green('Powered by IONSEC.IO') + ' | ' + chalk.gray('v1.0.0'));
+  console.log(chalk.green('Powered by IONSEC.IO') + ' | ' + chalk.gray(`v${pkg.version}`));
   console.log(chalk.yellow('─'.repeat(60)));
   console.log();
 }

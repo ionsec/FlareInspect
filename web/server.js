@@ -2,8 +2,15 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const helmet = require('helmet');
 const AssessmentService = require('../src/core/services/assessmentService');
+const ComplianceEngine = require('../src/core/services/complianceEngine');
+const DiffService = require('../src/core/services/diffService');
 const HTMLExporter = require('../src/exporters/html');
+const SARIFExporter = require('../src/exporters/sarif');
+const MarkdownExporter = require('../src/exporters/markdown');
+const CSVExporter = require('../src/exporters/csv');
+const ASFFExporter = require('../src/exporters/asff');
 
 const app = express();
 const host = process.env.HOST || '127.0.0.1';
@@ -16,6 +23,7 @@ const storageState = {
   lastError: null
 };
 
+const API_KEY = process.env.FLAREINSPECT_API_KEY || null;
 let lastAssessment = null;
 
 async function ensureStorageDir() {
@@ -33,15 +41,20 @@ function getRequestId() {
   return crypto.randomUUID();
 }
 
+function authenticateApiKey(req, res, next) {
+  if (!API_KEY) return next();
+  const provided = req.headers['x-api-key'] || req.query?.apiKey || '';
+  if (provided !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized. Provide X-API-Key header.', requestId: req.requestId });
+  }
+  next();
+}
+
 function setSecurityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; base-uri 'self'; form-action 'self'"
-  );
   next();
 }
 
@@ -141,6 +154,21 @@ function sendError(res, status, message, req) {
 
 ensureStorageDir();
 
+// Middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:'],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'self'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"]
+    }
+  }
+}));
 app.use(express.json({ limit: '2mb' }));
 app.set('trust proxy', true);
 app.use((req, res, next) => {
@@ -149,9 +177,10 @@ app.use((req, res, next) => {
   next();
 });
 app.use(setSecurityHeaders);
-app.use('/api', createRateLimiter({ windowMs: 60 * 1000, max: 60 }));
+app.use('/api', authenticateApiKey, createRateLimiter({ windowMs: 60 * 1000, max: 60 }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Assessment endpoint
 app.post('/api/assess', async (req, res) => {
   const token = (req.body && req.body.token) || '';
   const note = (req.body && req.body.note) || '';
@@ -162,7 +191,23 @@ app.post('/api/assess', async (req, res) => {
 
   try {
     const assessmentService = new AssessmentService({ useSpinner: false });
-    const assessment = await assessmentService.runAssessment({ apiToken: token }, { note });
+    const assessOptions = { note };
+
+    // Support zone filtering from web
+    if (req.body.zones) {
+      assessOptions.zones = req.body.zones.split(',').map(z => z.trim());
+    }
+    if (req.body.concurrency) {
+      assessOptions.concurrency = parseInt(req.body.concurrency, 10);
+    }
+
+    const assessment = await assessmentService.runAssessment({ apiToken: token }, assessOptions);
+
+    // Add compliance report if requested
+    if (req.body.compliance) {
+      const complianceEngine = new ComplianceEngine();
+      assessment.complianceReport = complianceEngine.getComplianceReport(assessment.findings || []);
+    }
 
     if (assessment.status === 'failed') {
       return sendError(res, 500, assessment.error || 'Assessment failed.', req);
@@ -176,6 +221,7 @@ app.post('/api/assess', async (req, res) => {
   }
 });
 
+// Get latest assessment
 app.get('/api/assessment', (req, res) => {
   if (lastAssessment) {
     return res.json({ assessment: lastAssessment });
@@ -192,11 +238,13 @@ app.get('/api/assessment', (req, res) => {
     .catch(() => sendError(res, 500, 'Failed to load assessment.', req));
 });
 
+// List all assessments
 app.get('/api/assessments', async (req, res) => {
   const entries = await listAssessments();
   return res.json({ assessments: entries });
 });
 
+// Get specific assessment
 app.get('/api/assessments/:id', async (req, res) => {
   const assessment = await loadAssessmentById(req.params.id);
   if (!assessment) {
@@ -205,6 +253,65 @@ app.get('/api/assessments/:id', async (req, res) => {
   return res.json({ assessment });
 });
 
+// Compliance endpoint
+app.get('/api/compliance/:framework', (req, res) => {
+  const respondWithCompliance = (assessment) => {
+    if (!assessment) {
+      return sendError(res, 404, 'No assessment available yet.', req);
+    }
+
+    try {
+      const complianceEngine = new ComplianceEngine();
+      return res.json({
+        compliance: complianceEngine.mapFindingsToFramework(
+          assessment.findings || [],
+          req.params.framework
+        )
+      });
+    } catch (error) {
+      return sendError(res, 400, error.message, req);
+    }
+  };
+
+  if (lastAssessment) {
+    return respondWithCompliance(lastAssessment);
+  }
+
+  return loadLatestAssessmentFromDisk()
+    .then(latest => {
+      if (latest) {
+        lastAssessment = latest;
+      }
+      return respondWithCompliance(latest);
+    })
+    .catch(() => sendError(res, 500, 'Failed to load assessment.', req));
+});
+
+// Diff endpoint
+app.post('/api/diff', async (req, res) => {
+  try {
+    const { baselineId, currentId } = req.body;
+    if (!baselineId || !currentId) {
+      return sendError(res, 400, 'baselineId and currentId are required.', req);
+    }
+
+    const [baseline, current] = await Promise.all([
+      loadAssessmentById(baselineId),
+      loadAssessmentById(currentId)
+    ]);
+
+    if (!baseline) return sendError(res, 404, 'Baseline assessment not found.', req);
+    if (!current) return sendError(res, 404, 'Current assessment not found.', req);
+
+    const diffService = new DiffService();
+    const diff = diffService.compare(baseline, current);
+    return res.json({ diff });
+  } catch (error) {
+    return sendError(res, 500, error.message, req);
+  }
+});
+
+// Download endpoints
 app.get('/api/download/json', (req, res) => {
   const respond = (assessment) => {
     if (!assessment) {
@@ -252,6 +359,83 @@ app.get('/api/download/html', async (req, res) => {
   }
 });
 
+app.get('/api/download/sarif', async (req, res) => {
+  if (!lastAssessment) {
+    lastAssessment = await loadLatestAssessmentFromDisk();
+  }
+  if (!lastAssessment) {
+    return sendError(res, 404, 'No assessment available yet.', req);
+  }
+
+  try {
+    const exporter = new SARIFExporter();
+    const data = await exporter.export(lastAssessment);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-findings.sarif"');
+    return res.send(JSON.stringify(data, null, 2));
+  } catch (error) {
+    return sendError(res, 500, error.message, req);
+  }
+});
+
+app.get('/api/download/markdown', async (req, res) => {
+  if (!lastAssessment) {
+    lastAssessment = await loadLatestAssessmentFromDisk();
+  }
+  if (!lastAssessment) {
+    return sendError(res, 404, 'No assessment available yet.', req);
+  }
+
+  try {
+    const exporter = new MarkdownExporter();
+    const data = await exporter.export(lastAssessment);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-report.md"');
+    return res.send(data);
+  } catch (error) {
+    return sendError(res, 500, error.message, req);
+  }
+});
+
+app.get('/api/download/csv', async (req, res) => {
+  if (!lastAssessment) {
+    lastAssessment = await loadLatestAssessmentFromDisk();
+  }
+  if (!lastAssessment) {
+    return sendError(res, 404, 'No assessment available yet.', req);
+  }
+
+  try {
+    const exporter = new CSVExporter();
+    const data = await exporter.export(lastAssessment);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-findings.csv"');
+    return res.send(data);
+  } catch (error) {
+    return sendError(res, 500, error.message, req);
+  }
+});
+
+app.get('/api/download/asff', async (req, res) => {
+  if (!lastAssessment) {
+    lastAssessment = await loadLatestAssessmentFromDisk();
+  }
+  if (!lastAssessment) {
+    return sendError(res, 404, 'No assessment available yet.', req);
+  }
+
+  try {
+    const exporter = new ASFFExporter();
+    const data = await exporter.export(lastAssessment);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-findings.asff.json"');
+    return res.send(JSON.stringify(data, null, 2));
+  } catch (error) {
+    return sendError(res, 500, error.message, req);
+  }
+});
+
+// Report viewer
 app.get('/report', async (req, res) => {
   if (!lastAssessment) {
     lastAssessment = await loadLatestAssessmentFromDisk();
@@ -271,6 +455,7 @@ app.get('/report', async (req, res) => {
   }
 });
 
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
@@ -280,7 +465,8 @@ app.get('/api/health', (req, res) => {
     storage: {
       ready: storageState.ready,
       error: storageState.lastError
-    }
+    },
+    auth: API_KEY ? 'api-key' : 'none'
   });
 });
 
@@ -288,6 +474,9 @@ const server = app.listen(port, host, () => {
   const address = server.address();
   const actualPort = address && typeof address === 'object' ? address.port : port;
   console.log(`FlareInspect web app running on http://${host}:${actualPort}`);
+  if (API_KEY) {
+    console.log('API key authentication enabled');
+  }
 });
 
 app.use((err, req, res, next) => {
