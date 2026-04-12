@@ -1,0 +1,121 @@
+site_name: FlareInspect
+site_url: https://flareinspect.readthedocs.io
+site_description: Cloudflare security assessment CLI and web dashboard
+repo_url: https://github.com/ionsec/flareinspect
+repo_name: ionsec/flareinspect
+edit_uri: edit/main/docs/docs/
+
+theme:
+  name: material
+  logo: assets/flare-inspect-logo.svg
+  favicon: assets/flare-inspect-logo.svg
+  palette:
+    primary: deep orange
+    accent: amber
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Installation: installation.md
+  - Quick Start: quick-start.md
+  - CLI Reference:
+      - assess: cli/assess.md
+      - export: cli/export.md
+      - diff: cli/diff.md
+      - Interactive Mode: cli/interactive-mode.md
+      - Global Options: cli/global-options.md
+  - Configuration:
+      - Config File: configuration/config-file.md
+      - Environment Variables: configuration/env-vars.md
+      - Override Precedence: configuration/cli-override-precedence.md
+  - Security Checks:
+      - Overview: checks/index.md
+      - Account: checks/account.md
+      - DNS: checks/dns.md
+      - SSL/TLS: checks/ssl-tls.md
+      - WAF: checks/waf.md
+      - Zero Trust: checks/zerotrust.md
+      - Workers & Pages: checks/workers-pages.md
+      - API Gateway: checks/api-gateway.md
+      - Bot Management: checks/bot-management.md
+      - Logpush: checks/logpush.md
+      - mTLS: checks/mtls.md
+      - security.txt: checks/security-txt.md
+      - Attack Surface: checks/attack-surface.md
+      - DLP: checks/dlp.md
+      - Tunnels & Gateway: checks/tunnels-gateway.md
+      - Page Shield: checks/page-shield.md
+      - Cache Deception: checks/cache-deception.md
+      - Snippets: checks/snippets.md
+      - Custom Hostnames: checks/custom-hostnames.md
+      - AI Gateway: checks/ai-gateway.md
+      - Origin Certs: checks/origin-certs.md
+  - Export Formats:
+      - Overview: export-formats/index.md
+      - JSON: export-formats/json.md
+      - HTML: export-formats/html.md
+      - OCSF: export-formats/ocsf.md
+      - SARIF: export-formats/sarif.md
+      - Markdown: export-formats/markdown.md
+      - CSV: export-formats/csv.md
+      - ASFF: export-formats/asff.md
+  - Compliance:
+      - Overview: compliance/index.md
+      - CIS: compliance/cis.md
+      - SOC 2: compliance/soc2.md
+      - PCI-DSS: compliance/pci-dss.md
+      - NIST CSF: compliance/nist-csf.md
+  - Scoring:
+      - Contextual Scoring: scoring/contextual-scoring.md
+      - Severity Weights: scoring/severity-weights.md
+      - Grading Scale: scoring/grading-scale.md
+  - Drift Detection:
+      - Overview: drift-detection/index.md
+      - Interpreting Drift: drift-detection/interpreting-drift.md
+  - Web Dashboard:
+      - Overview: web-dashboard/index.md
+      - API Reference: web-dashboard/api-reference.md
+      - Authentication: web-dashboard/authentication.md
+  - CI/CD Integration:
+      - GitHub Actions: ci-cd/github-actions.md
+      - GitLab CI: ci-cd/gitlab-ci.md
+      - Exit Codes: ci-cd/exit-codes.md
+  - Deployment:
+      - Docker: deployment/docker.md
+      - Render: deployment/render.md
+      - Standalone: deployment/standalone.md
+  - Plugins:
+      - Overview: plugins/index.md
+      - Writing Plugins: plugins/writing-plugins.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Data Flow: architecture/data-flow.md
+      - Module Map: architecture/module-map.md
+  - Contributing: contributing/index.md
+  - Permissions Guide: permissions-guide.md
+  - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
+  - Changelog: changelog.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
