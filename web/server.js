@@ -11,6 +11,12 @@ const SARIFExporter = require('../src/exporters/sarif');
 const MarkdownExporter = require('../src/exporters/markdown');
 const CSVExporter = require('../src/exporters/csv');
 const ASFFExporter = require('../src/exporters/asff');
+const logger = require('../src/core/utils/logger');
+const ASSESSMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_NOTE_LENGTH = 2000;
+const MAX_ZONE_FILTERS = 100;
+const MAX_CONCURRENCY = 10;
+const ALLOWED_FRAMEWORKS = new Set(['cis', 'cis-benchmark', 'soc2', 'soc-2', 'pci', 'pci-dss', 'nist', 'nist-csf']);
 
 const app = express();
 const host = process.env.HOST || '127.0.0.1';
@@ -43,8 +49,11 @@ function getRequestId() {
 
 function authenticateApiKey(req, res, next) {
   if (!API_KEY) return next();
-  const provided = req.headers['x-api-key'] || req.query?.apiKey || '';
-  if (provided !== API_KEY) {
+  const providedValue = req.headers['x-api-key'] || '';
+  const provided = String(Array.isArray(providedValue) ? providedValue[0] : providedValue);
+  const expectedBuffer = Buffer.from(API_KEY);
+  const providedBuffer = Buffer.from(provided);
+  if (providedBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
     return res.status(401).json({ error: 'Unauthorized. Provide X-API-Key header.', requestId: req.requestId });
   }
   next();
@@ -105,6 +114,9 @@ async function loadLatestAssessmentFromDisk() {
 }
 
 async function loadAssessmentById(assessmentId) {
+  if (!isValidAssessmentId(assessmentId)) {
+    return null;
+  }
   try {
     const filePath = path.join(dataDir, `${assessmentId}.json`);
     const content = await fs.promises.readFile(filePath, 'utf8');
@@ -152,6 +164,101 @@ function sendError(res, status, message, req) {
   return res.status(status).json({ error: message, requestId: req.requestId });
 }
 
+function sendUnexpectedError(res, error, req, context) {
+  logger.error('Web request failed', {
+    context,
+    requestId: req.requestId,
+    error: error?.message
+  });
+  return sendError(res, 500, 'Unexpected error.', req);
+}
+
+function isValidAssessmentId(value) {
+  return typeof value === 'string' && ASSESSMENT_ID_PATTERN.test(value);
+}
+
+function parseCsvList(value, { maxItems = MAX_ZONE_FILTERS } = {}) {
+  if (typeof value !== 'string') {
+    return [];
+  }
+
+  const items = value
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  if (items.length > maxItems) {
+    throw new Error(`Too many items supplied. Maximum allowed is ${maxItems}.`);
+  }
+
+  return items;
+}
+
+function parseOptionalConcurrency(value) {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_CONCURRENCY) {
+    throw new Error(`Concurrency must be an integer between 1 and ${MAX_CONCURRENCY}.`);
+  }
+
+  return parsed;
+}
+
+function parseOptionalNote(value) {
+  if (value === undefined || value === null || value === '') {
+    return '';
+  }
+
+  const note = String(value);
+  if (note.length > MAX_NOTE_LENGTH) {
+    throw new Error(`Note must be ${MAX_NOTE_LENGTH} characters or fewer.`);
+  }
+
+  return note;
+}
+
+function parseOptionalFramework(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const framework = String(value).trim().toLowerCase();
+  if (!ALLOWED_FRAMEWORKS.has(framework)) {
+    throw new Error('Unknown compliance framework.');
+  }
+
+  return framework;
+}
+
+function parseAssessmentRequest(body = {}) {
+  const token = typeof body.token === 'string' ? body.token.trim() : '';
+  if (token.length < 10 || token.length > 512) {
+    throw new Error('Invalid Cloudflare API token.');
+  }
+
+  return {
+    token,
+    note: parseOptionalNote(body.note),
+    zones: parseCsvList(body.zones),
+    concurrency: parseOptionalConcurrency(body.concurrency),
+    compliance: parseOptionalFramework(body.compliance)
+  };
+}
+
+function parseDiffRequest(body = {}) {
+  const baselineId = typeof body.baselineId === 'string' ? body.baselineId.trim() : '';
+  const currentId = typeof body.currentId === 'string' ? body.currentId.trim() : '';
+
+  if (!isValidAssessmentId(baselineId) || !isValidAssessmentId(currentId)) {
+    throw new Error('baselineId and currentId must be valid assessment IDs.');
+  }
+
+  return { baselineId, currentId };
+}
+
 ensureStorageDir();
 
 // Middleware
@@ -182,29 +289,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Assessment endpoint
 app.post('/api/assess', async (req, res) => {
-  const token = (req.body && req.body.token) || '';
-  const note = (req.body && req.body.note) || '';
-
-  if (!token || token.length < 10) {
-    return sendError(res, 400, 'Invalid Cloudflare API token.', req);
-  }
-
   try {
+    const request = parseAssessmentRequest(req.body);
     const assessmentService = new AssessmentService({ useSpinner: false });
-    const assessOptions = { note };
+    const assessOptions = { note: request.note };
 
-    // Support zone filtering from web
-    if (req.body.zones) {
-      assessOptions.zones = req.body.zones.split(',').map(z => z.trim());
+    if (request.zones.length > 0) {
+      assessOptions.zones = request.zones;
     }
-    if (req.body.concurrency) {
-      assessOptions.concurrency = parseInt(req.body.concurrency, 10);
+    if (request.concurrency !== undefined) {
+      assessOptions.concurrency = request.concurrency;
     }
 
-    const assessment = await assessmentService.runAssessment({ apiToken: token }, assessOptions);
+    const assessment = await assessmentService.runAssessment({ apiToken: request.token }, assessOptions);
 
-    // Add compliance report if requested
-    if (req.body.compliance) {
+    if (request.compliance) {
       const complianceEngine = new ComplianceEngine();
       assessment.complianceReport = complianceEngine.getComplianceReport(assessment.findings || []);
     }
@@ -217,7 +316,16 @@ app.post('/api/assess', async (req, res) => {
     await persistAssessment(assessment);
     return res.json({ assessment });
   } catch (error) {
-    return sendError(res, 500, error.message || 'Unexpected error.', req);
+    if (error.message && (
+      error.message.startsWith('Invalid Cloudflare API token') ||
+      error.message.startsWith('Too many items supplied') ||
+      error.message.startsWith('Concurrency must') ||
+      error.message.startsWith('Note must') ||
+      error.message.startsWith('Unknown compliance framework')
+    )) {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'assess');
   }
 });
 
@@ -235,7 +343,7 @@ app.get('/api/assessment', (req, res) => {
       lastAssessment = latest;
       return res.json({ assessment: latest });
     })
-    .catch(() => sendError(res, 500, 'Failed to load assessment.', req));
+    .catch(error => sendUnexpectedError(res, error, req, 'latest-assessment'));
 });
 
 // List all assessments
@@ -284,16 +392,13 @@ app.get('/api/compliance/:framework', (req, res) => {
       }
       return respondWithCompliance(latest);
     })
-    .catch(() => sendError(res, 500, 'Failed to load assessment.', req));
+    .catch(error => sendUnexpectedError(res, error, req, 'compliance'));
 });
 
 // Diff endpoint
 app.post('/api/diff', async (req, res) => {
   try {
-    const { baselineId, currentId } = req.body;
-    if (!baselineId || !currentId) {
-      return sendError(res, 400, 'baselineId and currentId are required.', req);
-    }
+    const { baselineId, currentId } = parseDiffRequest(req.body);
 
     const [baseline, current] = await Promise.all([
       loadAssessmentById(baselineId),
@@ -307,7 +412,10 @@ app.post('/api/diff', async (req, res) => {
     const diff = diffService.compare(baseline, current);
     return res.json({ diff });
   } catch (error) {
-    return sendError(res, 500, error.message, req);
+    if (error.message === 'baselineId and currentId must be valid assessment IDs.') {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'diff');
   }
 });
 
@@ -334,7 +442,7 @@ app.get('/api/download/json', (req, res) => {
       }
       return respond(latest);
     })
-    .catch(() => sendError(res, 500, 'Failed to load assessment.', req));
+    .catch(error => sendUnexpectedError(res, error, req, 'download-json'));
 });
 
 app.get('/api/download/html', async (req, res) => {
@@ -355,7 +463,7 @@ app.get('/api/download/html', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(html);
   } catch (error) {
-    return sendError(res, 500, error.message || 'Failed to generate HTML report.', req);
+    return sendUnexpectedError(res, error, req, 'download-html');
   }
 });
 
@@ -374,7 +482,7 @@ app.get('/api/download/sarif', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-findings.sarif"');
     return res.send(JSON.stringify(data, null, 2));
   } catch (error) {
-    return sendError(res, 500, error.message, req);
+    return sendUnexpectedError(res, error, req, 'download-sarif');
   }
 });
 
@@ -393,7 +501,7 @@ app.get('/api/download/markdown', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-report.md"');
     return res.send(data);
   } catch (error) {
-    return sendError(res, 500, error.message, req);
+    return sendUnexpectedError(res, error, req, 'download-markdown');
   }
 });
 
@@ -412,7 +520,7 @@ app.get('/api/download/csv', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-findings.csv"');
     return res.send(data);
   } catch (error) {
-    return sendError(res, 500, error.message, req);
+    return sendUnexpectedError(res, error, req, 'download-csv');
   }
 });
 
@@ -431,7 +539,7 @@ app.get('/api/download/asff', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="flareinspect-findings.asff.json"');
     return res.send(JSON.stringify(data, null, 2));
   } catch (error) {
-    return sendError(res, 500, error.message, req);
+    return sendUnexpectedError(res, error, req, 'download-asff');
   }
 });
 
@@ -483,5 +591,5 @@ app.use((err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
   }
-  return sendError(res, 500, err.message || 'Unexpected error.', req);
+  return sendUnexpectedError(res, err, req, 'middleware');
 });

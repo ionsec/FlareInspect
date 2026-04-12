@@ -9,6 +9,7 @@ const path = require('path');
 const logger = require('../core/utils/logger');
 
 const CONFIG_FILENAMES = ['.flareinspect.yml', '.flareinspect.yaml', 'flareinspect.config.json'];
+const MAX_CONFIG_SIZE_BYTES = 1024 * 64;
 
 class ConfigManager {
   constructor() {
@@ -25,6 +26,11 @@ class ConfigManager {
         const filePath = path.join(currentDir, filename);
         if (fs.existsSync(filePath)) {
           try {
+            const stats = fs.statSync(filePath);
+            if (!stats.isFile() || stats.size > MAX_CONFIG_SIZE_BYTES) {
+              logger.warn('Skipping unsafe config candidate', { path: filePath });
+              continue;
+            }
             const content = fs.readFileSync(filePath, 'utf8');
             const parsed = filename.endsWith('.json')
               ? JSON.parse(content)

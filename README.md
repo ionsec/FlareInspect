@@ -219,6 +219,20 @@ The compose file exposes:
 - `flareinspect-web` for the dashboard
 - `flareinspect-dev` for interactive development
 
+## Security Notes
+
+- Keep Cloudflare API tokens in environment variables or local config files that are not committed.
+- When exposing the web API beyond localhost, set `FLAREINSPECT_API_KEY`.
+- The web app now validates assessment IDs, framework names, concurrency values, and zone filter list sizes before processing requests.
+- Assessment artifacts are stored locally in `web/data/assessments`; delete them when no longer needed.
+- Verify the repo state with:
+
+```bash
+npm audit --omit=dev
+npm test -- --runInBand
+npm run lint
+```
+
 ## Cloudflare API Permissions
 
 Minimum useful coverage:

@@ -18,7 +18,6 @@ class CloudflareClient {
     logger.cloudflare('Initializing Cloudflare client', {
       hasApiToken: true,
       tokenLength: apiToken?.length || 0,
-      tokenPrefix: '***' + (apiToken?.substring(apiToken.length - 4) || '') + '...',
       debugMode: this.debugMode
     });
 
@@ -32,7 +31,6 @@ class CloudflareClient {
       logger.cloudflare('Creating Cloudflare client with config', {
         configKeys: Object.keys(clientConfig),
         hasApiToken: !!clientConfig.apiToken,
-        tokenType: apiToken.startsWith('v1.0-') ? 'Custom Token' : 'Standard Token',
         sdkVersion: '4.5.0'
       });
     }
@@ -120,21 +118,16 @@ class CloudflareClient {
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
-      
-      // Enhanced error logging for debugging
+
       const errorDetails = {
         requestId,
         duration,
         message: error.message,
         code: error.code,
         statusCode: error.response?.status || error.statusCode,
-        responseData: error.response?.data || error.data,
-        responseBody: error.response?.body,
-        headers: error.response?.headers,
+        responseData: this.sanitizeResponseData(error.response?.data || error.data),
         config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers ? Object.keys(error.config.headers) : []
+          method: error.config?.method
         }
       };
       
@@ -184,6 +177,31 @@ class CloudflareClient {
 
       return data;
     });
+  }
+
+  sanitizeResponseData(data) {
+    if (!data || typeof data !== 'object') {
+      return data;
+    }
+
+    try {
+      const clone = JSON.parse(JSON.stringify(data));
+      if (Array.isArray(clone.errors)) {
+        clone.errors = clone.errors.map(entry => ({
+          code: entry.code,
+          message: entry.message
+        }));
+      }
+      if (Array.isArray(clone.messages)) {
+        clone.messages = clone.messages.map(entry => ({
+          code: entry.code,
+          message: entry.message
+        }));
+      }
+      return clone;
+    } catch {
+      return { message: 'Unable to serialize response data safely' };
+    }
   }
 
   /**

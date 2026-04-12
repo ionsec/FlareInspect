@@ -6,6 +6,7 @@ const SARIFExporter = require('../src/exporters/sarif');
 const MarkdownExporter = require('../src/exporters/markdown');
 const CSVExporter = require('../src/exporters/csv');
 const ASFFExporter = require('../src/exporters/asff');
+const HTMLExporter = require('../src/exporters/html');
 
 const mockAssessment = {
   assessmentId: 'test-001',
@@ -75,6 +76,23 @@ describe('MarkdownExporter', () => {
     expect(result).toContain('Critical Findings');
     expect(result).toContain('High Findings');
   });
+
+  test('escapes markdown table and html-sensitive content', async () => {
+    const exporter = new MarkdownExporter();
+    const assessment = {
+      ...mockAssessment,
+      findings: [{
+        ...mockAssessment.findings[0],
+        checkTitle: 'Bad | Title',
+        description: '<script>alert(1)</script>\nsecond line',
+        remediation: 'fix | now'
+      }]
+    };
+    const result = await exporter.export(assessment);
+    expect(result).toContain('Bad \\| Title');
+    expect(result).toContain('&lt;script&gt;alert(1)&lt;/script&gt; second line');
+    expect(result).toContain('fix \\| now');
+  });
 });
 
 describe('CSVExporter', () => {
@@ -105,5 +123,23 @@ describe('ASFFExporter', () => {
     expect(result.length).toBeGreaterThan(0);
     expect(result[0].SchemaVersion).toBe('2018-10-08');
     expect(result[0].Types).toContain('Software and Configuration Checks/Cloudflare');
+  });
+});
+
+describe('HTMLExporter', () => {
+  test('json helper escapes characters unsafe in HTML script contexts', () => {
+    const exporter = new HTMLExporter();
+    const helper = exporter.constructor ? require('handlebars').helpers.json : null;
+    const result = helper({ payload: '</script><img src=x onerror=alert(1)>' });
+    expect(result).toContain('\\u003c/script\\u003e');
+    expect(result).not.toContain('</script>');
+  });
+
+  test('exports chart data without external cdn dependency', async () => {
+    const exporter = new HTMLExporter();
+    const result = await exporter.export(mockAssessment);
+    expect(result).not.toContain('cdn.jsdelivr.net');
+    expect(result).toContain('const categoryLabels =');
+    expect(result).toContain('drawBarChart');
   });
 });

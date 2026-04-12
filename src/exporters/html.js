@@ -9,6 +9,16 @@ const fs = require('fs').promises;
 const path = require('path');
 const dayjs = require('dayjs');
 const logger = require('../core/utils/logger');
+const pkg = require('../../package.json');
+
+function safeJsonStringify(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
 
 class HTMLExporter {
   constructor() {
@@ -58,7 +68,7 @@ class HTMLExporter {
 
     // JSON stringify helper
     Handlebars.registerHelper('json', (context) => {
-      return JSON.stringify(context);
+      return safeJsonStringify(context);
     });
   }
 
@@ -106,8 +116,8 @@ class HTMLExporter {
 
     // Prepare category data for chart
     const categories = posture.securityCategories || {};
-    const categoryLabels = Object.keys(categories).map(cat => `'${this.capitalizeFirst(cat)}'`).join(', ');
-    const categoryData = Object.values(categories).map(cat => cat.findings || 0).join(', ');
+    const categoryLabels = Object.keys(categories).map(cat => this.capitalizeFirst(cat));
+    const categoryData = Object.values(categories).map(cat => cat.findings || 0);
 
     // Count findings by severity
     const countBySeverity = this.countFindingsBySeverity(assessment.findings || []);
@@ -143,10 +153,19 @@ class HTMLExporter {
       mediumCount: countBySeverity.medium,
       lowCount: countBySeverity.low,
       informationalCount: countBySeverity.informational,
+      riskChartData: [
+        countBySeverity.critical,
+        countBySeverity.high,
+        countBySeverity.medium,
+        countBySeverity.low,
+        countBySeverity.informational
+      ],
+      riskChartLabels: ['Critical', 'High', 'Medium', 'Low', 'Informational'],
       
       // Category chart data
       categoryLabels: categoryLabels,
       categoryData: categoryData,
+      appVersion: pkg.version,
       
       // Top risks
       topRisks: summary.topRisks || [],
