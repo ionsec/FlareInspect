@@ -48,4 +48,7 @@ docker-compose.override.yml
 # Temporary files
 *.tmp
 *.temp
-.cache/
+.cache/docs/_build/
+docs/*.md
+docs/mkdocs.yml
+docs/docs/

@@ -1,0 +1,153 @@
+/* ── FlareInspect docs · Cloudflare × IONSEC.io theme ── */
+
+/* ── Cloudflare-inspired palette ── */
+:root {
+  --cf-orange:    #f6821f;
+  --cf-orange-lt: #ffa040;
+  --cf-navy:      #0d1117;
+}
+
+/* ── Logo / brand header strip ── */
+.md-header {
+  background: linear-gradient(90deg, #0d1117 0%, #1c2333 100%) !important;
+  border-bottom: 1px solid rgba(246,130,31,0.25) !important;
+}
+
+/* Orange accent on active nav and links */
+.md-tabs__link--active,
+.md-nav__link:active,
+.md-typeset a:not([href^="http"]):not([href^="mailto"]):not(.md-icon):not([href^="/"]):hover,
+.md-content__button {
+  color: var(--cf-orange) !important;
+}
+
+/* Code blocks */
+.md-typeset code {
+  color: #ffa040;
+  background: rgba(246,130,31,0.08);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.85em;
+  border: 1px solid rgba(246,130,31,0.15);
+}
+
+.highlight code {
+  background: #0a0e14 !important;
+  border: 1px solid rgba(246,130,31,0.1) !important;
+  border-radius: 8px !important;
+}
+
+/* Admonitions */
+.md-typeset .note,
+.md-typeset .tip,
+.md-typeset .important,
+.md-typeset .warning,
+.md-typeset .caution,
+.md-typeset .danger,
+.md-typeset .attention {
+  border-radius: 8px !important;
+  border-left-width: 4px !important;
+}
+
+/* Orange tab underline for active tab */
+.md-tabs__link--active {
+  border-bottom: 2px solid var(--cf-orange) !important;
+}
+
+/* Footer */
+.md-footer {
+  background: #0d1117 !important;
+  border-top: 1px solid rgba(246,130,31,0.2) !important;
+}
+
+.md-footer-meta {
+  background: transparent !important;
+}
+
+/* Navigation section headers */
+.md-nav__item > .md-nav__link {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.md-nav__link[data-md-state="blur"] {
+  color: var(--md-typeset-a-color) !important;
+  opacity: 0.7;
+}
+
+/* Tables */
+.md-typeset table:not([class]) {
+  border-radius: 8px !important;
+  overflow: hidden;
+  border: 1px solid rgba(240,246,252,0.08) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.md-typeset table:not([class]) th {
+  background: rgba(246,130,31,0.12) !important;
+  color: #ffa040 !important;
+  font-weight: 700;
+  border-bottom: 2px solid rgba(246,130,31,0.3) !important;
+}
+
+.md-typeset table:not([class]) td {
+  border-color: rgba(240,246,252,0.06) !important;
+}
+
+/* Search highlight */
+.md-search-result__article--active {
+  border-left: 3px solid var(--cf-orange) !important;
+}
+
+/* Version badge */
+.md-version {
+  background: rgba(246,130,31,0.15) !important;
+  color: var(--cf-orange) !important;
+  border: 1px solid rgba(246,130,31,0.3) !important;
+  border-radius: 4px !important;
+}
+
+/* Copy button on code */
+.md-clipboard {
+  color: rgba(255,160,64,0.7) !important;
+}
+
+.md-clipboard:hover {
+  color: var(--cf-orange) !important;
+}
+
+/* Annotations */
+.md-annotation::before {
+  background: var(--cf-orange) !important;
+}
+
+/* Progress bar / top strip */
+.md-header__source {
+  color: rgba(255,255,255,0.6);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: rgba(246,130,31,0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cf-orange); }
+
+/* ── Dark mode overrides ── */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #f6821f;
+  --md-primary-fg-color--light:  #ffa040;
+  --md-accent-fg-color:          #f6821f;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a,
+[data-md-color-scheme="slate"] .md-nav__link {
+  color: var(--cf-orange-lt);
+}
+
+/* ── Responsive tweaks ── */
+@media screen and (max-width: 76.1875em) {
+  .md-tabs {
+    background: #0d1117 !important;
+    border-bottom: 1px solid rgba(246,130,31,0.15);
+  }
+}
