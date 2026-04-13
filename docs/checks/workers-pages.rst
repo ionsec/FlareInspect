@@ -1,7 +1,6 @@
 ===============================
 Workers & Pages Security Checks
 ===============================
-===============================
 
 Checks for Cloudflare Workers and Pages deployments.
 

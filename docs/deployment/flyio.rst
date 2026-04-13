@@ -1,7 +1,6 @@
 ======
 Fly.io
 ======
-======
 
 Deploy to Fly.io for edge deployment with health checks and auto-scaling.
 

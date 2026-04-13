@@ -1,7 +1,6 @@
 =====================
 Environment Variables
 =====================
-=====================
 
 FlareInspect reads several environment variables for configuration and credentials. These are useful in CI/CD pipelines and container environments where CLI flags are inconvenient.
 

@@ -1,7 +1,6 @@
 ==================
 Interpreting Drift
 ==================
-==================
 
 The drift score summarizes the net change in security posture between two assessment runs.
 

@@ -1,7 +1,6 @@
 ==========================
 Zero Trust Security Checks
 ==========================
-==========================
 
 Checks that evaluate Zero Trust configuration including identity providers, access policies, device enrollment, tunnels, and gateway policies.
 

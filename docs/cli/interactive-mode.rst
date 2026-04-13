@@ -1,7 +1,6 @@
 ================
 Interactive Mode
 ================
-================
 
 FlareInspect includes an interactive shell for running commands without repeating the full CLI prefix each time.
 

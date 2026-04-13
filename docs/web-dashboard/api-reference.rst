@@ -1,7 +1,6 @@
 =============
 API Reference
 =============
-=============
 
 The FlareInspect web dashboard exposes a REST API for programmatic access to assessments, compliance reports, and exports.
 

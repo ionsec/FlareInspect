@@ -1,7 +1,6 @@
 ===================
 WAF Security Checks
 ===================
-===================
 
 Checks that evaluate Web Application Firewall configuration including security level, custom rules, rate limiting, and OWASP rule sets.
 

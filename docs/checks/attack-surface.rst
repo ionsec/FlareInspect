@@ -1,7 +1,6 @@
 ==============================
 Attack Surface Security Checks
 ==============================
-==============================
 
 Checks that evaluate attack surface reduction including Security Center, exposed credentials, and origin IP exposure.
 

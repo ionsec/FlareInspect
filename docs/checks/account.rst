@@ -1,7 +1,6 @@
 =======================
 Account Security Checks
 =======================
-=======================
 
 Checks that evaluate account-level security configuration including MFA, admin access, and audit logging.
 

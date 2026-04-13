@@ -1,7 +1,6 @@
 ================================
 Custom Hostnames Security Checks
 ================================
-================================
 
 Checks for custom hostname validation and security.
 

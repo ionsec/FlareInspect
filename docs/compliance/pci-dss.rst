@@ -1,7 +1,6 @@
 ===============
 PCI-DSS Mapping
 ===============
-===============
 
 FlareInspect maps findings to Payment Card Industry Data Security Standard v4.0 controls.
 

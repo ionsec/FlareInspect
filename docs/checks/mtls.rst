@@ -1,7 +1,6 @@
 ====================
 mTLS Security Checks
 ====================
-====================
 
 Checks for mutual TLS enforcement and certificate rotation.
 

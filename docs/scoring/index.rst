@@ -1,7 +1,6 @@
 =======
 Scoring
 =======
-=======
 
 .. toctree::
    :maxdepth: 1

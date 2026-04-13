@@ -1,7 +1,6 @@
 ===============
 Writing Plugins
 ===============
-===============
 
 FlareInspect plugins extend the assessment pipeline with custom check logic.
 

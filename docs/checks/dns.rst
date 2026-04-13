@@ -1,7 +1,6 @@
 ===================
 DNS Security Checks
 ===================
-===================
 
 Checks that evaluate DNS record security including DNSSEC, proxy status, wildcards, CAA, and DNS over HTTPS.
 

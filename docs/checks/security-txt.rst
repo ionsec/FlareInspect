@@ -1,7 +1,6 @@
 ============================
 security.txt Security Checks
 ============================
-============================
 
 Checks for the presence and validity of a ``security.txt`` file.
 

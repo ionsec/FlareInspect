@@ -1,7 +1,6 @@
 ============
 diff Command
 ============
-============
 
 Compare two assessment runs and report posture drift.
 

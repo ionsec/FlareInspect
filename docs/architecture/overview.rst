@@ -1,7 +1,6 @@
 =====================
 Architecture Overview
 =====================
-=====================
 
 FlareInspect follows a layered architecture with clear separation between the CLI, core services, exporters, and web dashboard.
 

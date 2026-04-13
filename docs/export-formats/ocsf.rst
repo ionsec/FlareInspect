@@ -1,7 +1,6 @@
 ===========
 OCSF Export
 ===========
-===========
 
 The OCSF (Open Cybersecurity Schema Framework) export normalizes findings into the OCSF schema for SIEM integration and cross-tool correlation.
 

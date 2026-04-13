@@ -1,7 +1,6 @@
 ============
 Architecture
 ============
-============
 
 .. toctree::
    :maxdepth: 1

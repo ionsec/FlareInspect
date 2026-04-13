@@ -1,7 +1,6 @@
 =========
 GitLab CI
 =========
-=========
 
 Use FlareInspect in GitLab CI to gate deployments on Cloudflare security posture.
 

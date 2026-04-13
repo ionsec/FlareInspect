@@ -1,7 +1,6 @@
 ===================
 Override Precedence
 ===================
-===================
 
 When the same setting can come from multiple sources, FlareInspect resolves conflicts using a strict precedence order:
 

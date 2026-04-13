@@ -1,7 +1,6 @@
 ===============
 Drift Detection
 ===============
-===============
 
 .. toctree::
    :maxdepth: 1

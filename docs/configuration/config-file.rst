@@ -1,7 +1,6 @@
 ==================
 Configuration File
 ==================
-==================
 
 FlareInspect can read default settings from a configuration file, which is useful for teams that want consistent assessment parameters without repeating CLI flags.
 

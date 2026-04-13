@@ -1,7 +1,6 @@
 ======
 Heroku
 ======
-======
 
 Deploy to Heroku with the 1-click button.
 

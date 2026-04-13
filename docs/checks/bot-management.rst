@@ -1,7 +1,6 @@
 ==============================
 Bot Management Security Checks
 ==============================
-==============================
 
 Checks for Cloudflare Bot Fight Mode and Turnstile widget configuration.
 

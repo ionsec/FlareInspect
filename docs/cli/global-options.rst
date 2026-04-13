@@ -1,7 +1,6 @@
 ==================
 Global CLI Options
 ==================
-==================
 
 These options apply to all FlareInspect commands and are set before the command name.
 

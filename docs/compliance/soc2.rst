@@ -1,7 +1,6 @@
 =============
 SOC 2 Mapping
 =============
-=============
 
 FlareInspect maps findings to SOC 2 Trust Services Criteria.
 

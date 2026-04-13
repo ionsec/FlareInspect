@@ -1,7 +1,6 @@
 =====================
 CIS Benchmark Mapping
 =====================
-=====================
 
 FlareInspect maps findings to Center for Internet Security (CIS) controls for Cloudflare.
 

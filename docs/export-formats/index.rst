@@ -1,7 +1,6 @@
 ==============
 Export Formats
 ==============
-==============
 
 .. toctree::
    :maxdepth: 1

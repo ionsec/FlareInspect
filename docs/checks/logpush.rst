@@ -1,7 +1,6 @@
 =======================
 Logpush Security Checks
 =======================
-=======================
 
 Checks for Cloudflare Logpush destination and coverage.
 

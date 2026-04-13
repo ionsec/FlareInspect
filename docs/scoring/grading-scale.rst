@@ -1,7 +1,6 @@
 =============
 Grading Scale
 =============
-=============
 
 FlareInspect assigns a letter grade based on the weighted overall score.
 

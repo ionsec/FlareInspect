@@ -1,7 +1,6 @@
 ================
 Severity Weights
 ================
-================
 
 FlareInspect assigns weighted values to each severity level for score calculation and drift detection.
 

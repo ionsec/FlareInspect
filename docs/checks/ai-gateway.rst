@@ -1,7 +1,6 @@
 =================
 AI Gateway Checks
 =================
-=================
 
 Checks for Cloudflare AI Gateway configuration.
 

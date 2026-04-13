@@ -1,7 +1,6 @@
 ==========
 Deployment
 ==========
-==========
 
 .. toctree::
    :maxdepth: 1
@@ -19,14 +18,25 @@ Deploy FlareInspect to cloud platforms with 1-click buttons or minimal configura
 Quick Deploy
 ------------
 
-========  ==========================================================  =======================================
-Platform  Link                                                        Cost                                   
-========  ==========================================================  =======================================
-Render    `Deploy <https://render.com/deploy?repo=https://github.com  /ionsec/flareinspect>`__  Free tier    
-Heroku    `Deploy <https://heroku.com/deploy?template=https://github  .com/ionsec/flareinspect>`__  ~$5/month
-Railway   `Deploy <https://railway.app/template/flareinspect>`__  $5  trial                                  
-Fly.io    :doc:`flyio`                                                Free allowance                         
-========  ==========================================================  =======================================
+.. list-table::
+   :header-rows: 1
+   :widths: 20 55 25
+
+   * - Platform
+     - Link
+     - Cost
+   * - Render
+     - `Deploy <https://render.com/deploy?repo=https://github.com/ionsec/flareinspect>`__
+     - Free tier
+   * - Heroku
+     - `Deploy <https://heroku.com/deploy?template=https://github.com/ionsec/flareinspect>`__
+     - ~$5/month
+   * - Railway
+     - `Deploy <https://railway.app/template/flareinspect>`__
+     - $5 trial
+   * - Fly.io
+     - :doc:`flyio`
+     - Free allowance
 
 Environment Variables
 ---------------------

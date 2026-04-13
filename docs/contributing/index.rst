@@ -1,7 +1,6 @@
 ============
 Contributing
 ============
-============
 
 FlareInspect accepts contributions for the CLI, report generation, exporters, web dashboard, documentation, tests, and deployment assets.
 

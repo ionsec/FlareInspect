@@ -1,7 +1,6 @@
 ==============
 assess Command
 ==============
-==============
 
 Run a comprehensive Cloudflare security assessment against your account and zones.
 
@@ -15,24 +14,55 @@ Usage
 Options
 -------
 
-============================  ====================================================================================  ===============================
-Option                        Description                                                                           Default                        
-============================  ====================================================================================  ===============================
-``-t, --token <token>``       Cloudflare API token *(required)*                                                     —                              
-``-o, --output <file>``       Output file path for assessment results                                               Auto-generated timestamped file
-``-f, --format <format>``     Output format: ``json``, ``html``, ``sarif``, ``markdown``, ``csv``, ``ocsf``         ``json``                       
-``--no-export``               Skip automatic export of results                                                      —                              
-``--ci``                      CI/CD mode: JSON to stdout, no spinners, exit codes by threshold                      —                              
-``--threshold <score>``       Minimum security score (0–100) to pass in CI mode                                     —                              
-``--fail-on <severity>``      Fail if any finding at or above severity: ``critical``, ``high``, ``medium``, ``low`  `         —                    
-``--zones <zones>``           Comma-separated list of zone names to assess                                          All zones                      
-``--exclude-zones <zones>``   Comma-separated list of zone names to exclude                                         —                              
-``--checks <checks>``         Comma-separated list of check categories to run                                       All categories                 
-``--concurrency <n>``         Number of zones to assess in parallel                                                 ``3``                          
-``--compliance <framework>``  Generate compliance report: ``cis``, ``soc2``, ``pci``, ``nist``                      —                              
-``--sensitivity <level>``     Data sensitivity level for contextual scoring: ``critical``, ``high``, ``medium``, `  `low``    —                    
-``--debug``                   Enable debug logging                                                                  —                              
-============================  ====================================================================================  ===============================
+.. list-table::
+   :header-rows: 1
+   :widths: 24 58 18
+
+   * - Option
+     - Description
+     - Default
+   * - ``-t, --token <token>``
+     - Cloudflare API token *(required)*
+     - —
+   * - ``-o, --output <file>``
+     - Output file path for assessment results
+     - Auto-generated timestamped file
+   * - ``-f, --format <format>``
+     - Output format: ``json``, ``html``, ``sarif``, ``markdown``, ``csv``, or ``ocsf``
+     - ``json``
+   * - ``--no-export``
+     - Skip automatic export of results
+     - —
+   * - ``--ci``
+     - CI/CD mode: JSON to stdout, no spinners, exit codes by threshold
+     - —
+   * - ``--threshold <score>``
+     - Minimum security score (0-100) to pass in CI mode
+     - —
+   * - ``--fail-on <severity>``
+     - Fail if any finding at or above severity ``critical``, ``high``, ``medium``, or ``low``
+     - —
+   * - ``--zones <zones>``
+     - Comma-separated list of zone names to assess
+     - All zones
+   * - ``--exclude-zones <zones>``
+     - Comma-separated list of zone names to exclude
+     - —
+   * - ``--checks <checks>``
+     - Comma-separated list of check categories to run
+     - All categories
+   * - ``--concurrency <n>``
+     - Number of zones to assess in parallel
+     - ``3``
+   * - ``--compliance <framework>``
+     - Generate compliance report: ``cis``, ``soc2``, ``pci``, or ``nist``
+     - —
+   * - ``--sensitivity <level>``
+     - Data sensitivity level: ``critical``, ``high``, ``medium``, or ``low``
+     - —
+   * - ``--debug``
+     - Enable debug logging
+     - —
 
 Check Categories
 -----------------

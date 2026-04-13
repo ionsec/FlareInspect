@@ -1,7 +1,6 @@
 ===========================
 Page Shield Security Checks
 ===========================
-===========================
 
 Checks for Cloudflare Page Shield configuration.
 

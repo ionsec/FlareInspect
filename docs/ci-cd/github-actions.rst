@@ -1,7 +1,6 @@
 ==============
 GitHub Actions
 ==============
-==============
 
 Use FlareInspect in GitHub Actions to gate deployments on Cloudflare security posture.
 

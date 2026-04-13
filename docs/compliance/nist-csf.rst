@@ -1,7 +1,6 @@
 ================
 NIST CSF Mapping
 ================
-================
 
 FlareInspect maps findings to NIST Cybersecurity Framework controls.
 

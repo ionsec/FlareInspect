@@ -1,7 +1,6 @@
 ==========================
 Origin Certificates Checks
 ==========================
-==========================
 
 Checks for origin certificate expiry monitoring.
 

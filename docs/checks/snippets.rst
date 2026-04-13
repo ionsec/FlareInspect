@@ -1,7 +1,6 @@
 ========================
 Snippets Security Checks
 ========================
-========================
 
 Checks for Cloudflare Snippets configuration.
 

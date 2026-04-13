@@ -1,7 +1,6 @@
 ================================
 Cloudflare API Permissions Guide
 ================================
-================================
 
 FlareInspect requires specific Cloudflare API token permissions to assess your account and zones.
 

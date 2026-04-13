@@ -1,7 +1,6 @@
 ===============
 Markdown Export
 ===============
-===============
 
 The Markdown export format produces a text-based report suitable for wikis, documentation sites, and collaboration platforms that render Markdown.
 

@@ -1,7 +1,6 @@
 =============
 Web Dashboard
 =============
-=============
 
 FlareInspect includes a local web dashboard for viewing assessment history, compliance reports, and downloading results through a browser-based interface.
 

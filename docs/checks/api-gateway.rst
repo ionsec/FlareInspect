@@ -1,7 +1,6 @@
 ===========================
 API Gateway Security Checks
 ===========================
-===========================
 
 Checks for Cloudflare API Shield and API Discovery.
 

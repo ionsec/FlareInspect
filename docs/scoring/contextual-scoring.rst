@@ -1,7 +1,6 @@
 ==================
 Contextual Scoring
 ==================
-==================
 
 FlareInspect uses a CVSS-inspired contextual scoring model that adjusts finding severity based on zone plan, exposure, and data sensitivity.
 

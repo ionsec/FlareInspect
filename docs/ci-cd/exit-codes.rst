@@ -1,7 +1,6 @@
 ==========
 Exit Codes
 ==========
-==========
 
 FlareInspect uses exit codes to communicate assessment results to CI/CD pipelines.
 

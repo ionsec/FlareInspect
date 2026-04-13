@@ -1,7 +1,6 @@
 ======
 Docker
 ======
-======
 
 Build and run FlareInspect with Docker.
 

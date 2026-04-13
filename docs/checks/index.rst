@@ -1,7 +1,6 @@
 ===============
 Security Checks
 ===============
-===============
 
 FlareInspect runs **40+ security checks** across **21 categories** against your
 Cloudflare account and zones.

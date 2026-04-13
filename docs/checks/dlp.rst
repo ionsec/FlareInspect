@@ -1,7 +1,6 @@
 ===================
 DLP Security Checks
 ===================
-===================
 
 Checks for Cloudflare Data Loss Prevention configuration.
 

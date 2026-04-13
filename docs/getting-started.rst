@@ -1,7 +1,6 @@
 ===============
 Getting Started
 ===============
-===============
 
 This guide walks you through running your first Cloudflare security assessment with FlareInspect.
 

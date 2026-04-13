@@ -1,7 +1,6 @@
 =======================
 SSL/TLS Security Checks
 =======================
-=======================
 
 Checks that evaluate SSL/TLS configuration including mode, minimum TLS version, HSTS, and certificate validity.
 

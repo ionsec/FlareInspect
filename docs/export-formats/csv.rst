@@ -1,7 +1,6 @@
 ==========
 CSV Export
 ==========
-==========
 
 The CSV export format produces a tabular file of all findings, suitable for spreadsheet analysis, filtering, and custom reporting.
 

@@ -1,7 +1,6 @@
 ==============
 export Command
 ==============
-==============
 
 Export a saved assessment to a different file format. This is useful for generating human-readable reports, integrating with security tools, or uploading to compliance platforms.
 
@@ -15,13 +14,22 @@ Usage
 Options
 -------
 
-=========================  ===========================================================================  ========================
-Option                     Description                                                                  Default                 
-=========================  ===========================================================================  ========================
-``-i, --input <file>``     Input assessment file (JSON) *(required)*                                    —                       
-``-o, --output <file>``    Output file path *(required)*                                                —                       
-``-f, --format <format>``  Export format: ``json``, ``html``, ``ocsf``, ``sarif``, ``markdown``, ``csv  ``, ``asff``    ``json``
-=========================  ===========================================================================  ========================
+.. list-table::
+   :header-rows: 1
+   :widths: 24 62 14
+
+   * - Option
+     - Description
+     - Default
+   * - ``-i, --input <file>``
+     - Input assessment file (JSON) *(required)*
+     - —
+   * - ``-o, --output <file>``
+     - Output file path *(required)*
+     - —
+   * - ``-f, --format <format>``
+     - Export format: ``json``, ``html``, ``ocsf``, ``sarif``, ``markdown``, ``csv``, or ``asff``
+     - ``json``
 
 Formats
 -------

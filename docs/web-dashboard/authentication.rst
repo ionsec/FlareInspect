@@ -1,7 +1,6 @@
 ==============
 Authentication
 ==============
-==============
 
 The FlareInspect web dashboard supports optional API key authentication for non-localhost deployments.
 

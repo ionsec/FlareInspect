@@ -1,7 +1,6 @@
 ===============================
 Cache Deception Security Checks
 ===============================
-===============================
 
 Checks for Cloudflare Cache Deception Armor configuration.
 

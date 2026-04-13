@@ -1,7 +1,6 @@
 =================================
 Tunnels & Gateway Security Checks
 =================================
-=================================
 
 Checks for Cloudflare Tunnels and Secure Web Gateway configuration.
 
