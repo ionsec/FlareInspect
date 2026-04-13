@@ -17,6 +17,7 @@ reports/
 !package.json
 !package-lock.json
 !templates/*.html
+!web/public/index.html
 
 # Logs
 logs/
