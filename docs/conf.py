@@ -18,12 +18,10 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
     "sphinx.ext.viewcode",
-    "myst_parser",            # Markdown support
-    "sphinx_copybutton",      # copy button on code blocks
-    "sphinx.ext.notfound",    # 404 page
+    "myst_parser",
+    "sphinx_copybutton",
     "sphinx.ext.ifconfig",
-    "sphinx.ext.graphviz",    # diagrams
-    "sphinx.ext.inheritance_diagram",
+    "sphinx.ext.graphviz",
 ]
 
 templates_path = ["_templates"]
@@ -58,7 +56,7 @@ html_theme_options = {
     "show_toc_level": 3,
     "navbar_align": "left",
     "extra_footer": (
-        '<p class="footer-brand">Built by <a href="https://ionsec.io" target="_blank">IONSEC.IO</a> &bull; '
+        '<p style="margin:0;font-size:0.8rem">Built by <a href="https://ionsec.io" target="_blank">IONSEC.IO</a> &bull; '
         '<a href="https://github.com/ionsec/flareinspect" target="_blank">GitHub</a> &bull; MIT License</p>'
     ),
     "footer_start": ["copyright"],
@@ -84,9 +82,4 @@ html_logo = "_static/logo.svg"
 
 html_static_path = ["_static"]
 
-# -- Static files ------------------------------------------------------
-def setup(app):
-    app.add_css_file("theme.css")
-
-# -- Sphinx build -------------------------------------------------------
 suppress_warnings = ["myst.xref_missing"]
