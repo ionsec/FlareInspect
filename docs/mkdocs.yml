@@ -1,6 +1,7 @@
 site_name: FlareInspect
 site_url: https://flareinspect.readthedocs.io
-site_description: Cloudflare security assessment CLI and web dashboard
+site_description: Cloudflare security assessment CLI and web dashboard by IONSEC.IO
+site_author: IONSEC.IO
 repo_url: https://github.com/ionsec/flareinspect
 repo_name: ionsec/flareinspect
 edit_uri: edit/main/docs/docs/
@@ -9,23 +10,98 @@ theme:
   name: material
   logo: assets/flare-inspect-logo.svg
   favicon: assets/flare-inspect-logo.svg
+  language: en
   palette:
-    primary: deep orange
-    accent: amber
+    # ── Light mode: Cloudflare-inspired warm white ──
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # ── Dark mode: IONSEC × FlareInspect dark navy ──
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
   features:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.top
+    - navigation.s prune
     - search.suggest
     - search.highlight
+    - search.share
     - content.code.copy
+    - content.code.annotate
     - content.tabs.link
+    - content.action.edit
+    - content.action.view
+    - toc.integrate
+    - announcements.dismiss
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ionsec/flareinspect
+    - icon: fontawesome/solid/globe
+      link: https://ionsec.io
+  generator: false
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.critic
+  - pymdownx.case
+  - pymdownx.tilde
+  - md_in_html
+  - tables
+  - meta
+  - def_list
+
+plugins:
+  - search:
+      lang: en
+      prebuild_index: true
+      separator: '[\s\-,:!=\[\]()"/\\]+|(^|\-)(\w)+\s'
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+      cache_safe: true
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
+  - Getting Started:
+      - getting-started.md
+      - Quick Start: quick-start.md
   - Installation: installation.md
-  - Quick Start: quick-start.md
   - CLI Reference:
       - assess: cli/assess.md
       - export: cli/export.md
@@ -108,18 +184,3 @@ nav:
   - Troubleshooting: troubleshooting.md
   - FAQ: faq.md
   - Changelog: changelog.md
-
-plugins:
-  - search
-
-markdown_extensions:
-  - admonition
-  - tables
-  - toc:
-      permalink: true
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
-  - attr_list
-  - md_in_html
