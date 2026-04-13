@@ -6,7 +6,7 @@
   <p>
     <a href="https://github.com/ionsec/flareinspect/actions"><img src="https://img.shields.io/badge/node-%3E%3D20.0.0-green" alt="Node.js ≥20"></a>
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-    <img src="https://img.shields.io/badge/version-1.1.0-orange" alt="Version 1.1.0">
+    <img src="https://img.shields.io/badge/version-1.2.0-orange" alt="Version 1.2.0">
   </p>
 </div>
 
@@ -14,7 +14,7 @@
 
 FlareInspect assesses Cloudflare accounts and zones, highlights security gaps, compares posture drift between runs, and exports evidence-rich reports for engineers, security teams, auditors, and CI pipelines.
 
-The current `1.1.0` release includes:
+The current `1.2.0` release includes:
 
 - evidence-rich findings with named identities, affected resources, observed values, expected values, and review guidance
 - drift detection with `flareinspect diff`
@@ -36,7 +36,7 @@ The current `1.1.0` release includes:
 - Export formats for `json`, `html`, `ocsf`, `sarif`, `markdown`, `csv`, and `asff`
 - Local web dashboard with assessment history, compliance reports, and report downloads
 - Shared config file support (`.flareinspect.yml`, `.flareinspect.yaml`, `flareinspect.config.json`)
-- Docker and Render deployment support
+- 1-click cloud deployment to Render, Heroku, Railway, and Fly.io
 - Plugin scaffold support for trusted local extensions
 
 ## Installation
@@ -261,7 +261,27 @@ API endpoints:
 
 See the [API Reference](https://flareinspect.readthedocs.io/en/latest/web-dashboard/api-reference/) for full details.
 
-## Docker
+## Deployment
+
+### Cloud (1-Click)
+
+| Platform | Button | Notes |
+|----------|--------|-------|
+| Render (recommended) | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ionsec/flareinspect) | Free tier · 1 GB persistent storage |
+| Heroku | [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/ionsec/flareinspect) | ~$5/month Hobby dyno |
+| Railway | [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/flareinspect) | $5 trial credit |
+| Fly.io | See [DEPLOYMENT.md](DEPLOYMENT.md#flyio) | Free allowance · edge regions |
+
+After deployment, set environment variables in the platform dashboard:
+
+```
+CLOUDFLARE_TOKEN=your_token          # optional — can supply via UI
+FLAREINSPECT_API_KEY=<random-secret> # protects the dashboard
+```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for full instructions including Kubernetes and self-hosting.
+
+### Docker
 
 Build and run the CLI:
 
@@ -272,7 +292,7 @@ docker run --rm -v $(pwd)/output:/app/output flareinspect \
   assess --token YOUR_TOKEN --output /app/output/assessment.json
 ```
 
-Run the web app with Compose:
+Run the web dashboard with Compose:
 
 ```bash
 docker compose up flareinspect-web
@@ -281,7 +301,7 @@ docker compose up flareinspect-web
 The compose file exposes:
 
 - `flareinspect` for CLI execution
-- `flareinspect-web` for the dashboard
+- `flareinspect-web` for the dashboard at `http://localhost:3000`
 - `flareinspect-dev` for interactive development
 
 ## CI/CD Integration
@@ -345,7 +365,7 @@ Full documentation is available at [flareinspect.readthedocs.io](https://flarein
 - [Drift Detection](https://flareinspect.readthedocs.io/en/latest/drift-detection/) — Compare assessments for regressions
 - [Web Dashboard](https://flareinspect.readthedocs.io/en/latest/web-dashboard/) — API reference and authentication
 - [CI/CD Integration](https://flareinspect.readthedocs.io/en/latest/ci-cd/github-actions/) — GitHub Actions and GitLab CI
-- [Deployment](https://flareinspect.readthedocs.io/en/latest/deployment/docker/) — Docker, Render, standalone
+- [Deployment](https://flareinspect.readthedocs.io/en/latest/deployment/) — Docker, Render, Heroku, Railway, Fly.io
 - [Architecture](https://flareinspect.readthedocs.io/en/latest/architecture/overview/) — Data flow and module map
 - [Plugin Development](https://flareinspect.readthedocs.io/en/latest/plugins/writing-plugins/) — Extend FlareInspect
 

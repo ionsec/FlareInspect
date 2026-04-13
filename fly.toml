@@ -1,0 +1,46 @@
+# fly.toml app configuration for FlareInspect
+# See https://fly.io/docs/reference/configuration/
+
+app = "flareinspect"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  LOG_LEVEL = "info"
+  HOST = "0.0.0.0"
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    grace = "10s"
+    timeout = "5s"
+    interval = "30s"
+    method = "GET"
+    path = "/"
+
+[checks]
+  [checks.health]
+    grace = "10s"
+    timeout = "5s"
+    interval = "30s"
+    method = "GET"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

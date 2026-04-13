@@ -12,3 +12,9 @@ services:
         value: 0.0.0.0
       - key: PORT
         value: 3000
+      - key: LOG_LEVEL
+        value: info
+    disk:
+      name: flareinspect-data
+      mountPath: /app/web/data
+      sizeGB: 1
