@@ -1,160 +1,96 @@
-================================
+==============================
+Attack Surface Security Checks
+==============================
+==============================
 
-Attack Surface Management Checks
-
-================================
-
-
-
-
-Checks that evaluate Cloudflare Security Center findings including attack
-
-surface monitoring, security recommendations, and security insights.
-
-
+Checks that evaluate attack surface reduction including Security Center, exposed credentials, and origin IP exposure.
 
 Check Summary
+-------------
 
+===============  ========================  ========  =================================
+Check ID         Title                     Severity  Compliance                       
+===============  ========================  ========  =================================
+CFL-SEC-001      Security Center Insights  high      SOC2 CC3.1, NIST ID.RA-1         
+CFL-SEC-002      Exposed Credentials       critical  SOC2 CC6.1, PCI 6.5, NIST PR.DS-5
+CFL-INSIGHT-001  Infra Proxy Status        high      SOC2 CC6.1, NIST PR.DS-5         
+CFL-INSIGHT-002  Email Security            high      SOC2 CC6.1, PCI 3.4, NIST PR.DS-5
+CFL-INSIGHT-003  Security Center Recs      medium    SOC2 CC3.1, NIST ID.RA-1         
+CFL-INSIGHT-004  DDoS Protection           high      SOC2 CC6.1, PCI 6.5, NIST PR.DS-5
+CFL-INSIGHT-005  Unproxied DNS Records     medium    SOC2 CC6.1, NIST PR.DS-5         
+===============  ========================  ========  =================================
 
-----
-
-
-=================  ===========================  ==========  ==================================================
-
-   Check ID           Title                        Severity    Compliance
-
-=================  ===========================  ==========  ==================================================
-
-   CFL-ASM-001        Attack Surface Monitoring    high        CIS 11.3, SOC2 CC7.1/CC7.2, NIST ID.RA-1/DE.CM-8
-
-   CFL-ASM-002        Security Recommendations     medium      CIS 11.4, SOC2 CC7.1, NIST ID.RA-1
-
-   CFL-INSIGHT-001    Exposed Credentials          critical    CIS 11.5, SOC2 CC7.1, PCI 6.5, NIST DE.CM-8
-
-   CFL-INSIGHT-002    Origin IP Exposure           high        CIS 11.6, SOC2 CC7.1, NIST DE.CM-8
-
-   CFL-INSIGHT-003    Malware Domains              high        CIS 11.7, SOC2 CC7.2, NIST DE.CM-1
-
-   CFL-INSIGHT-004    Exposed API Keys             critical    SOC2 CC6.1/CC6.7, PCI 8.6, NIST PR.DS-5
-
-   CFL-INSIGHT-005    Unproxied DNS Records        medium      CIS 2.6, SOC2 CC6.6, NIST PR.DS-5
-
-=================  ===========================  ==========  ==================================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-ASM-001: Attack Surface Monitoring
-
-
+CFL-SEC-001: Security Center Insights
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** high | **Category:** attack-surface
 
+Security Center provides visibility into infrastructure risks and recommendations.
 
-Cloudflare Security Center identifies exposed services and potential attack
+**Remediation:** Review Security Center recommendations in the Cloudflare Dashboard.
 
-vectors. FlareInspect surfaces these findings in the assessment.
+---
 
-
-**Remediation:** Review Cloudflare Security Center attack surface findings and remediate exposed services.
-
-
-
-.. rubric:: CFL-ASM-002: Security Recommendations
-
-
-
-**Severity:** medium | **Category:** attack-surface
-
-
-The Security Center provides prioritized security recommendations based on
-
-your account configuration.
-
-
-**Remediation:** Review and implement Security Center recommendations for your account.
-
-
-
-.. rubric:: CFL-INSIGHT-001: Exposed Credentials
-
-
+CFL-SEC-002: Exposed Credentials
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** critical | **Category:** attack-surface
 
+Exposed credentials in code repositories or public data leaks create an immediate compromise risk.
 
-Cloudflare Security Insights may detect credentials from your domains in public
+**Remediation:** Rotate exposed credentials immediately. Implement secret scanning in CI/CD pipelines.
 
-data breaches or leak repositories.
+---
 
-
-**Remediation:** Rotate exposed credentials immediately and implement secret scanning in CI/CD.
-
-
-
-.. rubric:: CFL-INSIGHT-002: Origin IP Exposure
-
-
+CFL-INSIGHT-001: Infra Proxy Status
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** high | **Category:** attack-surface
 
+Infrastructure not proxied through Cloudflare lacks DDoS protection and WAF coverage.
 
-If origin server IP addresses are discoverable (via DNS history, misconfigured
+**Remediation:** Proxy all infrastructure through Cloudflare to enable protection.
 
-records, or information leakage), attackers can bypass Cloudflare protection.
+---
 
-
-**Remediation:** Configure origin server to deny direct IP access. Enable Cloudflare proxy for all records.
-
-
-
-.. rubric:: CFL-INSIGHT-003: Malware Domains
-
-
+CFL-INSIGHT-002: Email Security
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** high | **Category:** attack-surface
 
+Email security features (routing, SPF/DKIM/DMARC) prevent phishing and email-based attacks.
 
-Security Center may flag domains associated with malware distribution or
+**Remediation:** Enable email security routing and configure SPF/DKIM/DMARC records.
 
-command-and-control infrastructure.
+---
 
-
-**Remediation:** Review and block malware domains identified by Cloudflare Security Center.
-
-
-
-.. rubric:: CFL-INSIGHT-004: Exposed API Keys
-
-
-
-**Severity:** critical | **Category:** attack-surface
-
-
-Cloudflare may detect API keys or tokens from your domains in public code
-
-repositories or paste sites.
-
-
-**Remediation:** Rotate exposed credentials immediately, review access logs, and implement credential scanning in CI/CD.
-
-
-
-.. rubric:: CFL-INSIGHT-005: Unproxied DNS Records
-
-
+CFL-INSIGHT-003: Security Center Recommendations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** medium | **Category:** attack-surface
 
+Unresolved Security Center recommendations indicate known but unaddressed risks.
 
-DNS records pointing to origin IPs without Cloudflare proxy expose the origin
+**Remediation:** Address Security Center recommendations systematically.
 
-server address.
+---
 
+CFL-INSIGHT-004: DDoS Protection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Remediation:** Enable Cloudflare proxy (orange cloud) for all DNS records that point to origin servers.
+**Severity:** high | **Category:** attack-surface
 
+DDoS protection should be enabled on all zones to absorb volumetric attacks.
+
+**Remediation:** Enable DDoS protection — it is included by default on all Cloudflare plans.
+
+---
+
+CFL-INSIGHT-005: Unproxied DNS Records
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Severity:** medium | **Category:** attack-surface
+
+DNS records that are not proxied expose origin IPs and bypass Cloudflare protection.
+
+**Remediation:** Enable proxy (orange cloud) on DNS records unless they require direct resolution (e.g., MX, TXT for verification).

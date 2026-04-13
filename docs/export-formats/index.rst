@@ -1,4 +1,6 @@
+==============
 Export Formats
+==============
 ==============
 
 .. toctree::
@@ -7,45 +9,39 @@ Export Formats
 
    json
    html
-   ocsf
    sarif
    markdown
    csv
+   ocsf
    asff
 
-FlareInspect can export assessment results in seven formats.
+FlareInspect can export assessment results to multiple formats for different audiences and integrations.
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 20 60
+   :widths: 20 40 40
 
    * - Format
-     - Extension
      - Use Case
-   * - JSON
-     - ``.json``
-     - Programmatic processing, SIEM ingestion
-   * - HTML
-     - ``.html``
-     - Human review, sharing with non-technical stakeholders
-   * - OCSF
-     - ``.ocsf.json``
-     - Open Cybersecurity Schema Framework — SIEM/SOAR platforms
-   * - SARIF
-     - ``.sarif.json``
-     - CI/CD pipelines, GitHub Advanced Security
-   * - Markdown
-     - ``.md``
-     - Documentation, issue tracking
-   * - CSV
-     - ``.csv``
-     - Spreadsheets, data analysis
-   * - ASFF
-     - ``.asff.json``
-     - AWS Security Hub, AWS Config
-
-Example export:
-
-.. code-block:: bash
-
-   flareinspect export -i assessment.json -f html -o report.html
+     - Command
+   * - ``json``
+     - Machine-readable, re-importable full results
+     - ``flareinspect export -i a.json -f json -o out.json``
+   * - ``html``
+     - Shareable interactive report for browsers
+     - ``flareinspect export -i a.json -f html -o report.html``
+   * - ``sarif``
+     - GitHub Advanced Security integration
+     - ``flareinspect export -i a.json -f sarif -o results.sarif``
+   * - ``markdown``
+     - Text-based report for wikis and documentation
+     - ``flareinspect export -i a.json -f markdown -o report.md``
+   * - ``csv``
+     - Tabular findings for spreadsheet analysis
+     - ``flareinspect export -i a.json -f csv -o findings.csv``
+   * - ``ocsf``
+     - OCSF normalized JSON for SIEM integration
+     - ``flareinspect export -i a.json -f ocsf -o ocsf.json``
+   * - ``asff``
+     - AWS Security Finding Format for Security Hub
+     - ``flareinspect export -i a.json -f asff -o findings-asff.json``

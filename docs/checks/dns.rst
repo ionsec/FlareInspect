@@ -1,126 +1,72 @@
 ===================
-
 DNS Security Checks
-
+===================
 ===================
 
-
-
-
-Checks that evaluate DNS configuration including DNSSEC, proxy status, and
-
-record hygiene.
-
-
+Checks that evaluate DNS record security including DNSSEC, proxy status, wildcards, CAA, and DNS over HTTPS.
 
 Check Summary
+-------------
 
+===========  =============================  ============  =========================================
+Check ID     Title                          Severity      Compliance                               
+===========  =============================  ============  =========================================
+CFL-DNS-001  DNSSEC Enablement           h  igh        C  IS 2.1, SOC2 CC6.1, PCI 3.4, NIST PR.DS-5
+CFL-DNS-002  DNS Proxy Status            h  igh        C  IS 2.2, SOC2 CC6.1, NIST PR.DS-5         
+CFL-DNS-003  Wildcard DNS Records           medium        CIS 2.3, SOC2 CC6.1, NIST PR.DS-5        
+CFL-DNS-004  CAA Records                    medium        CIS 2.4, SOC2 CC6.1, NIST PR.DS-5        
+CFL-DNS-005  DNS over HTTPS                 medium        CIS 2.5, SOC2 CC6.7, NIST PR.DS-5        
+===========  =============================  ============  =========================================
 
-----
+CFL-DNS-001: DNSSEC Enablement
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** high | **Category:** dns | **Compliance:** CIS 2.1
 
-=============  ======================  ==========  ============================================
+DNSSEC protects DNS responses from tampering. Without it, DNS records are vulnerable to spoofing and cache poisoning attacks.
 
-   Check ID       Title                   Severity    Compliance
+**Remediation:** Enable DNSSEC for all zones in the Cloudflare dashboard under DNS → DNSSEC.
 
-=============  ======================  ==========  ============================================
+---
 
-   CFL-DNS-001    DNSSEC Enablement       high        CIS 2.1, SOC2 CC6.1, PCI 4.1, NIST PR.DS-5
+CFL-DNS-002: DNS Proxy Status
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   CFL-DNS-002    DNS Proxy Status        medium      CIS 2.2, SOC2 CC6.6, PCI 4.1, NIST PR.DS-5
+**Severity:** high | **Category:** dns | **Compliance:** CIS 2.2
 
-   CFL-DNS-003    Wildcard DNS Records    low         CIS 2.3, SOC2 CC6.6, NIST PR.DS-5
+DNS records should be proxied through Cloudflare to benefit from DDoS protection, WAF, and traffic analytics.
 
-   CFL-DNS-004    CAA Records             medium      CIS 2.4, SOC2 CC6.1, PCI 4.1, NIST PR.DS-5
+**Remediation:** Enable the proxy (orange cloud) for DNS records that should be protected.
 
-   CFL-DNS-005    DNS over HTTPS          low         CIS 2.5, SOC2 CC6.6, PCI 4.1, NIST PR.DS-5
+---
 
-=============  ======================  ==========  ============================================
+CFL-DNS-003: Wildcard DNS Records
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** medium | **Category:** dns | **Compliance:** CIS 2.3
 
-Individual Checks
+Wildcard DNS records (``*``) can expose unintended subdomains. FlareInspect flags zones containing wildcard records.
 
+**Remediation:** Replace wildcard records with explicit subdomain records.
 
-----
+---
 
+CFL-DNS-004: CAA Records
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. rubric:: CFL-DNS-001: DNSSEC Enablement
+**Severity:** medium | **Category:** dns | **Compliance:** CIS 2.4
 
+CAA records specify which certificate authorities are allowed to issue certificates for a domain. Without CAA, any CA can issue certificates.
 
+**Remediation:** Add CAA records to restrict certificate issuance to authorized CAs.
 
-**Severity:** high | **Category:** dns | **Compliance:** CIS 2.1, SOC2 CC6.1, PCI 4.1, NIST PR.DS-5
+---
 
+CFL-DNS-005: DNS over HTTPS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-DNSSEC protects against DNS spoofing and cache poisoning by cryptographically
+**Severity:** medium | **Category:** dns | **Compliance:** CIS 2.5
 
-signing DNS responses. FlareInspect checks whether DNSSEC is enabled for each
+DNS over HTTPS (DoH) encrypts DNS queries, preventing eavesdropping and manipulation by network intermediaries.
 
-zone.
-
-
-**Remediation:** Enable DNSSEC for all zones in DNS → DNSSEC in the Cloudflare dashboard.
-
-
-
-.. rubric:: CFL-DNS-002: DNS Proxy Status
-
-
-
-**Severity:** medium | **Category:** dns | **Compliance:** CIS 2.2, SOC2 CC6.6, NIST PR.DS-5
-
-
-Security-sensitive DNS records should be proxied through Cloudflare (orange
-
-cloud) to benefit from DDoS protection and IP masking.
-
-
-**Remediation:** Enable Cloudflare proxy (orange cloud) for security-sensitive DNS records.
-
-
-
-.. rubric:: CFL-DNS-003: Wildcard DNS Records
-
-
-
-**Severity:** low | **Category:** dns | **Compliance:** CIS 2.3, NIST PR.DS-5
-
-
-Wildcard records (``*``) can inadvertently expose subdomains and increase the
-
-attack surface.
-
-
-**Remediation:** Remove wildcard DNS records and create explicit A/CNAME records for each subdomain.
-
-
-
-.. rubric:: CFL-DNS-004: CAA Records
-
-
-
-**Severity:** medium | **Category:** dns | **Compliance:** CIS 2.4, SOC2 CC6.1, PCI 4.1, NIST PR.DS-5
-
-
-CAA records specify which certificate authorities are allowed to issue
-
-certificates for the domain, preventing unauthorized certificate issuance.
-
-
-**Remediation:** Add CAA records to restrict which certificate authorities can issue certificates for your domain.
-
-
-
-.. rubric:: CFL-DNS-005: DNS over HTTPS
-
-
-
-**Severity:** low | **Category:** dns | **Compliance:** CIS 2.5, SOC2 CC6.6, PCI 4.1, NIST PR.DS-5
-
-
-DNS over HTTPS (DoH) encrypts DNS queries to prevent eavesdropping and
-
-tampering.
-
-
-**Remediation:** Enable DNS over HTTPS (DoH) via Cloudflare Gateway to encrypt DNS queries.
-
+**Remediation:** Enable DNS over HTTPS in the Cloudflare dashboard under your zone settings.

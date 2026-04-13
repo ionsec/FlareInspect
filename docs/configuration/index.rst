@@ -1,4 +1,6 @@
+=============
 Configuration
+=============
 =============
 
 .. toctree::
@@ -10,7 +12,7 @@ Configuration
    cli-override-precedence
 
 Configuration Methods
----------------------
+----------------------
 
 FlareInspect supports three configuration methods (in order of precedence):
 

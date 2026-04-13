@@ -1,52 +1,24 @@
 =======================
-
 Logpush Security Checks
-
+=======================
 =======================
 
-
-
-
-Checks for Cloudflare Logpush configuration.
-
-
+Checks for Cloudflare Logpush destination and coverage.
 
 Check Summary
+-------------
 
+===========  ===================  ========  ============================================
+Check ID     Title                Severity  Compliance                                  
+===========  ===================  ========  ============================================
+CFL-LOG-001  Logpush Destination  high      CIS 12.1, SOC2 CC7.2, PCI 10.1, NIST DE.CM-1
+===========  ===================  ========  ============================================
 
-----
+CFL-LOG-001: Logpush Destination
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** high | **Category:** logpush | **Compliance:** CIS 12.1
 
-=============  =======================  ==========  ===========================================================
+Logpush sends request logs to external storage or SIEM systems. Without a Logpush destination, forensic and compliance log data is lost after Cloudflare's retention period.
 
-   Check ID       Title                    Severity    Compliance
-
-=============  =======================  ==========  ===========================================================
-
-   CFL-LOG-001    Logpush Configuration    medium      CIS 12.1, SOC2 CC7.2, PCI 10.1/10.5, NIST DE.CM-1/DE.AE-3
-
-=============  =======================  ==========  ===========================================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-LOG-001: Logpush Configuration
-
-
-
-**Severity:** medium | **Category:** logpush
-
-
-Logpush sends Cloudflare logs (HTTP requests, firewall events, audit logs) to
-
-external destinations for long-term retention and SIEM integration. Without
-
-Logpush, forensic data may be lost after the Cloudflare retention period.
-
-
-**Remediation:** Configure Logpush to send audit, firewall, and HTTP request logs to your SIEM or storage destination.
-
+**Remediation:** Configure Logpush to send logs to a SIEM or long-term storage destination.

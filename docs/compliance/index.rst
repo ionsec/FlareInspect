@@ -1,4 +1,6 @@
+==================
 Compliance Mapping
+==================
 ==================
 
 .. toctree::
@@ -27,8 +29,7 @@ FlareInspect maps security findings to four industry-standard compliance framewo
    * - NIST CSF
      - NIST Cybersecurity Framework 2.0
 
-Compliance reports are generated from assessment findings. Run an assessment and use
-the ``--compliance`` flag:
+Compliance reports are generated from assessment findings. Run an assessment and use the ``--compliance`` flag:
 
 .. code-block:: bash
 

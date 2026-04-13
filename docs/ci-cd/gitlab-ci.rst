@@ -1,103 +1,27 @@
-=====================
+=========
+GitLab CI
+=========
+=========
 
-GitLab CI Integration
+Use FlareInspect in GitLab CI to gate deployments on Cloudflare security posture.
 
-=====================
-
-
-
-
-Use FlareInspect in GitLab CI/CD pipelines.
-
-
-
-Example Pipeline
-
-
-----
-
+Basic Pipeline
+---------------
 
 .. code-block:: yaml
 
+   flareinspect-security:
+     stage: test
+     image: node:20
+     script:
+       - npm install
+       - node src/cli/index.js assess --token $CLOUDFLARE_TOKEN --ci --threshold 80 --fail-on high
+     variables:
+       CLOUDFLARE_TOKEN: $CI_CLOUDFLARE_TOKEN
 
-    stages:
+Variable Setup
+---------------
 
-      - security
-
-
-    cloudflare-assessment:
-
-      stage: security
-
-      image: node:22-alpine
-
-      before_script:
-
-        - npm ci
-
-      script:
-
-        - node src/cli/index.js assess --token $CLOUDFLARE_TOKEN --ci --threshold 80
-
-      after_script:
-
-        - node src/cli/index.js export -i assessment.json -f html -o report.html
-
-      artifacts:
-
-        paths:
-
-          - assessment.json
-
-          - report.html
-
-        when: always
-
-      variables:
-
-        CLOUDFLARE_TOKEN: $CI_CLOUDFLARE_TOKEN
-
-
-
-
-Drift Detection
-
-
-----
-
-
-.. code-block:: yaml
-
-
-    cloudflare-drift:
-
-      stage: security
-
-      script:
-
-        - node src/cli/index.js diff --baseline baseline.json --current assessment.json
-
-      artifacts:
-
-        paths:
-
-          - drift.json
-
-
-
-
-CI Variable Setup
-
-
-----
-
-
-Add the Cloudflare token as a CI/CD variable:
-
-
-1. Go to **Settings** → **CI/CD** → **Variables**
-
-2. Add variable ``CI_CLOUDFLARE_TOKEN`` with your token value
-
-3. Check **Mask variable** and **Protect variable**
-
+1. Go to your project → Settings → CI/CD → Variables
+2. Add ``CI_CLOUDFLARE_TOKEN`` with your API token value
+3. Mark it as **Masked** and **Protected** for security

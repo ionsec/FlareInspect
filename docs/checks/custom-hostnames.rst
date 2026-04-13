@@ -1,52 +1,24 @@
-=======================
+================================
+Custom Hostnames Security Checks
+================================
+================================
 
-Custom Hostnames Checks
-
-=======================
-
-
-
-
-Checks for custom hostname validation and certificate status.
-
-
+Checks for custom hostname validation and security.
 
 Check Summary
+-------------
 
+==========  ==========================  ========  =================================
+Check ID    Title                       Severity  Compliance                       
+==========  ==========================  ========  =================================
+CFL-CH-001  Custom Hostname Validation  medium    CIS 3.8, SOC2 CC6.7, NIST PR.DS-5
+==========  ==========================  ========  =================================
 
-----
+CFL-CH-001: Custom Hostname Validation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** medium | **Category:** custom-hostnames | **Compliance:** CIS 3.8
 
-============  ============================  ==========  ================================
+Custom hostnames should have proper validation methods (HTTP, email, or TXT) configured. Hostnames without validation can be claimed by unauthorized parties.
 
-   Check ID      Title                         Severity    Compliance
-
-============  ============================  ==========  ================================
-
-   CFL-CH-001    Custom Hostname Validation    medium      CIS 3.8, PCI 4.1, NIST PR.DS-2
-
-============  ============================  ==========  ================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-CH-001: Custom Hostname Validation
-
-
-
-**Severity:** medium | **Category:** custom-hostnames
-
-
-Custom hostnames with pending, moved, or failed SSL validation status may
-
-serve unencrypted traffic or display certificate errors to visitors.
-
-FlareInspect checks all custom hostnames for validation issues.
-
-
-**Remediation:** Validate custom hostname certificates and enable hostname fallback origin in SSL/TLS → Custom Hostnames.
-
+**Remediation:** Ensure all custom hostnames use a validation method and regularly review hostname ownership.

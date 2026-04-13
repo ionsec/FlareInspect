@@ -52,3 +52,4 @@ docker-compose.override.yml
 docs/*.md
 docs/mkdocs.yml
 docs/docs/
+docs/_build/

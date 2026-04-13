@@ -1,161 +1,45 @@
 ==========
-
 Exit Codes
-
+==========
 ==========
 
+FlareInspect uses exit codes to communicate assessment results to CI/CD pipelines.
 
+assess Exit Codes
+------------------
 
+======================================================  =========
+Condition                                               Exit Code
+======================================================  =========
+Assessment passes threshold and severity gate           ``0``    
+Overall score < ``--threshold`` value                   ``1``    
+Any finding at or above ``--fail-on`` severity is FAIL  ``1``    
+Assessment itself fails (invalid token, API error)      ``1``    
+======================================================  =========
 
-FlareInspect uses exit codes to signal assessment and diff results in CI/CD
+diff Exit Codes
+----------------
 
-pipelines.
+=====================================  =========
+Condition                              Exit Code
+=====================================  =========
+No regressions detected                ``0``    
+One or more regressions detected       ``1``    
+Error (invalid input, file not found)  ``1``    
+=====================================  =========
 
-
-
-Assess Command
-
-
-----
-
-
-======  ==================================================================
-
-   Code    Condition
-
-======  ==================================================================
-
-   0       Assessment completed and passed all CI gates
-
-   1       Assessment failed, threshold not met, or severity gate triggered
-
-======  ==================================================================
-
-
-.. rubric:: Threshold Gate
-
-
-
+Using Exit Codes in Shell
+--------------------------
 
 .. code-block:: bash
 
-
-    flareinspect assess --token $TOKEN --ci --threshold 80
-
-
-
-Exits with code 1 if ``overallScore < threshold``.
-
-
-
-.. rubric:: Severity Gate
-
-
-
-
-.. code-block:: bash
-
-
-    flareinspect assess --token $TOKEN --ci --fail-on high
-
-
-
-Exits with code 1 if any finding with status ``FAIL`` has severity at or above
-
-the specified level. Severity ordering:
-
-
-==========  =======
-
-   Level       Value
-
-==========  =======
-
-   Critical    4
-
-   High        3
-
-   Medium      2
-
-   Low         1
-
-==========  =======
-
-``--fail-on high`` catches critical (4) and high (3) findings.
-
-
-
-.. rubric:: Combined Gates
-
-
-
-
-.. code-block:: bash
-
-
-    flareinspect assess --token $TOKEN --ci --threshold 80 --fail-on high
-
-
-
-Both conditions are checked. Either failing causes exit code 1.
-
-
-
-Diff Command
-
-
-----
-
-
-======  ==========================================================
-
-   Code    Condition
-
-======  ==========================================================
-
-   0       No regressions detected
-
-   1       At least one regression (PASS → FAIL) or score decreased
-
-======  ==========================================================
-
-
-Error Exit Codes
-
-
-----
-
-
-======  ============================================================
-
-   Code    Condition
-
-======  ============================================================
-
-   1       General error (invalid token, API failure, file not found)
-
-======  ============================================================
-
-
-Using in Shell Scripts
-
-
-----
-
-
-.. code-block:: bash
-
-
-    if flareinspect assess --token $TOKEN --ci --threshold 80; then
-
-      echo "Security assessment passed"
-
-    else
-
-      echo "Security assessment failed"
-
-      exit 1
-
-    fi
-
-
+   flareinspect assess --token $TOKEN --ci --threshold 80
+   if [ $? -ne 0 ]; then
+     echo "Security gate failed!"
+     exit 1
+   fi
+
+Using Exit Codes in CI
+-----------------------
+
+Most CI systems automatically fail a step when a command exits with a non-zero code. No special handling is needed beyond running the command.

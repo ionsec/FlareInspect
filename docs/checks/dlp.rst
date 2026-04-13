@@ -1,52 +1,24 @@
-===========================
+===================
+DLP Security Checks
+===================
+===================
 
-Data Loss Prevention Checks
-
-===========================
-
-
-
-
-Checks for Cloudflare DLP configuration.
-
-
+Checks for Cloudflare Data Loss Prevention configuration.
 
 Check Summary
+-------------
 
+===========  ============  ========  =================================
+Check ID     Title         Severity  Compliance                       
+===========  ============  ========  =================================
+CFL-DLP-001  DLP Policies  medium    CIS 5.7, SOC2 CC6.7, NIST PR.DS-5
+===========  ============  ========  =================================
 
-----
+CFL-DLP-001: DLP Policies
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** medium | **Category:** dlp | **Compliance:** CIS 5.7
 
-=============  ======================  ==========  ======================================================
+Data Loss Prevention policies detect and prevent sensitive data from leaving the organization. Without DLP, organizations lack visibility into data exfiltration.
 
-   Check ID       Title                   Severity    Compliance
-
-=============  ======================  ==========  ======================================================
-
-   CFL-DLP-001    Data Loss Prevention    high        CIS 5.7, SOC2 CC6.1/CC6.7, PCI 3.4/4.2, NIST PR.DS-5
-
-=============  ======================  ==========  ======================================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-DLP-001: Data Loss Prevention
-
-
-
-**Severity:** high | **Category:** dlp
-
-
-Cloudflare DLP profiles detect and prevent sensitive data such as PII, credit
-
-card numbers, and health records from leaving the organization via HTTP
-
-uploads. FlareInspect checks whether any DLP profiles are configured.
-
-
-**Remediation:** Configure DLP profiles and rules in Zero Trust → Data Loss Prevention to detect and prevent sensitive data exfiltration.
-
+**Remediation:** Configure DLP policies to monitor and block sensitive data transfers.

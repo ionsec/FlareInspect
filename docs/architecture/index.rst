@@ -1,4 +1,6 @@
+============
 Architecture
+============
 ============
 
 .. toctree::
@@ -9,5 +11,4 @@ Architecture
    data-flow
    module-map
 
-Understanding how FlareInspect is structured helps with debugging, extending, and
-integrating it into your workflow.
+FlareInspect follows a layered architecture with clear separation between the CLI, core services, exporters, and web dashboard.

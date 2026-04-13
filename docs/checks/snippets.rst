@@ -1,52 +1,24 @@
-====================
+========================
+Snippets Security Checks
+========================
+========================
 
-Edge Snippets Checks
-
-====================
-
-
-
-
-Checks for Cloudflare Edge Snippets security.
-
-
+Checks for Cloudflare Snippets configuration.
 
 Check Summary
+-------------
 
+===================  ===================  ========  ========================
+Check ID          T  itle                 Severity  Compliance              
+===================  ===================  ========  ========================
+CFL-TXRULE-001    T  ransform Rule Audit  low       SOC2 CC6.1, NIST PR.IP-1
+===================  ===================  ========  ========================
 
-----
+CFL-TXRULE-001: Transform Rule Audit
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** low | **Category:** snippets | **Compliance:** SOC2 CC6.1
 
-=================  =======================  ==========  ================================
+Transform rules and snippets modify HTTP request and response headers. Unreviewed rules may introduce security misconfigurations.
 
-   Check ID           Title                    Severity    Compliance
-
-=================  =======================  ==========  ================================
-
-   CFL-SNIPPET-001    Edge Snippet Security    medium      SOC2 CC6.1/CC8.1, NIST PR.IP-1
-
-=================  =======================  ==========  ================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-SNIPPET-001: Edge Snippet Security
-
-
-
-**Severity:** medium | **Category:** snippets
-
-
-Edge snippets execute code at the Cloudflare edge. Snippets containing
-
-hardcoded secrets, passwords, or API keys pose a security risk. FlareInspect
-
-scans snippet content for sensitive patterns.
-
-
-**Remediation:** Review edge snippets for hardcoded secrets, insecure redirects, and security-impacting logic.
-
+**Remediation:** Audit transform rules and snippets regularly to ensure they do not introduce security weaknesses.

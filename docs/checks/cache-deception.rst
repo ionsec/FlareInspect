@@ -1,52 +1,24 @@
-======================
+===============================
+Cache Deception Security Checks
+===============================
+===============================
 
-Cache Deception Checks
-
-======================
-
-
-
-
-Checks for Cloudflare Cache Deception Armor.
-
-
+Checks for Cloudflare Cache Deception Armor configuration.
 
 Check Summary
+-------------
 
+===========  =====================  ========  =================================
+Check ID     Title                  Severity  Compliance                       
+===========  =====================  ========  =================================
+CFL-CDA-001  Cache Deception Armor  medium    CIS 4.8, SOC2 CC6.1, NIST PR.DS-5
+===========  =====================  ========  =================================
 
-----
+CFL-CDA-001: Cache Deception Armor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** medium | **Category:** cache | **Compliance:** CIS 4.8
 
-=============  =======================  ==========  ============================================
+Cache Deception Armor prevents attackers from tricking Cloudflare into caching sensitive content by appending cacheable file extensions to URLs.
 
-   Check ID       Title                    Severity    Compliance
-
-=============  =======================  ==========  ============================================
-
-   CFL-CDA-001    Cache Deception Armor    medium      CIS 4.8, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-
-=============  =======================  ==========  ============================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-CDA-001: Cache Deception Armor
-
-
-
-**Severity:** medium | **Category:** cache
-
-
-Web cache deception attacks trick the CDN into caching sensitive content by
-
-appending cacheable extensions to URLs. Cache Deception Armor prevents this.
-
-FlareInspect checks whether Cache Deception Armor is enabled.
-
-
-**Remediation:** Enable Cache Deception Armor in Caching → Configuration to prevent web cache deception attacks.
-
+**Remediation:** Enable Cache Deception Armor in Cache → Configuration → Cache Deception Armor.

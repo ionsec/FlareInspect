@@ -1,4 +1,6 @@
+===============
 Security Checks
+===============
 ===============
 
 FlareInspect runs **40+ security checks** across **21 categories** against your
@@ -54,8 +56,6 @@ Categories
      - API Shield, API Discovery
    * - Bot Management
      - Bot Fight Mode, Turnstile widget security
-   * - Email Security
-     - Routing, SPF/DKIM/DMARC, encryption
    * - Attack Surface
      - Security Center, exposed credentials, origin IP exposure
    * - DLP

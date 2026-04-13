@@ -1,202 +1,75 @@
 ==================
-
 Interpreting Drift
-
+==================
 ==================
 
+The drift score summarizes the net change in security posture between two assessment runs.
 
+Drift Score
+-----------
 
+The drift score ranges from **-100** to **+100**:
 
-A practical guide to reading and acting on FlareInspect diff results.
+========  ===================================
+Range     Interpretation                     
+========  ===================================
+Positive  Net improvement in security posture
+Zero      No net change                      
+Negative  Net regression in security posture 
+========  ===================================
 
+The score accounts for both the count and severity weight of regressions and improvements.
 
+Score Calculation
+------------------
 
-Sample Output
+.. code-block:: text
 
+   driftScore = ((improvementScore - regressionScore) / total) × 100
 
-----
+Where:
 
+- ``improvementScore`` is the sum of severity weights for findings that changed from FAIL to PASS
+- ``regressionScore`` is the sum of severity weights for findings that changed from PASS to FAIL
+- ``total`` is the sum of all possible severity weights
 
-.. code-block::
+Grade Changes
+--------------
 
+The diff output also shows grade changes between assessments:
 
-    ═══════════════════════════════════════════════════
+.. code-block:: text
 
-             FlareInspect Drift Detection Report
+   Grade: C → B (+1)
 
-    ═══════════════════════════════════════════════════
+Grade values: A=5, B=4, C=3, D=2, F=1. The delta is the difference between the two grade values.
 
+Common Drift Scenarios
+-----------------------
 
-    Score: 75 → 82 (+7)
+.. rubric:: New Deployment Introduces Regression
 
-    Grade: C → B (+1)
+A new deployment disables WAF on a zone:
 
-    Drift Score: +40
+.. code-block:: text
 
+   REGRESSION: CFL-WAF-001 (WAF Security Level) — PASS → FAIL
+   Drift score: -7 (high severity weight)
 
-    Changes Summary:
+.. rubric:: Security Hardening
 
-      🆕 New findings:      2
+A security team enables DNSSEC on previously unprotected zones:
 
-      ✅ Resolved:          3
+.. code-block:: text
 
-      🔴 Regressions:       1
+   IMPROVEMENT: CFL-DNS-001 (DNSSEC Enablement) — FAIL → PASS
+   Drift score: +7 (high severity weight)
 
-      🟢 Improvements:      4
+.. rubric:: New Check Coverage
 
-      →  Unchanged:         35
+A new check category is added between runs:
 
+.. code-block:: text
 
-
-
-Key Metrics
-
-
-----
-
-
-.. rubric:: Score Delta
-
-
-
-The difference between the current and baseline overall scores. A positive
-
-delta means the security posture improved; negative means it regressed.
-
-
-
-.. rubric:: Grade Delta
-
-
-
-Grade values are numeric (A=5, B=4, C=3, D=2, F=1). A grade delta of +1 means
-
-the grade improved by one level.
-
-
-
-.. rubric:: Drift Score
-
-
-
-The weighted net direction of change. Use this as a quick signal:
-
-- **> 0** — posture is improving
-
-- **< 0** — posture is regressing
-
-- **0** — no meaningful change
-
-
-
-Reading Regressions
-
-
-----
-
-
-Regressions (PASS → FAIL) are the most critical finding type. They indicate
-
-that a security control that was previously compliant is now misconfigured.
-
-
-
-.. code-block::
-
-
-    🔴 REGRESSIONS (PASS → FAIL):
-
-      • [HIGH] Minimum TLS Version (zone-abc123)
-
-
-
-**Action:** Investigate immediately. Regressions cause the diff command to
-
-exit with code 1.
-
-
-
-Reading Improvements
-
-
-----
-
-
-Improvements (FAIL → PASS) confirm that remediation efforts were effective.
-
-
-
-.. code-block::
-
-
-    🟢 IMPROVEMENTS (FAIL → PASS):
-
-      • [CRITICAL] MFA Enforcement (account-xyz789)
-
-
-
-
-New and Resolved Findings
-
-
-----
-
-
-- **New findings** may appear when new zones are added to the account or when
-
-  FlareInspect introduces new check categories
-
-- **Resolved findings** disappear when the matching check+resource key is no
-
-  longer present in the current assessment
-
-
-
-Service-Level Deltas
-
-
-----
-
-
-The diff also includes score changes by service category:
-
-
-
-.. code-block:: json
-
-
-    {
-
-      "dns": { "baseline": 2, "current": 1, "delta": -1 },
-
-      "ssl": { "baseline": 3, "current": 1, "delta": -2 }
-
-    }
-
-
-
-This helps identify which areas improved or degraded.
-
-
-
-Using in CI/CD
-
-
-----
-
-
-.. code-block:: bash
-
-
-    # Fail the pipeline if any regression is detected
-
-    flareinspect diff --baseline baseline.json --current latest.json
-
-
-    # The exit code tells you:
-
-    # 0 — safe to deploy
-
-    # 1 — security regressed, block deployment
-
-
+   NEW: CFL-AIGW-001 (AI Gateway Configuration) — FAIL
+   (This is not a regression — the check did not exist in the baseline)

@@ -1,132 +1,42 @@
-=================
+======
+Heroku
+======
+======
 
-Heroku Deployment
+Deploy to Heroku with the 1-click button.
 
-=================
+1-Click Deploy
+---------------
 
+`Deploy to Heroku <https://heroku.com/deploy?template=https://github.com/ionsec/flareinspect>`__
 
+Pricing: ~$5/month (Hobby dyno)
 
+Steps
+-----
 
-FlareInspect ships with an ``app.json`` manifest for one-click Heroku deployment.
+1. Click the Deploy button above
+2. Log in to Heroku
+3. Configure environment variables (optional)
+4. Click "Deploy app"
 
-
-
-One-Click Deploy
-
-
-----
-
-
-`
-
-.. image:: https://www.herokucdn.com/deploy/button.svg
-
-   :alt: Deploy to Heroku
-
-   :width: 100%
-
- <https://heroku.com/deploy?template=https://github.com/ionsec/flareinspect>`__
-
-
-1. Click the button above and log in to Heroku.
-
-2. Configure optional environment variables (see below).
-
-3. Click **Deploy app** — Heroku installs dependencies and starts the web dashboard automatically.
-
-
-
-Pricing
-
-
-----
-
-
-~$5/month on the Hobby dyno. The free tier was discontinued by Heroku in 2022.
-
-
-
-Environment Variables
-
-
-----
-
-
-========================  ==========  ===========================================================================
-
-   Variable                  Required    Description
-
-========================  ==========  ===========================================================================
-
-   ``CLOUDFLARE_TOKEN``        ❌           Cloudflare API token (can be provided via the dashboard UI)
-
-   ``FLAREINSPECT_API_KEY``    ❌           Protects the dashboard with ``X-API-Key`` header (auto-generated on deploy)
-
-   ``NODE_ENV``                ✅           Set to ``production`` by ``app.json``
-
-   ``LOG_LEVEL``               ❌           ``info`` (default), ``debug``, or ``error``
-
-========================  ==========  ===========================================================================
-
-After deployment you can update secrets with the Heroku CLI:
-
-
+After Deployment
+-----------------
 
 .. code-block:: bash
 
+   # Set your Cloudflare token (optional)
+   heroku config:set CLOUDFLARE_TOKEN=your_token
 
-    heroku config:set CLOUDFLARE_TOKEN=your_token --app your-app-name
+   # Set API key for protection
+   heroku config:set FLAREINSPECT_API_KEY=$(openssl rand -hex 32)
 
-    heroku config:set FLAREINSPECT_API_KEY=$(openssl rand -hex 32) --app your-app-name
+   # View logs
+   heroku logs --tail
 
+Access the Dashboard
+---------------------
 
+.. code-block:: text
 
-
-Storage
-
-
-----
-
-
-Heroku dynos use **ephemeral storage** — assessment data in ``web/data/assessments`` is lost on every deploy or restart. Use a Heroku add-on (e.g., Heroku Postgres or an object-storage add-on) or external storage for persistent history.
-
-
-
-Useful Commands
-
-
-----
-
-
-.. code-block:: bash
-
-
-    # View live logs
-
-    heroku logs --tail --app your-app-name
-
-
-    # Restart the dyno
-
-    heroku restart --app your-app-name
-
-
-    # Open the dashboard in a browser
-
-    heroku open --app your-app-name
-
-
-
-
-Troubleshooting
-
-
-----
-
-
-- ``H10 App crashed`` — check logs; the most common cause is a missing or invalid ``NODE_ENV``.
-
-- Assessment data disappears — expected on ephemeral storage; see Storage section above.
-
-- ``403`` on API calls — verify ``CLOUDFLARE_TOKEN`` has the required scopes.
-
+   https://your-app.herokuapp.com

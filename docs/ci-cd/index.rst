@@ -1,5 +1,7 @@
+=================
 CI/CD Integration
-================
+=================
+=================
 
 .. toctree::
    :maxdepth: 1
@@ -9,13 +11,15 @@ CI/CD Integration
    gitlab-ci
    exit-codes
 
-Use FlareInspect in your CI/CD pipeline to gate deployments on security posture.
+FlareInspect integrates with CI/CD pipelines to gate deployments on security posture. The ``--ci`` flag produces machine-readable output and sets exit codes based on configurable thresholds.
 
-.. code-block:: yaml
+Quick Start
+-----------
 
-   - name: Cloudflare Security Assessment
-     run: |
-       flareinspect assess --token ${{ secrets.CLOUDFLARE_TOKEN }} \
-         --ci --threshold 80 --fail-on high
+.. code-block:: bash
 
-See :doc:`exit-codes` for the full exit code reference.
+   flareinspect assess --token $CLOUDFLARE_TOKEN --ci --threshold 80 --fail-on high
+
+- ``--ci`` — outputs JSON to stdout, disables spinners and banners
+- ``--threshold 80`` — exits with code ``1`` if overall score is below 80
+- ``--fail-on high`` — exits with code ``1`` if any finding at severity high or above is FAIL

@@ -1,4 +1,6 @@
+==========
 Deployment
+==========
 ==========
 
 .. toctree::
@@ -12,23 +14,30 @@ Deployment
    flyio
    standalone
 
-FlareInspect can be deployed in several ways.
+Deploy FlareInspect to cloud platforms with 1-click buttons or minimal configuration.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 25 75
+Quick Deploy
+------------
 
-   * - Platform
-     - Notes
-   * - Render (recommended)
-     - Free tier with 1 GB persistent storage
-   * - Heroku
-     - ~$5/month Hobby dyno, ephemeral storage
-   * - Railway
-     - Pay-as-you-go, $5 trial credit
-   * - Fly.io
-     - Edge regions, free allowance
-   * - Docker
-     - Self-hosted container
-   * - Standalone (PM2/systemd)
-     - On-premise VM or bare metal
+========  ==========================================================  =======================================
+Platform  Link                                                        Cost                                   
+========  ==========================================================  =======================================
+Render    `Deploy <https://render.com/deploy?repo=https://github.com  /ionsec/flareinspect>`__  Free tier    
+Heroku    `Deploy <https://heroku.com/deploy?template=https://github  .com/ionsec/flareinspect>`__  ~$5/month
+Railway   `Deploy <https://railway.app/template/flareinspect>`__  $5  trial                                  
+Fly.io    :doc:`flyio`                                                Free allowance                         
+========  ==========================================================  =======================================
+
+Environment Variables
+---------------------
+
+========================  ========  ========================================
+Variable                  Required  Description                             
+========================  ========  ========================================
+``CLOUDFLARE_TOKEN``      No        Cloudflare API token (can supply via UI)
+``FLAREINSPECT_API_KEY``  No        Protect dashboard with X-API-Key header 
+``NODE_ENV``              No        Set to ``production`` (default)         
+``LOG_LEVEL``             No        Logging level (default: ``info``)       
+``HOST``                  No        Bind address (default: ``0.0.0.0``)     
+``PORT``                  No        Port number (default: ``3000``)         
+========================  ========  ========================================

@@ -1,121 +1,42 @@
-============================
+==============
+Authentication
+==============
+==============
 
-Web Dashboard Authentication
+The FlareInspect web dashboard supports optional API key authentication for non-localhost deployments.
 
-============================
+Enabling Authentication
+------------------------
 
-
-
-
-The FlareInspect web dashboard supports optional header-based API key
-
-authentication for protecting API endpoints when exposed beyond localhost.
-
-
-
-Enabling API Key Auth
-
-
-----
-
-
-Set the ``FLAREINSPECT_API_KEY`` environment variable:
-
-
+Set the ``FLAREINSPECT_API_KEY`` environment variable when starting the server:
 
 .. code-block:: bash
 
+   FLAREINSPECT_API_KEY=your-secret-key node web/server.js
 
-    FLAREINSPECT_API_KEY=my-secret-key npm run web
-
-
-
-When set, all ``POST /api/assess``, ``POST /api/diff``, and download endpoints
-
-require the ``X-API-Key`` header.
-
-
-
-Making Authenticated Requests
-
-
-----
-
+Once set, all API requests must include the ``X-API-Key`` header:
 
 .. code-block:: bash
 
+   curl -H "X-API-Key: your-secret-key" http://localhost:3000/api/assessments
 
-    curl -H "X-API-Key: my-secret-key" http://localhost:3000/api/assessment
+Requests without a valid key receive a ``401 Unauthorized`` response.
 
+Generating a Strong Key
+-------------------------
 
+.. code-block:: bash
 
+   # Using OpenSSL
+   openssl rand -hex 32
 
-Security Details
+   # Using Node.js
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
+Security Best Practices
+------------------------
 
-----
-
-
-- Key comparison uses **timing-safe equality** (``crypto.timingSafeEqual``) to
-
-  prevent timing attacks
-
-- Unauthorized requests receive HTTP 401 with an error message
-
-- The API key is not logged or included in error responses
-
-
-
-Security Headers
-
-
-----
-
-
-The web dashboard sets the following security headers on all responses:
-
-
-==========================  ============================================
-
-   Header                      Value
-
-==========================  ============================================
-
-   ``X-Content-Type-Options``    ``nosniff``
-
-   ``X-Frame-Options``           ``DENY``
-
-   ``Referrer-Policy``           ``no-referrer``
-
-   ``Permissions-Policy``        ``geolocation=(), microphone=(), camera=()``
-
-==========================  ============================================
-
-Additionally, Helmet is enabled for standard middleware protections.
-
-
-
-Rate Limiting
-
-
-----
-
-
-The web dashboard applies rate limiting to API endpoints. When the limit is
-
-exceeded, the server returns HTTP 429.
-
-
-
-Recommendations
-
-
-----
-
-
-- **Local development:** No API key needed (localhost-only access)
-
-- **Team deployment:** Set ``FLAREINSPECT_API_KEY`` and bind to ``0.0.0.0``
-
-- **Production:** Place behind a reverse proxy with TLS termination
-
+- Bind the dashboard to ``127.0.0.1`` unless you need remote access
+- Use a reverse proxy (nginx, Caddy) with TLS when exposing beyond localhost
+- Rotate API keys regularly
+- Use different keys for different environments

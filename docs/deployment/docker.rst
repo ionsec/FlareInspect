@@ -1,172 +1,49 @@
-=================
+======
+Docker
+======
+======
 
-Docker Deployment
+Build and run FlareInspect with Docker.
 
-=================
-
-
-
-
-FlareInspect ships with a production-ready Dockerfile and Docker Compose
-
-configuration.
-
-
-
-Building the Image
-
-
-----
-
+Build the Image
+----------------
 
 .. code-block:: bash
 
+   docker build -t flareinspect .
 
-    docker build -t flareinspect .
+The ``Dockerfile`` uses a multi-stage build on ``node:22-alpine``, runs as a non-root user, and includes a health check.
 
-
-
-The Dockerfile uses a multi-stage build:
-
-
-1. **deps stage** — installs production dependencies only (``npm ci --omit=dev``)
-
-2. **runtime stage** — copies node_modules and source, runs as non-root user
-
-   ``flareinspect``
-
-
-
-.. rubric:: Image Details
-
-
-
-- Base: ``node:22-alpine3.22``
-
-- Init system: ``dumb-init`` for signal handling
-
-- User: non-root ``flareinspect`` user
-
-- Health check: ``node src/cli/index.js --version``
-
-- Entrypoint: ``dumb-init -- node src/cli/index.js``
-
-
-
-Running the CLI
-
-
-----
-
+Run an Assessment
+------------------
 
 .. code-block:: bash
 
+   docker run -it --rm \
+     -e CLOUDFLARE_TOKEN=YOUR_CLOUDFLARE_TOKEN \
+     -v $(pwd)/output:/app/output \
+     flareinspect assess
 
-    # Show help
+Run the Web Dashboard
+----------------------
 
-    docker run --rm -it flareinspect
+.. code-block:: bash
 
-
-    # Run an assessment with output volume
-
-    docker run --rm -v $(pwd)/output:/app/output flareinspect \
-
-      assess --token YOUR_TOKEN --output /app/output/assessment.json
-
-
-
+   docker run -it --rm \
+     -p 3000:3000 \
+     -e CLOUDFLARE_TOKEN=YOUR_CLOUDFLARE_TOKEN \
+     -v $(pwd)/data:/app/web/data \
+     flareinspect node web/server.js
 
 Docker Compose
-
-
-----
-
-
-The ``docker-compose.yml`` defines three services:
-
-
-
-.. rubric:: CLI Service
-
-
-
+---------------
 
 .. code-block:: bash
 
+   docker compose up flareinspect-web
 
-    docker compose run flareinspect assess --token YOUR_TOKEN
+The compose file exposes:
 
-
-
-
-.. rubric:: Web Dashboard Service
-
-
-
-
-.. code-block:: bash
-
-
-    docker compose up flareinspect-web
-
-
-
-Exposes port 3000. Mounts ``./web/data`` for persistent assessment storage.
-
-
-
-.. rubric:: Development Service
-
-
-
-
-.. code-block:: bash
-
-
-    docker compose run flareinspect-dev
-
-
-
-Interactive shell with source mounted for development.
-
-
-
-Environment Variables
-
-
-----
-
-
-Pass environment variables through Compose or ``docker run``:
-
-
-
-.. code-block:: bash
-
-
-    docker run --rm -e CLOUDFLARE_TOKEN=$TOKEN -v $(pwd)/output:/app/output \
-
-      flareinspect assess --output /app/output/report.json
-
-
-
-
-Volumes
-
-
-----
-
-
-=================  ==================================
-
-   Path               Purpose
-
-=================  ==================================
-
-   ``/app/output``      Assessment result files
-
-   ``/app/logs``        Application logs
-
-   ``/app/web/data``    Web dashboard assessment storage
-
-=================  ==================================
+- ``flareinspect`` for CLI execution
+- ``flareinspect-web`` for the dashboard at ``http://localhost:3000``
+- ``flareinspect-dev`` for interactive development

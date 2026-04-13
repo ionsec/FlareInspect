@@ -1,52 +1,24 @@
-==================
+===========================
+Page Shield Security Checks
+===========================
+===========================
 
-Page Shield Checks
-
-==================
-
-
-
-
-Checks for Cloudflare Page Shield JavaScript monitoring.
-
-
+Checks for Cloudflare Page Shield configuration.
 
 Check Summary
+-------------
 
+===================  ======================  ========  =================================
+Check ID          T  itle                    Severity  Compliance                       
+===================  ======================  ========  =================================
+CFL-PAGESHIELD-001   Page Shield Monitoring  medium    CIS 4.7, SOC2 CC6.1, NIST PR.DS-5
+===================  ======================  ========  =================================
 
-----
+CFL-PAGESHIELD-001: Page Shield Monitoring
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Severity:** medium | **Category:** page-shield | **Compliance:** CIS 4.7
 
-====================  ========================  ==========  ============================================
+Page Shield monitors client-side JavaScript for malicious script injection and unauthorized code changes.
 
-   Check ID              Title                     Severity    Compliance
-
-====================  ========================  ==========  ============================================
-
-   CFL-PAGESHIELD-001    Page Shield Monitoring    high        CIS 4.7, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-
-====================  ========================  ==========  ============================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-PAGESHIELD-001: Page Shield Monitoring
-
-
-
-**Severity:** high | **Category:** page-shield
-
-
-Page Shield monitors JavaScript dependencies loaded by your website and alerts
-
-on new, changed, or suspicious scripts that may indicate a supply chain
-
-attack. FlareInspect checks whether Page Shield is enabled.
-
-
-**Remediation:** Enable Page Shield in Security → Page Shield to monitor JavaScript dependencies and detect supply chain attacks.
-
+**Remediation:** Enable Page Shield to monitor and alert on malicious script changes.

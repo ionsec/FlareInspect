@@ -1,68 +1,36 @@
 ===========================
-
 API Gateway Security Checks
-
 ===========================
-
-
-
+===========================
 
 Checks for Cloudflare API Shield and API Discovery.
 
-
-
 Check Summary
+-------------
 
+===========  =============  ========  ==========================================
+Check ID     Title          Severity  Compliance                                
+===========  =============  ========  ==========================================
+CFL-API-001  API Shield     high      CIS 8.1, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
+CFL-API-002  API Discovery  medium    CIS 8.2, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
+===========  =============  ========  ==========================================
 
-----
-
-
-=============  ===============  ==========  ============================================
-
-   Check ID       Title            Severity    Compliance
-
-=============  ===============  ==========  ============================================
-
-   CFL-API-001    API Shield       high        CIS 8.1, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-
-   CFL-API-002    API Discovery    medium      CIS 8.2, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-
-=============  ===============  ==========  ============================================
-
-
-Individual Checks
-
-
-----
-
-
-.. rubric:: CFL-API-001: API Shield
-
-
+CFL-API-001: API Shield
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** high | **Category:** api
 
+API Shield provides schema validation and mTLS for API endpoints. Without it, APIs are vulnerable to injection and unauthorized access.
 
-API Shield provides schema validation, bot protection, and mTLS for API
+**Remediation:** Enable API Shield for API endpoints that handle sensitive data.
 
-endpoints. FlareInspect checks whether API Shield is enabled for the zone.
+---
 
-
-**Remediation:** Enable API Shield for schema validation and bot protection on API endpoints.
-
-
-
-.. rubric:: CFL-API-002: API Discovery
-
-
+CFL-API-002: API Discovery
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** medium | **Category:** api
 
+API Discovery identifies undocumented or shadow APIs. Without discovery, organizations may not know the full attack surface of their API infrastructure.
 
-API Discovery identifies shadow APIs and undocumented endpoints that may lack
-
-proper security controls.
-
-
-**Remediation:** Enable API Discovery to detect shadow APIs and undocumented endpoints.
-
+**Remediation:** Enable API Discovery to inventory all API endpoints.

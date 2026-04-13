@@ -1,171 +1,36 @@
 =========
-
 Data Flow
-
+=========
 =========
 
-
-
-
-Step-by-step walkthrough of a FlareInspect assessment.
-
-
-
 Assessment Flow
-
-
-----
-
-
-.. code-block::
-
-
-    1. CLI parses command → ConfigManager merges options
-
-    2. CloudflareClient connects with API token
-
-    3. testConnection() verifies token and retrieves account info
-
-    4. getZones() enumerates all visible zones
-
-    5. Filter zones by --zones / --exclude-zones
-
-    6. Account-level assessments:
-
-       ├── Members & MFA status
-
-       ├── Audit logs
-
-       ├── Security Insights
-
-       ├── Zero Trust config
-
-       ├── Workers/Pages
-
-       ├── Tunnels & Gateway
-
-       └── AI Gateway
-
-    7. Zone-level assessments (parallel, p-limit):
-
-       ├── DNS records
-
-       ├── SSL/TLS settings
-
-       ├── WAF rules
-
-       ├── Firewall rules
-
-       ├── Rate limits
-
-       ├── Bot management
-
-       ├── Page rules
-
-       ├── mTLS
-
-       ├── Logpush
-
-       ├── Security.txt
-
-       ├── DLP
-
-       ├── Page Shield
-
-       ├── Custom hostnames
-
-       ├── Cache Deception Armor
-
-       ├── Snippets
-
-       ├── Configuration/Transform rules
-
-       └── Origin certificates
-
-    8. SecurityBaseline evaluates each API response against check definitions
-
-    9. Findings aggregated with evidence (observed, expected, affected entities)
-
-    10. SecurityBaseline.calculateScore() produces weighted score and grade
-
-    11. Optional: ComplianceEngine maps findings to framework controls
-
-    12. Optional: ContextualScoring adjusts severity by zone plan and exposure
-
-    13. ReportService generates the report model (exec summary, analysis, recs)
-
-    14. Assessment JSON saved to file
-
-    15. Optional: Export to requested format
-
-
-
-
-Export Flow
-
-
-----
-
-
-.. code-block::
-
-
-    1. Load assessment JSON from file
-
-    2. Validate assessment structure (assessmentId + findings)
-
-    3. Instantiate format-specific exporter
-
-    4. Exporter.transform(assessment) → format output
-
-    5. Write to output file
-
-
-
-
-Diff Flow
-
-
-----
-
-
-.. code-block::
-
-
-    1. Load baseline and current assessment JSON files
-
-    2. Build finding maps keyed by checkId::resourceId
-
-    3. Classify each finding: NEW/RESOLVED/REGRESSION/IMPROVEMENT/UNCHANGED
-
-    4. Calculate score delta, grade delta, service-level deltas
-
-    5. Calculate drift score (-100 to +100)
-
-    6. Output or save diff results
-
-
-
-
-Web API Flow
-
-
-----
-
-
-.. code-block::
-
-
-    1. Express server receives request
-
-    2. authenticateApiKey() checks X-API-Key (if configured)
-
-    3. Input validation (UUID, framework, concurrency, zones)
-
-    4. AssessmentService or DiffService processes request
-
-    5. Persist assessment to web/data/assessments/
-
-    6. Return JSON response
-
-
+----------------
+
+1. CLI parses command flags and config file
+2. CloudflareClient authenticates with the provided token
+3. AssessmentService enumerates accounts and zones
+4. For each zone, SecurityBaseline checks are evaluated against live API data
+5. Results are collected into a report object by ReportService
+6. ComplianceEngine maps findings to framework controls
+7. ContextualScoring adjusts severity based on zone metadata
+8. Exporters transform the report object into the requested format
+9. Results are written to disk and/or stdout
+
+Drift Flow
+----------
+
+1. DiffService loads baseline and current assessment JSON files
+2. Findings are matched by check ID and zone
+3. Each matched pair is classified as REGRESSION, IMPROVEMENT, NEW, RESOLVED, or UNCHANGED
+4. Drift score is calculated from severity-weighted improvement and regression totals
+5. Results are formatted and returned with an appropriate exit code
+
+Web Dashboard Flow
+-------------------
+
+1. Express server receives HTTP request
+2. Authentication middleware checks X-API-Key (if configured)
+3. Route handler validates input parameters
+4. AssessmentService or DiffService is invoked with the validated parameters
+5. Response is serialized as JSON or the requested export format
+6. Static files are served from ``web/public/``

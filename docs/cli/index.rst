@@ -1,4 +1,6 @@
+=============
 CLI Reference
+=============
 =============
 
 .. toctree::
@@ -30,7 +32,7 @@ Commands
      - Step-by-step guided assessment via an interactive prompt
 
 Quick Reference
---------------
+---------------
 
 .. code-block:: bash
 
