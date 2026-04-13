@@ -36,11 +36,11 @@ Structure
 The JSON output includes:
 
 
-  ====================  ===================================================
+====================  ===================================================
 
    Field                 Description
 
-  ====================  ===================================================
+====================  ===================================================
 
    ``assessmentId``        UUID identifying the assessment
 
@@ -70,7 +70,7 @@ The JSON output includes:
 
    ``contextualScores``    Contextual scoring data (if ``--sensitivity`` used)
 
-  ====================  ===================================================
+====================  ===================================================
 
 This format can be re-imported by FlareInspect for ``diff`` comparisons or
 

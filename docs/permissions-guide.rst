@@ -22,11 +22,11 @@ Minimum Permissions
 These permissions provide basic coverage:
 
 
-  ======================  =========  ========
+======================  =========  ========
 
    Permission              Scope      Access
 
-  ======================  =========  ========
+======================  =========  ========
 
    Zone                    Zone       Read
 
@@ -38,7 +38,7 @@ These permissions provide basic coverage:
 
    Account Settings        Account    Read
 
-  ======================  =========  ========
+======================  =========  ========
 
 
 Recommended Permissions
@@ -50,11 +50,11 @@ Recommended Permissions
 For broader coverage including Zero Trust, Workers, and audit logs:
 
 
-  ======================  =========  ========
+======================  =========  ========
 
    Permission              Scope      Access
 
-  ======================  =========  ========
+======================  =========  ========
 
    Zone                    Zone       Read
 
@@ -78,7 +78,7 @@ For broader coverage including Zero Trust, Workers, and audit logs:
 
    API Gateway             Account    Read
 
-  ======================  =========  ========
+======================  =========  ========
 
 
 Creating the Token
@@ -109,11 +109,11 @@ Token Troubleshooting
 ----
 
 
-  ============================  =========================================================
+============================  =========================================================
 
    Error                         Likely Cause
 
-  ============================  =========================================================
+============================  =========================================================
 
    ``403``                         Token missing required product scopes or entitlements
 
@@ -123,7 +123,7 @@ Token Troubleshooting
 
    Fewer zones than expected     Token scoped to a single account or organization
 
-  ============================  =========================================================
+============================  =========================================================
 
 
 Security Best Practices

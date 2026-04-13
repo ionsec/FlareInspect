@@ -174,11 +174,11 @@ Run FlareInspect in a pipeline with strict pass/fail gating:
 
 
 
-  ==================  ==============================================================================
+==================  ==============================================================================
 
    Flag                Behavior
 
-  ==================  ==============================================================================
+==================  ==============================================================================
 
    ``--ci``              Outputs JSON to stdout, disables spinners and banners
 
@@ -186,7 +186,7 @@ Run FlareInspect in a pipeline with strict pass/fail gating:
 
    ``--fail-on high``    Exits with code ``1`` if any finding with severity **high** or above is a FAIL
 
-  ==================  ==============================================================================
+==================  ==============================================================================
 
 Combine with SARIF export to upload results to GitHub Advanced Security:
 

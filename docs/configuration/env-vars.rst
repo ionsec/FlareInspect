@@ -10,11 +10,11 @@ Environment Variables
 FlareInspect reads several environment variables for configuration and credentials. These are useful in CI/CD pipelines and container environments where CLI flags are inconvenient.
 
 
-  ========================  ============================================================  =============================
+========================  ============================================================  =============================
 
    Variable                  Description                                                   Default
 
-  ========================  ============================================================  =============================
+========================  ============================================================  =============================
 
    ``CLOUDFLARE_TOKEN``        Cloudflare API token used when ``--token`` is not provided      —
 
@@ -36,7 +36,7 @@ FlareInspect reads several environment variables for configuration and credentia
 
    ``FLAREINSPECT_API_KEY``    API key required for web dashboard authentication when set    —
 
-  ========================  ============================================================  =============================
+========================  ============================================================  =============================
 
 
 Usage Examples

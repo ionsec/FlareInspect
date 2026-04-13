@@ -17,11 +17,11 @@ Prerequisites
 ----
 
 
-  ========================  ========================================================
+========================  ========================================================
 
    Requirement               Details
 
-  ========================  ========================================================
+========================  ========================================================
 
    **Node.js**               Version 20 or later
 
@@ -29,7 +29,7 @@ Prerequisites
 
    **API token**             Cloudflare API token with read permissions (see below)
 
-  ========================  ========================================================
+========================  ========================================================
 
 
 Create a Cloudflare API Token
@@ -52,11 +52,11 @@ FlareInspect requires a Cloudflare API token with read-only access to the resour
 5. Configure the following permissions:
 
 
-  =============================  ===============================  ========
+=============================  ===============================  ========
 
    Permission                     Scope                            Access
 
-  =============================  ===============================  ========
+=============================  ===============================  ========
 
    Zone → Zone                    All zones (or specific zones)    Read
 
@@ -68,7 +68,7 @@ FlareInspect requires a Cloudflare API token with read-only access to the resour
 
    Account → Account Settings     All accounts                     Read
 
-  =============================  ===============================  ========
+=============================  ===============================  ========
 
 6. Optionally restrict the token to specific zone or account resources.
 
@@ -159,17 +159,17 @@ After each assessment, FlareInspect displays a summary with these components:
 
 
 
-  ===========  ======================================================================================
+===========  ======================================================================================
 
    Component    Description
 
-  ===========  ======================================================================================
+===========  ======================================================================================
 
    **Grade**    Letter grade from A (best) to F (worst), derived from the numeric score
 
    **Score**    Numeric score from 0 to 100, calculated from pass/fail findings weighted by severity
 
-  ===========  ======================================================================================
+===========  ======================================================================================
 
 
 .. rubric:: Findings by Severity
@@ -179,11 +179,11 @@ After each assessment, FlareInspect displays a summary with these components:
 Each finding has a severity level:
 
 
-  ==============  =======================================================
+==============  =======================================================
 
    Severity        Meaning
 
-  ==============  =======================================================
+==============  =======================================================
 
    **Critical**    Immediate risk — requires urgent remediation
 
@@ -193,7 +193,7 @@ Each finding has a severity level:
 
    **Low**         Minor issue or informational — review when convenient
 
-  ==============  =======================================================
+==============  =======================================================
 
 
 .. rubric:: Top Risks

@@ -10,11 +10,11 @@ Grading Scale
 FlareInspect assigns a letter grade based on the weighted overall score.
 
 
-  =======  =============
+=======  =============
 
    Grade    Score Range
 
-  =======  =============
+=======  =============
 
    A        ≥ 90
 
@@ -26,7 +26,7 @@ FlareInspect assigns a letter grade based on the weighted overall score.
 
    F        < 60
 
-  =======  =============
+=======  =============
 
 
 Category Breakdown

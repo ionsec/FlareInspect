@@ -75,11 +75,11 @@ Security Headers
 The web dashboard sets the following security headers on all responses:
 
 
-  ==========================  ============================================
+==========================  ============================================
 
    Header                      Value
 
-  ==========================  ============================================
+==========================  ============================================
 
    ``X-Content-Type-Options``    ``nosniff``
 
@@ -89,7 +89,7 @@ The web dashboard sets the following security headers on all responses:
 
    ``Permissions-Policy``        ``geolocation=(), microphone=(), camera=()``
 
-  ==========================  ============================================
+==========================  ============================================
 
 Additionally, Helmet is enabled for standard middleware protections.
 

@@ -10,11 +10,11 @@ Global CLI Options
 These options apply to all FlareInspect commands and are set before the command name.
 
 
-  =================  ======================================================
+=================  ======================================================
 
    Option             Description
 
-  =================  ======================================================
+=================  ======================================================
 
    ``-v, --version``    Print the FlareInspect version and exit
 
@@ -24,7 +24,7 @@ These options apply to all FlareInspect commands and are set before the command 
 
    ``--debug``          Enable debug-level logging for troubleshooting
 
-  =================  ======================================================
+=================  ======================================================
 
 
 Examples

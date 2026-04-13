@@ -154,11 +154,11 @@ Return check definitions from`` getChecks()``. Each check follows the
 SecurityBaseline schema:
 
 
-  ===============  ========  ===============================================
+===============  ========  ===============================================
 
    Field            Type      Description
 
-  ===============  ========  ===============================================
+===============  ========  ===============================================
 
    ``id``             string    Unique check identifier (prefix with CUSTOM-)
 
@@ -172,7 +172,7 @@ SecurityBaseline schema:
 
    ``compliance``     array     Compliance framework tags
 
-  ===============  ========  ===============================================
+===============  ========  ===============================================
 
 
 Testing
