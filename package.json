@@ -56,9 +56,22 @@
     "node": ">=20.0.0"
   },
   "type": "commonjs",
+  "nodemonConfig": {
+    "watch": [
+      "web/server.js",
+      "web/public",
+      "src",
+      "templates",
+      "package.json"
+    ],
+    "ignore": [
+      "logs/**",
+      "web/data/assessments/**"
+    ],
+    "ext": "js,mjs,cjs,json"
+  },
   "overrides": {
     "flatted": "^3.4.2",
-    "minimatch": "^3.1.5",
     "lodash": "^4.18.1",
     "ajv": "^6.14.0",
     "picomatch": "^2.3.2",
