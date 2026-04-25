@@ -12,6 +12,7 @@ const MarkdownExporter = require('../src/exporters/markdown');
 const CSVExporter = require('../src/exporters/csv');
 const ASFFExporter = require('../src/exporters/asff');
 const logger = require('../src/core/utils/logger');
+const pkg = require('../package.json');
 const ASSESSMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_NOTE_LENGTH = 2000;
 const MAX_ZONE_FILTERS = 100;
@@ -568,7 +569,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     uptime: process.uptime(),
-    version: process.env.npm_package_version || 'unknown',
+    version: pkg.version || process.env.npm_package_version || 'unknown',
     lastAssessmentAt: lastAssessment?.completedAt || null,
     storage: {
       ready: storageState.ready,

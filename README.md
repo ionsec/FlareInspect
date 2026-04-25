@@ -1,20 +1,26 @@
-# FlareInspect
+# Flare*Inspect*
 
 <div align="center">
-  <img src="flareinspect-logo.png" alt="FlareInspect Logo" width="200">
-  <p>Cloudflare security assessment CLI and local web dashboard</p>
+  <img src="web/public/flare-inspect-logo.svg" alt="FlareInspect" width="120">
+  <p><em>Cloudflare security assessment — CLI and local dashboard.</em></p>
   <p>
-    <a href="https://github.com/ionsec/flareinspect/actions"><img src="https://img.shields.io/badge/node-%3E%3D20.0.0-green" alt="Node.js ≥20"></a>
+    <a href="https://github.com/ionsec/flareinspect/actions"><img src="https://img.shields.io/badge/node-%E2%89%A520.0.0-green" alt="Node.js ≥20"></a>
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-    <img src="https://img.shields.io/badge/version-1.2.0-orange" alt="Version 1.2.0">
+    <img src="https://img.shields.io/badge/version-1.2.1-f6821f" alt="Version 1.2.1">
+    <img src="https://img.shields.io/badge/audit-0_vulns-3a9b3a" alt="0 npm audit vulnerabilities">
   </p>
 </div>
+
+> **1.2.1** — new brand identity (flare-in-reticle mark + Manrope/Fraunces wordmark), redesigned web
+> dashboard and HTML report, refreshed CLI banner, dropped the vulnerable `uuid` dependency in favor
+> of `crypto.randomUUID()`. `npm audit` reports 0 vulnerabilities. See
+> [`docs/changelog.rst`](docs/changelog.rst) for the full list.
 
 ## Overview
 
 FlareInspect assesses Cloudflare accounts and zones, highlights security gaps, compares posture drift between runs, and exports evidence-rich reports for engineers, security teams, auditors, and CI pipelines.
 
-The current `1.2.0` release includes:
+The current `1.2.1` release includes:
 
 - evidence-rich findings with named identities, affected resources, observed values, expected values, and review guidance
 - drift detection with `flareinspect diff`
@@ -23,7 +29,22 @@ The current `1.2.0` release includes:
 - exporters for `json`, `html`, `ocsf`, `sarif`, `markdown`, `csv`, and `asff`
 - shared config file support
 - local web APIs with optional header-based API key protection
+- a redesigned dark dashboard (sidebar nav · score-ring hero · zone matrix) and HTML report (masthead · KPI strip · charts)
+- new brand mark and CLI banner — flare-in-reticle, Manrope/Fraunces typography
+- `0` open `npm audit` vulnerabilities, `inflight`/`glob@7`/`node-domexception` warnings cleared
 - **full documentation at [flareinspect.readthedocs.io](https://flareinspect.readthedocs.io)**
+
+## Brand
+
+The mark is a flare burst held inside an inspection reticle — the lens at center is observation,
+the eight rays are Cloudflare's edge. Same amber as the dashboard
+(`oklch(72% 0.17 52)` / `#f6821f`). Wordmark uses Fraunces serif with italic *Inspect*; UI text
+is Manrope; mono is Geist Mono.
+
+| Asset | File | Use |
+|---|---|---|
+| Mark (open SVG, `currentColor`) | [`web/public/flare-inspect-logo.svg`](web/public/flare-inspect-logo.svg) | Inline UI, headers, README |
+| Glyph (rounded-square, app icon) | [`web/public/flare-inspect-glyph.svg`](web/public/flare-inspect-glyph.svg) | Favicon, OS app icons, social previews |
 
 ## Key Features
 
@@ -225,7 +246,12 @@ flareinspect assess --token $TOKEN --sensitivity critical
 | `csv` | Spreadsheet analysis, filtered evidence review |
 | `asff` | AWS Security Hub, Security Finding Format pipelines |
 
-## Web App
+## Web Dashboard
+
+A local dark-themed dashboard with sidebar navigation (Overview · Run · Findings · Compliance ·
+History · Exports · Report · API Health). The Overview hero shows a radial score ring,
+per-category breakdown bars, an open-findings severity strip, a four-framework compliance rail,
+top failing findings, and a per-zone posture matrix.
 
 Start the dashboard:
 
@@ -383,7 +409,9 @@ Helpful files:
 - `src/cli/` for CLI commands
 - `src/core/services/` for assessment, reporting, diff, compliance, and Cloudflare API logic
 - `src/exporters/` for output format implementations
-- `templates/report.html` for the HTML report template
+- `templates/report.html` for the HTML report template (V1 design)
+- `web/public/{index.html,styles.css,app.js}` for the dashboard SPA
+- `web/public/{flare-inspect-logo,flare-inspect-glyph}.svg` for the brand assets
 - `web/` for the local dashboard and API
 - `tests/` for regression coverage
 - `docs/` for the MkDocs documentation source

@@ -3,7 +3,7 @@
  */
 
 const ComplianceEngine = require('../src/core/services/complianceEngine');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require('crypto');
 
 describe('ComplianceEngine', () => {
   let engine;

@@ -4,413 +4,498 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FlareInspect — Cloudflare Security Assessment</title>
-  <link rel="icon" type="image/svg+xml" href="/flare-inspect-logo.svg" />
+  <link rel="icon" type="image/svg+xml" href="/flare-inspect-glyph.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
+<body class="v1-root density-comfortable">
 
-<!-- Mobile overlay -->
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-<div class="app-shell">
+<!-- ── Sidebar ── -->
+<aside class="v1-sidebar" id="sidebar">
+  <div class="v1-brand">
+    <img src="/flare-inspect-logo.svg" alt="" width="22" height="22" />
+    <div>
+      <div class="v1-brand-name">Flare<em class="v1-brand-em">Inspect</em></div>
+      <div class="v1-brand-sub" id="brand-sub">by ionsec</div>
+    </div>
+  </div>
 
-  <!-- ── Sidebar ── -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-      <img src="/flare-inspect-logo.svg" alt="FlareInspect" class="sidebar-logo" />
-      <div>
-        <div class="sidebar-name">FlareInspect</div>
-        <div class="sidebar-tagline">IONSEC.IO</div>
+  <div class="v1-account">
+    <div class="v1-account-label">ACCOUNT</div>
+    <button class="v1-account-picker" type="button">
+      <span class="v1-account-dot"></span>
+      <span class="v1-account-name" id="account-name">—</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+    </button>
+  </div>
+
+  <nav class="v1-nav">
+    <div class="v1-nav-group">Workspace</div>
+    <button class="v1-navlink active" data-section="overview" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Overview</span>
+    </button>
+    <button class="v1-navlink" data-section="assess" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      <span>Run assessment</span>
+    </button>
+    <button class="v1-navlink" data-section="findings" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>
+      <span>Findings</span>
+      <span class="v1-navbadge" id="nav-badge-findings">—</span>
+    </button>
+    <button class="v1-navlink" data-section="compliance" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span>Compliance</span>
+    </button>
+    <button class="v1-navlink" data-section="history" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>History</span>
+    </button>
+
+    <div class="v1-nav-group" style="margin-top:16px">System</div>
+    <button class="v1-navlink" data-section="export" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>Exports</span>
+    </button>
+    <button class="v1-navlink" data-section="report" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span>Full report</span>
+    </button>
+    <button class="v1-navlink" data-section="api" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      <span>API health</span>
+    </button>
+  </nav>
+
+  <div class="v1-foot">
+    <div class="v1-foot-status">
+      <span class="v1-foot-dot"></span>
+      <span id="foot-status-text">System idle</span>
+    </div>
+    <div class="v1-foot-links">
+      <a href="https://flareinspect.readthedocs.io" target="_blank" rel="noopener">Docs ↗</a>
+      <a href="https://github.com/ionsec/flareinspect" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<div class="v1-main">
+
+  <header class="v1-topbar">
+    <div style="display:flex;align-items:center;gap:12px;min-width:0">
+      <button class="v1-hamburger" id="hamburger" aria-label="Open menu" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="v1-crumbs">
+        <span class="v1-crumb-muted" id="crumb-account">—</span>
+        <span class="v1-crumb-sep">/</span>
+        <span class="v1-crumb" id="crumb-page">Overview</span>
       </div>
     </div>
-
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">Dashboard</span>
-
-      <button class="nav-link active" data-section="overview">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        Overview
-      </button>
-
-      <button class="nav-link" data-section="assess">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        Run Assessment
-      </button>
-
-      <button class="nav-link" data-section="findings">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        Findings
-      </button>
-
-      <button class="nav-link" data-section="export">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <div class="v1-top-actions">
+      <label class="v1-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="global-search" placeholder="Search findings, zones, checks…" aria-label="Search" />
+        <kbd>⌘K</kbd>
+      </label>
+      <button class="v1-btn v1-btn-ghost" data-section="export" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export
       </button>
-
-      <button class="nav-link" data-section="compliance">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Compliance
+      <button class="v1-btn v1-btn-primary" data-section="assess" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        New run
       </button>
+    </div>
+  </header>
 
-      <button class="nav-link" data-section="report">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-        Report
-      </button>
+  <!-- ── Page: Overview ── -->
+  <div class="v1-page" id="page-overview">
 
-      <span class="nav-section-label">Platform</span>
-
-      <button class="nav-link" data-section="history">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        History
-      </button>
-
-      <button class="nav-link" data-section="api">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        API Health
-      </button>
-
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-footer-links">
-        <a href="https://flareinspect.readthedocs.io" target="_blank" rel="noopener">Documentation ↗</a>
-        <a href="https://github.com/ionsec/flareinspect" target="_blank" rel="noopener">GitHub ↗</a>
-        <a href="https://ionsec.io" target="_blank" rel="noopener">IONSEC.IO ↗</a>
+    <!-- Idle state when no assessment -->
+    <div id="idle-hero">
+      <div class="v1-card" style="text-align:center;padding:64px 40px">
+        <img src="/flare-inspect-logo.svg" alt="FlareInspect" style="width:64px;margin:0 auto 20px;display:block;opacity:0.72" />
+        <h2 style="font-size:20px;font-weight:700;letter-spacing:-0.01em;margin:0 0 8px;color:var(--fg)">Welcome to FlareInspect</h2>
+        <p style="color:var(--fg-3);max-width:480px;margin:0 auto 24px;line-height:1.6;font-size:13px">
+          Assess your Cloudflare configuration, discover security gaps, and generate compliance reports.
+        </p>
+        <button class="v1-btn v1-btn-primary" data-section="assess" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+          Run first assessment
+        </button>
       </div>
     </div>
-  </aside>
 
-  <!-- ── Main ── -->
-  <main class="main">
-
-    <!-- Topbar -->
-    <header class="topbar">
-      <div style="display:flex;align-items:center;gap:12px">
-        <button class="hamburger" id="hamburger" aria-label="Open menu">
-          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
-        <span class="topbar-title" id="topbar-title">Overview</span>
+    <!-- Loaded state -->
+    <div id="score-hero" style="display:none">
+      <div class="v1-page-head">
+        <div>
+          <h1>Security posture</h1>
+          <div class="v1-page-sub" id="posture-sub">Latest assessment · —</div>
+        </div>
+        <div class="v1-page-head-meta">
+          <div class="v1-chip"><span class="v1-chip-dot" id="ci-dot" style="background:var(--fg-3)"></span><span id="ci-label">CI gate: —</span></div>
+          <div class="v1-chip">Framework · CIS</div>
+          <div class="v1-chip" id="chip-zones">Zones · —</div>
+        </div>
       </div>
-      <div class="topbar-badge">
-        <span class="topbar-badge-dot"></span>
-        <span>System Online</span>
-      </div>
-    </header>
 
-    <!-- ── Page: Overview ── -->
-    <div class="page" id="page-overview">
-
-      <!-- Score Hero -->
-      <div class="score-hero" id="score-hero" style="display:none">
-        <div class="score-hero-grid">
-          <div class="score-ring-wrap">
-            <svg class="score-ring" viewBox="0 0 130 130">
-              <circle class="score-ring-bg" cx="65" cy="65" r="54"/>
-              <circle class="score-ring-fill" id="score-ring-fill" cx="65" cy="65" r="54"/>
-            </svg>
-            <div class="score-ring-text">
-              <span class="score-number" id="overview-score-num">--</span>
-              <span class="score-grade" id="overview-grade">--</span>
+      <div class="v1-grid-main">
+        <!-- Score card -->
+        <div class="v1-card v1-card-score">
+          <div class="v1-card-head">
+            <div class="v1-card-kicker">Overall score</div>
+            <div class="v1-card-act">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
             </div>
           </div>
-          <div class="score-info">
-            <h2 id="overview-title">No Assessment Yet</h2>
-            <p id="overview-desc">Run your first Cloudflare security assessment to see your security posture score, findings breakdown, and actionable recommendations.</p>
-            <div class="feature-pills">
-              <span class="feature-pill">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                40+ Security Checks
-              </span>
-              <span class="feature-pill">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                Drift Detection
-              </span>
-              <span class="feature-pill">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                CIS · SOC 2 · PCI · NIST
-              </span>
+          <div class="v1-score-body">
+            <div class="v1-score-ring">
+              <svg viewBox="0 0 150 150" width="170" height="170">
+                <defs>
+                  <linearGradient id="v1-ring-g" x1="0" x2="1" y1="0" y2="1">
+                    <stop offset="0%" stop-color="oklch(72% 0.15 155)"/>
+                    <stop offset="70%" stop-color="oklch(75% 0.16 100)"/>
+                    <stop offset="100%" stop-color="oklch(72% 0.17 52)"/>
+                  </linearGradient>
+                </defs>
+                <circle cx="75" cy="75" r="62" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"/>
+                <circle id="score-ring-fill" cx="75" cy="75" r="62" fill="none" stroke="url(#v1-ring-g)" stroke-width="10"
+                        stroke-linecap="round"
+                        transform="rotate(-90 75 75)"/>
+              </svg>
+              <div class="v1-score-inner">
+                <div class="v1-score-num" id="score-num">—</div>
+                <div class="v1-score-grade" id="score-grade">—</div>
+                <div class="v1-score-delta" id="score-delta" style="display:none"></div>
+              </div>
+            </div>
+            <div class="v1-score-side">
+              <div class="v1-score-kv"><span>Previous</span><b id="score-prev">—</b></div>
+              <div class="v1-score-kv" id="kv-trend"><span>Recent trend</span><div id="score-sparkline"></div></div>
+              <div class="v1-score-kv"><span>Passed</span><b id="score-passed">— <em id="score-passed-total"></em></b></div>
             </div>
           </div>
-          <div class="score-severity-grid">
-            <div class="severity-item critical">
-              <div class="severity-label">Critical</div>
-              <div class="severity-count" id="sev-critical">0</div>
+          <div class="v1-breakdown-wrap">
+            <div class="v1-card-kicker" style="margin-bottom:10px">By category</div>
+            <div class="v1-breakdown" id="breakdown-rows"></div>
+          </div>
+        </div>
+
+        <!-- Severity + compliance rail -->
+        <div class="v1-col">
+          <div class="v1-card">
+            <div class="v1-sevstrip">
+              <div class="v1-sevstrip-head">
+                <div>
+                  <div class="v1-sevstrip-title">Open findings</div>
+                  <div class="v1-sevstrip-sub" id="sevstrip-sub">—</div>
+                </div>
+                <button class="v1-btn v1-btn-ghost v1-btn-sm" data-section="findings" type="button">
+                  View all
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </button>
+              </div>
+              <div class="v1-sevstack" id="sevstack">
+                <div class="v1-sevseg" data-sev="critical" style="flex:0;background:var(--crit)"></div>
+                <div class="v1-sevseg" data-sev="high" style="flex:0;background:var(--high)"></div>
+                <div class="v1-sevseg" data-sev="medium" style="flex:0;background:var(--med)"></div>
+                <div class="v1-sevseg" data-sev="low" style="flex:0;background:var(--low)"></div>
+              </div>
+              <div class="v1-sevlabels">
+                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--crit)"></span><span class="v1-sevlab-n" id="sev-critical">0</span><span class="v1-sevlab-l">Critical</span></div>
+                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--high)"></span><span class="v1-sevlab-n" id="sev-high">0</span><span class="v1-sevlab-l">High</span></div>
+                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--med)"></span><span class="v1-sevlab-n" id="sev-medium">0</span><span class="v1-sevlab-l">Medium</span></div>
+                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--low)"></span><span class="v1-sevlab-n" id="sev-low">0</span><span class="v1-sevlab-l">Low</span></div>
+              </div>
             </div>
-            <div class="severity-item high">
-              <div class="severity-label">High</div>
-              <div class="severity-count" id="sev-high">0</div>
+          </div>
+
+          <div class="v1-card">
+            <div class="v1-card-head">
+              <div class="v1-card-kicker">Compliance</div>
+              <a class="v1-card-link" data-section="compliance" href="#">All frameworks →</a>
             </div>
-            <div class="severity-item medium">
-              <div class="severity-label">Medium</div>
-              <div class="severity-count" id="sev-medium">0</div>
-            </div>
-            <div class="severity-item low">
-              <div class="severity-label">Low</div>
-              <div class="severity-count" id="sev-low">0</div>
+            <div class="v1-comp-list" id="compliance-rows">
+              <div class="v1-comp-empty" style="color:var(--fg-3);font-size:12px;padding:8px 0">Loading compliance scores…</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Idle state when no assessment -->
-      <div id="idle-hero">
-        <div class="card" style="text-align:center;padding:60px 40px">
-          <img src="/flare-inspect-logo.svg" alt="FlareInspect" style="width:80px;margin:0 auto 20px;display:block;opacity:0.6" />
-          <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:10px;color:var(--text)">Welcome to FlareInspect</h2>
-          <p style="color:var(--text-muted);max-width:480px;margin:0 auto 28px;line-height:1.6">
-            Assess your Cloudflare configuration, discover security gaps, and generate compliance reports — all in one place.
-          </p>
-          <button class="btn btn-primary" onclick="navigateTo('assess')">
-            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            Run First Assessment
+      <div class="v1-card">
+        <div class="v1-card-head">
+          <div>
+            <div class="v1-card-title">Top findings</div>
+            <div class="v1-card-sub" id="top-findings-sub">Sorted by severity</div>
+          </div>
+          <div class="v1-card-actions">
+            <button class="v1-btn v1-btn-ghost v1-btn-sm" data-section="findings" type="button">See all →</button>
+          </div>
+        </div>
+        <div class="v1-findings" id="recent-findings"></div>
+      </div>
+
+      <div class="v1-card">
+        <div class="v1-card-head">
+          <div>
+            <div class="v1-card-title">Zones</div>
+            <div class="v1-card-sub" id="zones-sub">—</div>
+          </div>
+        </div>
+        <div class="v1-zonegrid" id="zone-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Page: Run Assessment ── -->
+  <div class="v1-page" id="page-assess" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Run assessment</h1>
+        <div class="v1-page-sub">Enter your Cloudflare API token to begin. Your token is sent only to your local server.</div>
+      </div>
+    </div>
+
+    <div class="v1-card">
+      <form id="assess-form" class="v1-form" novalidate>
+        <div class="v1-form-row">
+          <label class="v1-form-label" for="token">Cloudflare API token <span class="v1-required">*</span></label>
+          <input type="password" id="token" class="v1-input" placeholder="Cfxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" required />
+          <p class="v1-form-hint">Create a token at <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener">dash.cloudflare.com</a>. Required scopes: Zone:Read, DNS:Read, SSL and Certificates:Read.</p>
+        </div>
+
+        <div class="v1-form-row">
+          <label class="v1-form-label" for="zones">Zone filter <span class="v1-form-optional">(optional)</span></label>
+          <input type="text" id="zones" class="v1-input" placeholder="example.com, api.example.com" spellcheck="false" />
+          <p class="v1-form-hint">Comma-separated zone names. Leave blank to assess all zones the token can access.</p>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+          <button type="submit" class="v1-btn v1-btn-primary" id="btn-run">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+            Run assessment
+          </button>
+          <button type="button" class="v1-btn" id="btn-latest">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg>
+            Load latest
           </button>
         </div>
-      </div>
+      </form>
 
-      <!-- Recent findings -->
-      <div id="findings-section" style="display:none">
-        <div class="section-header">
-          <div class="section-title">Recent Findings</div>
-          <div class="section-sub">Top findings from your latest assessment, sorted by severity</div>
+      <div class="v1-progress" id="progress-wrap" style="display:none">
+        <div class="v1-progress-label">
+          <span id="progress-text">Running assessment…</span>
+          <span class="v1-mono" id="progress-pct">0%</span>
         </div>
-        <div class="card">
-          <div id="recent-findings" class="findings-list">
-            <p style="color:var(--text-dim);font-size:0.85rem;text-align:center;padding:20px">No findings to display.</p>
-          </div>
+        <div class="v1-progress-bar">
+          <div class="v1-progress-fill" id="progress-fill"></div>
         </div>
       </div>
     </div>
 
-    <!-- ── Page: Run Assessment ── -->
-    <div class="page" id="page-assess" style="display:none">
-      <div class="section-header">
-        <div class="section-title">Run Assessment</div>
-        <div class="section-sub">Enter your Cloudflare API token to begin a security assessment. Your token is sent only to your local server.</div>
+    <div class="v1-card" id="status-card" style="display:none">
+      <div class="v1-status-row">
+        <span class="v1-status-chip idle" id="status-chip">
+          <span class="v1-spinner" id="status-spinner" style="display:none"></span>
+          <span id="status-label">Idle</span>
+        </span>
+        <span class="v1-status-msg" id="status-msg">No assessment running.</span>
       </div>
+    </div>
+  </div>
 
-      <div class="form-card">
-        <form id="assess-form" novalidate>
-          <div class="form-row">
-            <label class="form-label" for="token">Cloudflare API Token <span style="color:var(--orange)">*</span></label>
-            <input
-              type="password"
-              id="token"
-              class="form-input"
-              placeholder="e.g. Cfxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              autocomplete="off"
-              spellcheck="false"
-              required
-            />
-            <p class="form-hint">Create a token at <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener" style="color:var(--orange)">dash.cloudflare.com</a>. Required scopes: Zone:Read, DNS:Read, SSL and Certificates:Read.</p>
-          </div>
-
-          <div class="form-row">
-            <label class="form-label" for="zones">Zone Filter <span style="color:var(--text-dim);font-weight:400">(optional)</span></label>
-            <input
-              type="text"
-              id="zones"
-              class="form-input"
-              placeholder="example.com, api.example.com"
-              spellcheck="false"
-            />
-            <p class="form-hint">Comma-separated zone names. Leave blank to assess all zones the token can access.</p>
-          </div>
-
-          <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <button type="submit" class="btn btn-primary" id="btn-run">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              Run Assessment
-            </button>
-            <button type="button" class="btn btn-secondary" id="btn-latest">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg>
-              Load Latest
-            </button>
-          </div>
-        </form>
-
-        <!-- Progress -->
-        <div class="progress-wrap" id="progress-wrap" style="display:none">
-          <div class="progress-label">
-            <span id="progress-text">Running assessment...</span>
-            <span id="progress-pct">0%</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Status card -->
-      <div class="card" id="status-card" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span class="status-chip idle" id="status-chip">
-              <span class="spinner" id="status-spinner" style="display:none"></span>
-              <span id="status-label">Idle</span>
-            </span>
-            <span style="color:var(--text-muted);font-size:0.85rem" id="status-msg">No assessment running.</span>
-          </div>
-          <div id="status-actions"></div>
-        </div>
-        <div id="status-findings"></div>
+  <!-- ── Page: Findings ── -->
+  <div class="v1-page" id="page-findings" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Findings</h1>
+        <div class="v1-page-sub" id="findings-sub">All security findings from the latest assessment</div>
       </div>
     </div>
 
-    <!-- ── Page: Findings ── -->
-    <div class="page" id="page-findings" style="display:none">
-      <div class="section-header">
-        <div class="section-title">Findings</div>
-        <div class="section-sub">All security findings from the latest assessment, grouped by severity</div>
-      </div>
+    <div class="v1-filter-row" id="findings-filter">
+      <button class="v1-btn v1-btn-sm v1-btn-primary" data-filter="all" type="button">All</button>
+      <button class="v1-btn v1-btn-sm" data-filter="critical" type="button">Critical</button>
+      <button class="v1-btn v1-btn-sm" data-filter="high" type="button">High</button>
+      <button class="v1-btn v1-btn-sm" data-filter="medium" type="button">Medium</button>
+      <button class="v1-btn v1-btn-sm" data-filter="low" type="button">Low</button>
+    </div>
 
-      <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap" id="findings-filter">
-        <button class="btn btn-primary btn-sm" data-filter="all">All</button>
-        <button class="btn btn-ghost btn-sm" data-filter="critical">Critical</button>
-        <button class="btn btn-ghost btn-sm" data-filter="high">High</button>
-        <button class="btn btn-ghost btn-sm" data-filter="medium">Medium</button>
-        <button class="btn btn-gghost btn-sm" data-filter="low">Low</button>
+    <div class="v1-card" style="padding:0;overflow:hidden">
+      <div class="v1-findings v1-findings-bare" id="all-findings">
+        <div class="v1-empty">No assessment data. Run an assessment first.</div>
       </div>
+    </div>
+  </div>
 
-      <div class="card">
-        <div id="all-findings" class="findings-list">
-          <p style="color:var(--text-dim);font-size:0.85rem;text-align:center;padding:30px">
-            No assessment data. Run an assessment first.
-          </p>
+  <!-- ── Page: Export ── -->
+  <div class="v1-page" id="page-export" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Exports</h1>
+        <div class="v1-page-sub">Download assessment results in your preferred format</div>
+      </div>
+    </div>
+
+    <div class="v1-export-grid">
+      <a id="exp-json" href="/api/download/json" class="v1-export-card" aria-disabled="true" download>
+        <div class="v1-export-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </div>
-      </div>
-    </div>
-
-    <!-- ── Page: Export ── -->
-    <div class="page" id="page-export" style="display:none">
-      <div class="section-header">
-        <div class="section-title">Export Reports</div>
-        <div class="section-sub">Download assessment results in your preferred format</div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Available Exports</div>
-        <div class="export-grid">
-          <a id="exp-json" href="/api/download/json" class="export-btn" aria-disabled="true" download>
-            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            JSON
-            <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400">Full assessment data</span>
-          </a>
-          <a id="exp-html" href="/api/download/html" class="export-btn" aria-disabled="true" download>
-            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            HTML Report
-            <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400">Styled full report</span>
-          </a>
-          <a href="/api/download/sarif" class="export-btn" id="exp-sarif" aria-disabled="true" download>
-            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            SARIF
-            <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400">CI/CD integration</span>
-          </a>
-          <a href="/api/download/csv" class="export-btn" id="exp-csv" aria-disabled="true" download>
-            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-            CSV
-            <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400">Spreadsheet format</span>
-          </a>
-          <a href="/api/download/markdown" class="export-btn" id="exp-md" aria-disabled="true" download>
-            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Markdown
-            <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400">Readable document</span>
-          </a>
-          <a href="/api/download/asff" class="export-btn" id="exp-asff" aria-disabled="true" download>
-            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            ASFF
-            <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400">AWS Security Format</span>
-          </a>
+        <div class="v1-export-name">JSON</div>
+        <div class="v1-export-desc">Full assessment data</div>
+      </a>
+      <a id="exp-html" href="/api/download/html" class="v1-export-card" aria-disabled="true" download>
+        <div class="v1-export-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </div>
-      </div>
-
-      <!-- JSON Preview -->
-      <div class="card" style="margin-top:20px">
-        <div class="card-title">JSON Preview</div>
-        <pre id="json-preview" class="json-preview">Run an assessment to see the JSON output here.</pre>
-      </div>
-    </div>
-
-    <!-- ── Page: Compliance ── -->
-    <div class="page" id="page-compliance" style="display:none">
-      <div class="section-header">
-        <div class="section-title">Compliance Reports</div>
-        <div class="section-sub">Control mapping against industry frameworks — generated from the latest assessment</div>
-      </div>
-
-      <div class="compliance-grid">
-        <a href="/api/compliance/cis" class="compliance-card" target="_blank">
-          <div class="compliance-card-icon">🛡️</div>
-          <div class="compliance-card-name">CIS Benchmark</div>
-          <div class="compliance-card-sub">Center for Internet Security Controls</div>
-        </a>
-        <a href="/api/compliance/soc2" class="compliance-card" target="_blank">
-          <div class="compliance-card-icon">📋</div>
-          <div class="compliance-card-name">SOC 2</div>
-          <div class="compliance-card-sub">Service Organization Control 2</div>
-        </a>
-        <a href="/api/compliance/pci" class="compliance-card" target="_blank">
-          <div class="compliance-card-icon">💳</div>
-          <div class="compliance-card-name">PCI-DSS</div>
-          <div class="compliance-card-sub">Payment Card Industry Data Security</div>
-        </a>
-        <a href="/api/compliance/nist" class="compliance-card" target="_blank">
-          <div class="compliance-card-icon">🏛️</div>
-          <div class="compliance-card-name">NIST CSF</div>
-          <div class="compliance-card-sub">National Institute of Standards</div>
-        </a>
-      </div>
-    </div>
-
-    <!-- ── Page: Report ── -->
-    <div class="page" id="page-report" style="display:none">
-      <div class="report-section">
-        <div class="report-section-header">
-          <div class="section-title">Full HTML Report</div>
-          <div style="display:flex;gap:10px">
-            <button class="btn btn-ghost btn-sm" id="btn-refresh-report">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="14" height="14"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Refresh
-            </button>
-            <a href="/report" target="_blank" class="btn btn-ghost btn-sm">Open in new tab ↗</a>
-          </div>
+        <div class="v1-export-name">HTML report</div>
+        <div class="v1-export-desc">Styled full report</div>
+      </a>
+      <a id="exp-sarif" href="/api/download/sarif" class="v1-export-card" aria-disabled="true" download>
+        <div class="v1-export-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
         </div>
-        <p class="report-status" id="report-status">Run an assessment to see the report here.</p>
-        <iframe id="report-frame" class="report-frame" title="HTML Assessment Report" sandbox="allow-same-origin allow-scripts"></iframe>
-      </div>
-    </div>
-
-    <!-- ── Page: History ── -->
-    <div class="page" id="page-history" style="display:none">
-      <div class="section-header">
-        <div class="section-title">Assessment History</div>
-        <div class="section-sub">Previously saved assessments stored locally</div>
-      </div>
-      <div class="card">
-        <div id="history-list">
-          <p style="color:var(--text-dim);font-size:0.85rem;text-align:center;padding:30px">No assessment history found.</p>
+        <div class="v1-export-name">SARIF</div>
+        <div class="v1-export-desc">CI/CD integration</div>
+      </a>
+      <a id="exp-csv" href="/api/download/csv" class="v1-export-card" aria-disabled="true" download>
+        <div class="v1-export-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
         </div>
-      </div>
-    </div>
-
-    <!-- ── Page: API Health ── -->
-    <div class="page" id="page-api" style="display:none">
-      <div class="section-header">
-        <div class="section-title">API Health</div>
-        <div class="section-sub">System status and configuration</div>
-      </div>
-      <div class="card">
-        <div class="card-title">System Status</div>
-        <div id="health-info" style="display:flex;flex-direction:column;gap:12px">
-          <p style="color:var(--text-dim);font-size:0.85rem">Loading system information...</p>
+        <div class="v1-export-name">CSV</div>
+        <div class="v1-export-desc">Spreadsheet format</div>
+      </a>
+      <a id="exp-md" href="/api/download/markdown" class="v1-export-card" aria-disabled="true" download>
+        <div class="v1-export-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
         </div>
+        <div class="v1-export-name">Markdown</div>
+        <div class="v1-export-desc">Readable document</div>
+      </a>
+      <a id="exp-asff" href="/api/download/asff" class="v1-export-card" aria-disabled="true" download>
+        <div class="v1-export-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="v1-export-name">ASFF</div>
+        <div class="v1-export-desc">AWS Security Format</div>
+      </a>
+    </div>
+
+    <div class="v1-card" style="margin-top:4px">
+      <div class="v1-card-head">
+        <div class="v1-card-title">JSON preview</div>
+      </div>
+      <pre id="json-preview" class="v1-pre">Run an assessment to see the JSON output here.</pre>
+    </div>
+  </div>
+
+  <!-- ── Page: Compliance ── -->
+  <div class="v1-page" id="page-compliance" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Compliance</h1>
+        <div class="v1-page-sub">Control mapping against industry frameworks — generated from the latest assessment</div>
       </div>
     </div>
 
-  </main>
+    <div class="v1-compliance-grid">
+      <a href="/api/compliance/cis" class="v1-compliance-card" target="_blank" rel="noopener">
+        <div class="v1-compliance-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="v1-compliance-name">CIS Benchmark</div>
+        <div class="v1-compliance-sub">Center for Internet Security Controls</div>
+      </a>
+      <a href="/api/compliance/soc2" class="v1-compliance-card" target="_blank" rel="noopener">
+        <div class="v1-compliance-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        </div>
+        <div class="v1-compliance-name">SOC 2</div>
+        <div class="v1-compliance-sub">Service Organization Control 2</div>
+      </a>
+      <a href="/api/compliance/pci" class="v1-compliance-card" target="_blank" rel="noopener">
+        <div class="v1-compliance-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        </div>
+        <div class="v1-compliance-name">PCI-DSS</div>
+        <div class="v1-compliance-sub">Payment Card Industry Data Security</div>
+      </a>
+      <a href="/api/compliance/nist" class="v1-compliance-card" target="_blank" rel="noopener">
+        <div class="v1-compliance-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg>
+        </div>
+        <div class="v1-compliance-name">NIST CSF</div>
+        <div class="v1-compliance-sub">National Institute of Standards</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Page: Report ── -->
+  <div class="v1-page" id="page-report" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Full HTML report</h1>
+        <div class="v1-page-sub" id="report-status">Run an assessment to see the report here.</div>
+      </div>
+      <div class="v1-page-head-meta">
+        <button class="v1-btn v1-btn-sm" id="btn-refresh-report" type="button">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh
+        </button>
+        <a href="/report" target="_blank" rel="noopener" class="v1-btn v1-btn-sm">Open in new tab ↗</a>
+      </div>
+    </div>
+    <div class="v1-card" style="padding:0;overflow:hidden">
+      <iframe id="report-frame" class="v1-report-frame" title="HTML Assessment Report" sandbox="allow-same-origin allow-scripts"></iframe>
+    </div>
+  </div>
+
+  <!-- ── Page: History ── -->
+  <div class="v1-page" id="page-history" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Assessment history</h1>
+        <div class="v1-page-sub">Previously saved assessments stored locally</div>
+      </div>
+    </div>
+    <div class="v1-card" style="padding:0;overflow:hidden">
+      <div class="v1-history" id="history-list">
+        <div class="v1-empty">No assessment history found.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Page: API Health ── -->
+  <div class="v1-page" id="page-api" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>API health</h1>
+        <div class="v1-page-sub">System status and configuration</div>
+      </div>
+    </div>
+    <div class="v1-card">
+      <div class="v1-card-head">
+        <div class="v1-card-title">System status</div>
+      </div>
+      <div class="v1-health" id="health-info">
+        <div class="v1-empty">Loading system information…</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Toast container -->
-<div id="toast-container"></div>
+<div id="toast-container" class="v1-toast-container"></div>
 
 <script src="/app.js"></script>
 </body>
