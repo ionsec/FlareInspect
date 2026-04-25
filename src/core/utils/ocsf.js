@@ -201,7 +201,7 @@ function validateOCSF(finding) {
 function createFinding(findingData) {
   // Ensure required fields have defaults
   const defaultFinding = {
-    id: findingData.id || require('uuid').v4(),
+    id: findingData.id || require('crypto').randomUUID(),
     checkId: findingData.checkId || 'unknown-check',
     checkTitle: findingData.checkTitle || 'Unknown Security Check',
     service: findingData.service || 'unknown',

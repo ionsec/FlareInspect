@@ -2,6 +2,34 @@
 Changelog
 =========
 
+1.2.1 — 2026-04-25
+--------------------
+
+.. rubric:: Brand & UI
+
+- **New brand identity** — flare-in-reticle mark with FlareInspect wordmark (Manrope/Fraunces/Geist Mono).
+  Replaces the previous Cloudflare-style shield.
+- **Redesigned web dashboard** — V1 "Command" layout with sidebar nav, sticky topbar, score-ring hero,
+  severity strip, compliance rail, findings table, and zone matrix. Dark-only.
+- **Redesigned HTML report** — masthead with KPI strip, score hero, summary cards, charts, top risks,
+  per-zone domains table, security insights, severity sections, recommendations, and category posture.
+- **CLI banner** — recolored to flare orange with mono-feel rule lines and the new tagline
+  ``by ionsec.io · cloudflare posture``.
+
+.. rubric:: Dependencies & security
+
+- Replaced ``uuid`` (vulnerable) with Node's built-in ``crypto.randomUUID()`` — drops one dependency
+  and removes the moderate-severity ``uuid`` advisory.
+- Bumped ``jest`` to ^30 and added overrides for ``test-exclude``, ``formdata-node``, and ``glob``
+  to clear ``inflight@1.0.6`` and ``glob@7`` deprecation/security warnings.
+- ``npm audit`` now reports **0 vulnerabilities**.
+
+.. rubric:: Tests
+
+- All 62 existing tests still pass against the updated template and dependencies.
+
+----
+
 1.2.0 — 2026-04-13
 --------------------
 

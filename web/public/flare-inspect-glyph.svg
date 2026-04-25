@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FlareInspect">
   <title>FlareInspect</title>
-  <!-- Brand mark: a flare burst inside an inspection reticle.
-       Inherits currentColor; default is flare orange (oklch 72% .17 52). -->
-  <g color="#f6821f">
+  <!-- App-icon glyph: rounded-square fill in flare orange, mark in dark ink. -->
+  <rect width="64" height="64" rx="14" fill="#f6821f"/>
+  <g transform="translate(7,7) scale(0.78)" color="#1a0f00">
     <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.35"/>
     <g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.5">
       <line x1="32" y1="2"  x2="32" y2="7"/>

@@ -29,7 +29,9 @@ USER flareinspect
 LABEL org.opencontainers.image.title="FlareInspect" \
       org.opencontainers.image.description="Cloudflare Security Assessment CLI and web dashboard" \
       org.opencontainers.image.vendor="IONSEC.IO" \
-      org.opencontainers.image.version="1.1.0"
+      org.opencontainers.image.version="1.2.1" \
+      org.opencontainers.image.source="https://github.com/ionsec/flareinspect" \
+      org.opencontainers.image.licenses="MIT"
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "node", "src/cli/index.js"]
 CMD []

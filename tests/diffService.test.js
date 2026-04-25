@@ -3,7 +3,7 @@
  */
 
 const DiffService = require('../src/core/services/diffService');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require('crypto');
 
 describe('DiffService', () => {
   let service;
