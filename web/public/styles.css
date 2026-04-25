@@ -84,9 +84,10 @@ a { color: inherit; }
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
+  padding: 0 12px 16px;
   gap: 14px;
   flex-shrink: 0;
+  align-self: flex-start;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -95,7 +96,9 @@ a { color: inherit; }
 
 .v1-brand {
   display: flex; align-items: center; gap: 10px;
-  padding: 4px 6px 14px;
+  padding: 0 6px;
+  height: 56px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--line);
 }
 .v1-brand img { border-radius: 4px; }
