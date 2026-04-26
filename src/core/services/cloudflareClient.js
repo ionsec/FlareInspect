@@ -1828,6 +1828,124 @@ class CloudflareClient {
       return { error: error.message };
     }
   }
+
+  /**
+   * Verify the current API token (active, not expired, scope summary).
+   * GET /user/tokens/verify
+   * Returns { id, status, not_before, expires_on, ... } or { error }.
+   */
+  async verifyToken() {
+    try {
+      // Prefer SDK if available, else raw
+      if (this.client.user?.tokens?.verify) {
+        const res = await this.client.user.tokens.verify();
+        return res?.result || res || {};
+      }
+      const response = await this.rawRequest('/user/tokens/verify');
+      return response?.result || {};
+    } catch (error) {
+      logger.debug('Token verify failed:', error.message);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * List R2 buckets in the account.
+   * GET /accounts/{account_id}/r2/buckets
+   */
+  async getR2Buckets(accountId) {
+    try {
+      const response = await this.rawRequest(`/accounts/${accountId}/r2/buckets?per_page=100`);
+      const buckets = response?.result?.buckets || response?.result || [];
+      // Optionally enrich each bucket with custom domain / lifecycle / event notification metadata.
+      const enriched = await Promise.all(
+        (Array.isArray(buckets) ? buckets : []).map(async (bucket) => {
+          const name = bucket.name || bucket.bucket_name || bucket.id;
+          if (!name) return bucket;
+          const [domains, lifecycle, eventNotifs, cors] = await Promise.all([
+            this.rawRequest(`/accounts/${accountId}/r2/buckets/${encodeURIComponent(name)}/domains/custom`)
+              .then(r => r?.result?.domains || r?.result || [])
+              .catch(() => []),
+            this.rawRequest(`/accounts/${accountId}/r2/buckets/${encodeURIComponent(name)}/lifecycle`)
+              .then(r => r?.result?.rules || r?.result || [])
+              .catch(() => []),
+            this.rawRequest(`/accounts/${accountId}/event_notifications/r2/${encodeURIComponent(name)}/configuration`)
+              .then(r => r?.result?.queues || r?.result || [])
+              .catch(() => []),
+            this.rawRequest(`/accounts/${accountId}/r2/buckets/${encodeURIComponent(name)}/cors`)
+              .then(r => r?.result?.rules || r?.result || [])
+              .catch(() => [])
+          ]);
+          return {
+            ...bucket,
+            name,
+            customDomains: domains,
+            lifecycleRules: lifecycle,
+            eventNotifications: eventNotifs,
+            corsRules: cors
+          };
+        })
+      );
+      return enriched;
+    } catch (error) {
+      logger.debug('R2 not available:', error.message);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Get WAF managed rulesets deployed at zone scope.
+   * GET /zones/{zone_id}/rulesets
+   * Filters for kind=managed, phase=http_request_firewall_managed.
+   * Each entry includes id, version, action overrides — used to detect log-only drift.
+   */
+  async getWAFManagedRulesets(zoneId) {
+    try {
+      let rulesets = [];
+      if (this.client.zones?.rulesets?.list) {
+        const res = await this.client.zones.rulesets.list({ zone_id: zoneId });
+        rulesets = res?.result || res || [];
+      } else {
+        const res = await this.rawRequest(`/zones/${zoneId}/rulesets`);
+        rulesets = res?.result || [];
+      }
+
+      // Find the zone's entry-point ruleset for the managed firewall phase
+      const entryPoints = rulesets.filter(r =>
+        r.kind === 'zone' && r.phase === 'http_request_firewall_managed'
+      );
+
+      const managedDeployments = [];
+      for (const ep of entryPoints) {
+        try {
+          const detail = this.client.zones?.rulesets?.get
+            ? await this.client.zones.rulesets.get({ zone_id: zoneId, ruleset_id: ep.id })
+            : await this.rawRequest(`/zones/${zoneId}/rulesets/${ep.id}`);
+          const rules = detail?.result?.rules || detail?.rules || [];
+          for (const rule of rules) {
+            if (rule.action === 'execute' && rule.action_parameters?.id) {
+              managedDeployments.push({
+                rulesetId: rule.action_parameters.id,
+                rulesetVersion: rule.action_parameters.version || 'latest',
+                ruleId: rule.id,
+                enabled: rule.enabled !== false,
+                expression: rule.expression,
+                description: rule.description,
+                overrides: rule.action_parameters.overrides || null,
+                ref: rule.ref
+              });
+            }
+          }
+        } catch (err) {
+          logger.debug(`Failed to fetch entry point ${ep.id}:`, err.message);
+        }
+      }
+      return managedDeployments;
+    } catch (error) {
+      logger.debug('WAF managed rulesets not available:', error.message);
+      return { error: error.message };
+    }
+  }
 }
 
 module.exports = CloudflareClient;

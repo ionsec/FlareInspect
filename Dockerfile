@@ -29,7 +29,7 @@ USER flareinspect
 LABEL org.opencontainers.image.title="FlareInspect" \
       org.opencontainers.image.description="Cloudflare Security Assessment CLI and web dashboard" \
       org.opencontainers.image.vendor="IONSEC.IO" \
-      org.opencontainers.image.version="1.2.1" \
+      org.opencontainers.image.version="1.2.2" \
       org.opencontainers.image.source="https://github.com/ionsec/flareinspect" \
       org.opencontainers.image.licenses="MIT"
 

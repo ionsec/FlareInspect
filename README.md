@@ -6,21 +6,21 @@
   <p>
     <a href="https://github.com/ionsec/flareinspect/actions"><img src="https://img.shields.io/badge/node-%E2%89%A520.0.0-green" alt="Node.js ≥20"></a>
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-    <img src="https://img.shields.io/badge/version-1.2.1-f6821f" alt="Version 1.2.1">
+    <img src="https://img.shields.io/badge/version-1.2.2-f6821f" alt="Version 1.2.2">
     <img src="https://img.shields.io/badge/audit-0_vulns-3a9b3a" alt="0 npm audit vulnerabilities">
   </p>
 </div>
 
-> **1.2.1** — new brand identity (flare-in-reticle mark + Manrope/Fraunces wordmark), redesigned web
-> dashboard and HTML report, refreshed CLI banner, dropped the vulnerable `uuid` dependency in favor
-> of `crypto.randomUUID()`. `npm audit` reports 0 vulnerabilities. See
-> [`docs/changelog.rst`](docs/changelog.rst) for the full list.
+> **1.2.2** — new check coverage: API token pre-flight (`CFL-TOK-001`), R2 bucket posture
+> (`CFL-R2-001/002/003`: public access, lifecycle, event notifications), and WAF managed rulesets
+> (`CFL-WAF-006/007/008`: Cloudflare Managed, OWASP Core, log-only drift). 140 tests, all green.
+> See [`docs/changelog.rst`](docs/changelog.rst) for the full list.
 
 ## Overview
 
 FlareInspect assesses Cloudflare accounts and zones, highlights security gaps, compares posture drift between runs, and exports evidence-rich reports for engineers, security teams, auditors, and CI pipelines.
 
-The current `1.2.1` release includes:
+The current `1.2.2` release includes:
 
 - evidence-rich findings with named identities, affected resources, observed values, expected values, and review guidance
 - drift detection with `flareinspect diff`

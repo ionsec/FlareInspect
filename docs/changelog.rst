@@ -2,6 +2,33 @@
 Changelog
 =========
 
+1.2.2 — 2026-04-26
+--------------------
+
+.. rubric:: New checks
+
+- **CFL-TOK-001 — API token pre-flight** (critical). Before the assessment runs, the token is
+  verified against ``/user/tokens/verify``; emits FAIL if disabled or expiring within 14 days,
+  WARNING if verify itself fails. Token info is persisted on ``assessment.tokenInfo`` for the
+  dashboard and report.
+- **CFL-R2-001/002/003 — R2 bucket posture**. Enumerates R2 buckets per account and emits findings
+  for: public access via custom domain or wildcard CORS (high), missing lifecycle rules (low),
+  missing event notifications (low). Skipped silently when the token lacks R2 read scope.
+- **CFL-WAF-006/007/008 — WAF managed rulesets**. Detects whether the Cloudflare Managed Ruleset
+  and OWASP Core Ruleset are deployed at zone scope, and flags any managed ruleset overridden to
+  log-only mode (production drift).
+
+.. rubric:: Tests
+
+- 16 new unit tests covering the new check definitions and assessment methods.
+  Suite size: 124 → **140 tests**, all green.
+
+.. rubric:: SDK alignment notes
+
+- ``cloudflare`` SDK still pinned to ``^4.5.0``. The 5.x major bump (auto-pagination iterators,
+  built-in retry/timeout, native coverage for products currently using ``rawRequest()``) is
+  scheduled for a dedicated PR — touches ~50 call sites.
+
 1.2.1 — 2026-04-25
 --------------------
 

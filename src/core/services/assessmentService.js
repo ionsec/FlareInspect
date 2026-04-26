@@ -70,6 +70,11 @@ class AssessmentService {
         zonesCount: connectionTest.zonesCount
       });
 
+      // Pre-flight: verify the API token is active and capture its scope summary.
+      // Stored on the assessment so the dashboard / report can show the user
+      // exactly which scopes the assessment ran with.
+      const tokenInfo = await client.verifyToken();
+
       // Get account and zones
       const account = connectionTest.account;
       const zones = await client.getZones();
@@ -131,6 +136,10 @@ class AssessmentService {
           dnsFirewall: {}
         }
       };
+
+      // Persist token capability info on the assessment & emit the pre-flight finding.
+      assessment.tokenInfo = tokenInfo;
+      await this.assessToken(account, tokenInfo, assessment);
 
       // Run account-level assessments
       this.spinner = this.startSpinner('Assessing account-level configurations...');
@@ -393,6 +402,11 @@ class AssessmentService {
         client.getDevicePolicy ? client.getDevicePolicy(account.id).catch(() => ({ error: 'not available' })) : { error: 'not available' }
       ]);
 
+      // R2 bucket posture (separate so failures don't sink the whole account assess)
+      const r2Buckets = client.getR2Buckets
+        ? await client.getR2Buckets(account.id).catch(err => ({ error: err.message }))
+        : { error: 'R2 fetch not available' };
+
       // Store configuration data
       assessment.configuration.account = {
         id: account.id,
@@ -497,6 +511,7 @@ class AssessmentService {
       await this.assessGateway(account, gatewayPolicies || { dns: [], http: [], l4: [] }, assessment);
       await this.assessAIGateway(account, aiGateways || [], assessment);
       await this.assessDeviceEnrollment(account, devicePolicy || { error: 'not available' }, assessment);
+      await this.assessR2(account, r2Buckets, assessment);
 
     } catch (error) {
       logger.error('Account assessment failed', {
@@ -635,6 +650,12 @@ class AssessmentService {
         securityLevel: allZoneSettings?.security_level,
         rulesets: rulesets || []
       }, assessment);
+
+      // WAF Managed Rulesets posture (Cloudflare Managed + OWASP Core, log-only drift)
+      if (client.getWAFManagedRulesets) {
+        const managedDeployments = await client.getWAFManagedRulesets(zone.id).catch(() => []);
+        await this.assessWAFManagedRulesets(zone, managedDeployments, assessment);
+      }
       
       // Run new assessments
       await this.assessPerformance(zone, performanceSettings, allZoneSettings, assessment);
@@ -2792,6 +2813,362 @@ class AssessmentService {
         { id: account.id, type: 'account', name: account.name }
       ));
     }
+  }
+
+  /**
+   * Pre-flight: verify the API token is active and not expired/disabled.
+   * Emits CFL-TOK-001 finding and stores the scope summary on assessment.tokenInfo.
+   */
+  async assessToken(account, tokenInfo, assessment) {
+    const check = this.securityBaseline.getAllChecks().find(c => c.id === 'CFL-TOK-001');
+    if (!check) return;
+
+    const accountResource = { id: account.id, type: 'account', name: account.name };
+
+    // Token verify endpoint returns { id, status, not_before, expires_on } when ok.
+    if (!tokenInfo || tokenInfo.error) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'WARNING',
+        tokenInfo?.error ? `Token verify failed: ${tokenInfo.error}` : 'Token info unavailable',
+        'Token reported as active by /user/tokens/verify',
+        accountResource,
+        {
+          evidence: {
+            summary: 'Could not confirm API token status — assessment continued, but token may have limited scope.',
+            expected: 'Token verify returns status=active.',
+            observed: tokenInfo?.error || 'No response from /user/tokens/verify',
+            source: { category: 'token', endpoint: 'user.tokens.verify' },
+            reviewGuidance: 'Re-issue the token if verify fails — it may be expired, disabled, or missing scope.'
+          }
+        }
+      ));
+      return;
+    }
+
+    const status = (tokenInfo.status || '').toLowerCase();
+    const expiresOn = tokenInfo.expires_on || null;
+    const expiresInDays = expiresOn ? Math.round((new Date(expiresOn) - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+    if (status === 'active' && (expiresInDays === null || expiresInDays > 14)) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'PASS',
+        `Token active${expiresInDays !== null ? `, expires in ${expiresInDays}d` : ', no expiry'}`,
+        'Token reported as active by /user/tokens/verify',
+        accountResource,
+        {
+          evidence: {
+            summary: 'API token is active and within validity window.',
+            expected: 'status=active, expires_on > 14 days from now (or no expiry).',
+            observed: `status=${status}${expiresOn ? `, expires_on=${expiresOn}` : ''}`,
+            source: { category: 'token', endpoint: 'user.tokens.verify' },
+            reviewGuidance: 'Rotate API tokens at least quarterly; track expirations in your secrets manager.'
+          }
+        }
+      ));
+    } else {
+      const isExpiringSoon = expiresInDays !== null && expiresInDays <= 14;
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check, 'FAIL',
+        status !== 'active'
+          ? `Token status is "${status || 'unknown'}"`
+          : `Token expires in ${expiresInDays} day(s)`,
+        'Token reported as active with safe expiry window',
+        accountResource,
+        {
+          evidence: {
+            summary: isExpiringSoon
+              ? 'API token is approaching expiration — rotate before it fails in production.'
+              : 'API token is not in active state.',
+            expected: 'status=active and expires_on more than 14 days from now (or no expiry).',
+            observed: `status=${status}${expiresOn ? `, expires_on=${expiresOn}` : ''}`,
+            source: { category: 'token', endpoint: 'user.tokens.verify' },
+            reviewGuidance: 'Issue a fresh token with the recommended scopes and replace the secret in your CI/CD or .env.'
+          }
+        }
+      ));
+    }
+  }
+
+  /**
+   * Assess R2 object storage bucket posture.
+   * Emits findings for public access (custom domain or permissive CORS),
+   * missing lifecycle rules, and missing event notifications.
+   */
+  async assessR2(account, r2Buckets, assessment) {
+    const checks = this.securityBaseline.getAllChecks().filter(c => c.category === 'r2');
+    if (checks.length === 0) return;
+
+    const accountResource = { id: account.id, type: 'account', name: account.name };
+    const buckets = Array.isArray(r2Buckets) ? r2Buckets : [];
+
+    // Persist config snapshot
+    if (!assessment.configuration.r2) {
+      assessment.configuration.r2 = {};
+    }
+    assessment.configuration.r2[account.id] = {
+      bucketCount: buckets.length,
+      error: r2Buckets?.error || null
+    };
+
+    if (r2Buckets?.error) {
+      // Token doesn't have R2 read scope — skip (no finding emitted, recorded above)
+      return;
+    }
+
+    if (buckets.length === 0) {
+      // Account has no R2 usage — emit a single informational PASS for visibility.
+      const accessCheck = checks.find(c => c.id === 'CFL-R2-001');
+      if (accessCheck) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          accessCheck, 'PASS',
+          'No R2 buckets in account',
+          'No public R2 buckets',
+          accountResource,
+          {
+            evidence: {
+              summary: 'Account has no R2 buckets — no exposure surface.',
+              expected: 'No publicly-accessible R2 buckets.',
+              observed: '0 R2 buckets enumerated.',
+              source: { category: 'r2', endpoint: 'r2.buckets.list' }
+            }
+          }
+        ));
+      }
+      return;
+    }
+
+    // CFL-R2-001: public access (custom domains with public=true OR permissive CORS)
+    const accessCheck = checks.find(c => c.id === 'CFL-R2-001');
+    if (accessCheck) {
+      const publicBuckets = buckets.filter(b => {
+        const hasPublicDomain = (b.customDomains || []).some(d => d.enabled !== false && d.public !== false);
+        const hasWildcardCors = (b.corsRules || []).some(rule =>
+          (rule.allowed?.origins || rule.allowedOrigins || []).includes('*')
+        );
+        return hasPublicDomain || hasWildcardCors;
+      });
+
+      if (publicBuckets.length > 0) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          accessCheck, 'FAIL',
+          `${publicBuckets.length} of ${buckets.length} R2 buckets exposed publicly`,
+          'No publicly-accessible R2 buckets, or all public access is intentional',
+          accountResource,
+          {
+            evidence: {
+              summary: `${publicBuckets.length} R2 bucket(s) are reachable via public custom domain or wildcard CORS.`,
+              expected: 'R2 buckets fronted by a Worker, signed URLs, or restricted CORS — not public custom domains.',
+              observed: publicBuckets.map(b => b.name).join(', '),
+              source: { category: 'r2', endpoint: 'r2.buckets.domains.custom + r2.buckets.cors' },
+              affectedEntities: publicBuckets.map(b => ({ id: b.name, type: 'r2-bucket', name: b.name })),
+              counts: { totalBuckets: buckets.length, publicBuckets: publicBuckets.length },
+              reviewGuidance: 'For each bucket: confirm public exposure is intentional and documented; otherwise disable the custom domain or tighten CORS to specific origins.'
+            }
+          }
+        ));
+      } else {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          accessCheck, 'PASS',
+          `${buckets.length} R2 bucket(s), none publicly exposed`,
+          'No publicly-accessible R2 buckets',
+          accountResource,
+          {
+            evidence: {
+              summary: 'No R2 buckets exposed via public custom domain or wildcard CORS.',
+              expected: 'No publicly-accessible R2 buckets.',
+              observed: `${buckets.length} bucket(s), all private.`,
+              source: { category: 'r2', endpoint: 'r2.buckets.list' }
+            }
+          }
+        ));
+      }
+    }
+
+    // CFL-R2-002: lifecycle rules
+    const lifecycleCheck = checks.find(c => c.id === 'CFL-R2-002');
+    if (lifecycleCheck) {
+      const noLifecycle = buckets.filter(b => !b.lifecycleRules || b.lifecycleRules.length === 0);
+      if (noLifecycle.length > 0) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          lifecycleCheck, 'WARNING',
+          `${noLifecycle.length} bucket(s) without lifecycle rules`,
+          'All buckets have lifecycle rules for retention/cleanup',
+          accountResource,
+          {
+            evidence: {
+              summary: 'Buckets without lifecycle rules will accumulate objects indefinitely.',
+              expected: 'Each bucket has a lifecycle rule for non-current versions, multipart uploads, or expiry.',
+              observed: noLifecycle.map(b => b.name).join(', '),
+              affectedEntities: noLifecycle.map(b => ({ id: b.name, type: 'r2-bucket', name: b.name })),
+              source: { category: 'r2', endpoint: 'r2.buckets.lifecycle' },
+              reviewGuidance: 'Add lifecycle rules to expire incomplete multipart uploads and delete objects past retention; reduces storage cost and limits stale-data exposure.'
+            }
+          }
+        ));
+      } else {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          lifecycleCheck, 'PASS',
+          'All R2 buckets have lifecycle rules',
+          'All buckets have lifecycle rules',
+          accountResource
+        ));
+      }
+    }
+
+    // CFL-R2-003: event notifications
+    const notifCheck = checks.find(c => c.id === 'CFL-R2-003');
+    if (notifCheck) {
+      const noNotifs = buckets.filter(b => !b.eventNotifications || b.eventNotifications.length === 0);
+      if (noNotifs.length > 0) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          notifCheck, 'WARNING',
+          `${noNotifs.length} bucket(s) without event notifications`,
+          'All buckets emit event notifications for audit/alerting',
+          accountResource,
+          {
+            evidence: {
+              summary: 'Buckets without event notifications cannot be audited for writes/deletes in real time.',
+              expected: 'Each bucket forwards object events to a Queue or external sink for audit trail.',
+              observed: noNotifs.map(b => b.name).join(', '),
+              affectedEntities: noNotifs.map(b => ({ id: b.name, type: 'r2-bucket', name: b.name })),
+              source: { category: 'r2', endpoint: 'event_notifications.r2.configuration' },
+              reviewGuidance: 'Configure event notifications on each bucket to a Queue + Worker that ships events to your SIEM.'
+            }
+          }
+        ));
+      } else {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          notifCheck, 'PASS',
+          'All R2 buckets have event notifications',
+          'All buckets emit event notifications',
+          accountResource
+        ));
+      }
+    }
+  }
+
+  /**
+   * Assess WAF managed rulesets deployed at zone scope.
+   * Detects: Cloudflare Managed Ruleset enabled, OWASP Core Ruleset enabled,
+   * and any managed rulesets in log-only override (production drift).
+   */
+  async assessWAFManagedRulesets(zone, managedDeployments, assessment) {
+    const checks = this.securityBaseline.getAllChecks();
+    const cfManagedCheck = checks.find(c => c.id === 'CFL-WAF-006');
+    const owaspCheck     = checks.find(c => c.id === 'CFL-WAF-007');
+    const logOnlyCheck   = checks.find(c => c.id === 'CFL-WAF-008');
+
+    const zoneResource = { id: zone.id, type: 'zone', name: zone.name };
+    const deployments = Array.isArray(managedDeployments) ? managedDeployments : [];
+
+    // Cloudflare Managed Ruleset id (well-known constant)
+    const CF_MANAGED_ID = 'efb7b8c949ac4650a09736fc376e9aee';
+    const OWASP_ID      = '4814384a9e5d4991b9815dcfc25d2f1f';
+
+    const cfManaged = deployments.find(d => d.rulesetId === CF_MANAGED_ID);
+    const owasp     = deployments.find(d => d.rulesetId === OWASP_ID);
+
+    if (cfManagedCheck) {
+      if (cfManaged && cfManaged.enabled) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          cfManagedCheck, 'PASS',
+          'Cloudflare Managed Ruleset deployed',
+          'Cloudflare Managed Ruleset enabled at zone scope',
+          zoneResource,
+          { evidence: { source: { category: 'waf', endpoint: 'zones.rulesets' } } }
+        ));
+      } else {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          cfManagedCheck, 'FAIL',
+          'Cloudflare Managed Ruleset not deployed',
+          'Cloudflare Managed Ruleset enabled at zone scope',
+          zoneResource,
+          {
+            evidence: {
+              summary: 'The Cloudflare Managed Ruleset (broad-pattern firewall protection) is not deployed on this zone.',
+              expected: 'Ruleset id efb7b8c949ac4650a09736fc376e9aee deployed and enabled.',
+              observed: cfManaged ? 'Deployed but disabled.' : 'No deployment found.',
+              source: { category: 'waf', endpoint: 'zones.rulesets' },
+              reviewGuidance: 'Deploy the Cloudflare Managed Ruleset under Security → WAF → Managed Rules. Required by most baselines.'
+            }
+          }
+        ));
+      }
+    }
+
+    if (owaspCheck) {
+      if (owasp && owasp.enabled) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          owaspCheck, 'PASS',
+          'OWASP Core Ruleset deployed',
+          'OWASP Core Ruleset enabled at zone scope',
+          zoneResource,
+          { evidence: { source: { category: 'waf', endpoint: 'zones.rulesets' } } }
+        ));
+      } else {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          owaspCheck, 'FAIL',
+          'OWASP Core Ruleset not deployed',
+          'OWASP Core Ruleset enabled at zone scope',
+          zoneResource,
+          {
+            evidence: {
+              summary: 'The Cloudflare OWASP Core Ruleset is not deployed on this zone.',
+              expected: 'Ruleset id 4814384a9e5d4991b9815dcfc25d2f1f deployed and enabled.',
+              observed: owasp ? 'Deployed but disabled.' : 'No deployment found.',
+              source: { category: 'waf', endpoint: 'zones.rulesets' },
+              reviewGuidance: 'Deploy the OWASP Core Ruleset and tune the anomaly threshold; required for most compliance baselines.'
+            }
+          }
+        ));
+      }
+    }
+
+    // CFL-WAF-008: log-only drift detection
+    if (logOnlyCheck) {
+      const logOnly = deployments.filter(d => {
+        const overrideAction = d.overrides?.action;
+        // "log" at the override level means rules fire but don't block — drift in production.
+        return d.enabled && overrideAction === 'log';
+      });
+
+      if (logOnly.length > 0) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          logOnlyCheck, 'FAIL',
+          `${logOnly.length} managed ruleset(s) in log-only mode`,
+          'Managed rulesets in their default block/challenge action',
+          zoneResource,
+          {
+            evidence: {
+              summary: `${logOnly.length} managed ruleset(s) are deployed but overridden to "log" — they detect, but never block.`,
+              expected: 'Managed rulesets use their default action (block or challenge) in production.',
+              observed: logOnly.map(d => d.rulesetId).join(', '),
+              affectedEntities: logOnly.map(d => ({ id: d.rulesetId, type: 'waf-ruleset', name: d.description || d.rulesetId })),
+              source: { category: 'waf', endpoint: 'zones.rulesets.action_parameters.overrides' },
+              reviewGuidance: 'Remove the log-only override or document the exception. Common pattern: log-only is left over from initial rollout.'
+            }
+          }
+        ));
+      } else if (deployments.length > 0) {
+        assessment.findings.push(this.securityBaseline.createFinding(
+          logOnlyCheck, 'PASS',
+          'All managed rulesets in default action mode',
+          'No managed rulesets in log-only override',
+          zoneResource
+        ));
+      }
+    }
+
+    // Persist ruleset summary for the dashboard / report
+    if (!assessment.configuration.waf[zone.name]) {
+      assessment.configuration.waf[zone.name] = {};
+    }
+    assessment.configuration.waf[zone.name].managedRulesets = {
+      cloudflareManaged: !!cfManaged,
+      owaspCore: !!owasp,
+      logOnlyCount: deployments.filter(d => d.overrides?.action === 'log').length,
+      totalDeployments: deployments.length
+    };
   }
 
   /**

@@ -604,6 +604,68 @@ class SecurityBaseline {
         description: 'Configure device enrollment and posture checks for Zero Trust',
         severity: 'high',
         compliance: ['SOC2', 'NIST']
+      },
+
+      // API Token Pre-flight (1.2.2)
+      {
+        id: 'CFL-TOK-001',
+        category: 'token',
+        title: 'API Token Active and Valid',
+        description: 'Verify the API token used for the assessment is active and not expired',
+        severity: 'critical',
+        compliance: ['SOC2', 'ISO27001']
+      },
+
+      // R2 Object Storage (1.2.2)
+      {
+        id: 'CFL-R2-001',
+        category: 'r2',
+        title: 'R2 Bucket Public Access',
+        description: 'Detect R2 buckets exposed via public custom domains or permissive CORS policies',
+        severity: 'high',
+        compliance: ['SOC2', 'PCI-DSS', 'ISO27001']
+      },
+      {
+        id: 'CFL-R2-002',
+        category: 'r2',
+        title: 'R2 Bucket Lifecycle Policies',
+        description: 'Verify object lifecycle rules are configured for retention and cost control',
+        severity: 'low',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-R2-003',
+        category: 'r2',
+        title: 'R2 Bucket Event Notifications',
+        description: 'Verify event notifications are configured so writes/deletes are auditable',
+        severity: 'low',
+        compliance: ['SOC2', 'NIST']
+      },
+
+      // WAF Managed Rulesets (1.2.2)
+      {
+        id: 'CFL-WAF-006',
+        category: 'waf',
+        title: 'Cloudflare Managed Ruleset Enabled',
+        description: 'Ensure the Cloudflare Managed Ruleset is deployed at zone scope',
+        severity: 'high',
+        compliance: ['OWASP', 'CIS', 'NIST']
+      },
+      {
+        id: 'CFL-WAF-007',
+        category: 'waf',
+        title: 'OWASP Core Ruleset Enabled',
+        description: 'Ensure the Cloudflare OWASP Core Ruleset is deployed at zone scope',
+        severity: 'high',
+        compliance: ['OWASP', 'CIS']
+      },
+      {
+        id: 'CFL-WAF-008',
+        category: 'waf',
+        title: 'WAF Managed Rulesets Not in Log-Only Mode',
+        description: 'Detect production zones where managed rulesets are still in log-only mode (drift)',
+        severity: 'medium',
+        compliance: ['OWASP', 'NIST']
       }
 
     ];
