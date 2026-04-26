@@ -2,6 +2,21 @@
 Changelog
 =========
 
+1.3.0 — 2026-04-26
+--------------------
+
+.. rubric:: SDK Migration
+
+- **Cloudflare SDK v5** — Migrated from ``cloudflare`` v4.5.0 to v5.2.0
+- Updated all zone-scoped resource paths (``client.zones.dnsRecords`` → ``client.dns.records``, etc.)
+- Updated account-scoped resource paths (``client.accounts.auditLogs`` → ``client.auditLogs``, etc.)
+- Adapted response unwrapping for v5's direct-return pattern on ``.get()`` calls
+- Added ``_unwrapList()`` helper to normalize v5 Page object responses
+- Updated error handling to use typed ``APIError`` subclasses (``error.status``, ``error.errors``)
+- Converted ``getZoneAnalytics()`` and ``getSecurityAnalytics()`` to ``rawRequest()`` (no v5 SDK equivalent)
+- Fixed ``rulesets.get()`` call signature for v5 positional ``rulesetId`` argument
+- Removed optional chaining guards (``?.``) on SDK resources (v5 has stable resource structure)
+
 1.2.2 — 2026-04-26
 --------------------
 
@@ -22,12 +37,6 @@ Changelog
 
 - 16 new unit tests covering the new check definitions and assessment methods.
   Suite size: 124 → **140 tests**, all green.
-
-.. rubric:: SDK alignment notes
-
-- ``cloudflare`` SDK still pinned to ``^4.5.0``. The 5.x major bump (auto-pagination iterators,
-  built-in retry/timeout, native coverage for products currently using ``rawRequest()``) is
-  scheduled for a dedicated PR — touches ~50 call sites.
 
 1.2.1 — 2026-04-25
 --------------------

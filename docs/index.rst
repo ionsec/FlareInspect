@@ -9,7 +9,7 @@ FlareInspect
 .. image:: https://img.shields.io/badge/node-%3E%3D20.0.0-green?style=flat-square
    :target: https://github.com/ionsec/flareinspect/actions
 
-.. image:: https://img.shields.io/badge/version-1.2.1-orange?style=flat-square
+.. image:: https://img.shields.io/badge/version-1.3.0-orange?style=flat-square
 
 .. image:: https://img.shields.io/badge/license-MIT-blue?style=flat-square
 

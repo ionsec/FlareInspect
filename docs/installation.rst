@@ -69,7 +69,7 @@ Expected output:
 
 .. code-block:: text
 
-   1.2.2
+   1.3.0
 
 You can also run a quick help check:
 

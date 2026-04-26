@@ -44,7 +44,7 @@ High-Level Architecture
 Key Design Decisions
 ----------------------
 
-- **CloudflareClient** uses the official ``cloudflare`` v4 SDK with a ``rawRequest`` fallback for endpoints not covered by the SDK
+- **CloudflareClient** uses the official ``cloudflare`` v5 SDK with a ``rawRequest`` fallback for endpoints not covered by the SDK
 - **SecurityBaseline** is a pure data class — check definitions and scoring logic without API calls
 - **AssessmentService** orchestrates the full assessment flow with configurable concurrency via ``p-limit``
 - **Exporters** are standalone classes that take an assessment object and produce format-specific output

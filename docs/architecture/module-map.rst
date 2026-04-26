@@ -49,7 +49,7 @@ Key Module Sizes
 Module                    Lines
 ========================  =====
 ``assessmentService.js``  2825 
-``cloudflareClient.js``   1833 
+``cloudflareClient.js``   1843 
 ``securityBaseline.js``   924  
 ``reportService.js``      682  
 ``web/server.js``         595  

@@ -6,8 +6,8 @@
 project = "FlareInspect"
 copyright = "2026, IONSEC.IO"
 author = "IONSEC.IO"
-version = "1.2.2"
-release = "1.2.2"
+version = "1.3.0"
+release = "1.3.0"
 
 # -- General configuration ---------------------------------------------
 extensions = [
