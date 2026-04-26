@@ -1,10 +1,11 @@
 /**
  * @fileoverview Cloudflare API Client Service
- * @description Native API client using Cloudflare v4 SDK for security assessments with debug logging
+ * @description Native API client using Cloudflare v5 SDK for security assessments with debug logging
  * @module services/cloudflareClient
  */
 
 const Cloudflare = require('cloudflare');
+const { APIError } = require('cloudflare/error');
 const logger = require('../utils/logger');
 
 class CloudflareClient {
@@ -14,35 +15,34 @@ class CloudflareClient {
     }
 
     this.debugMode = process.env.CLOUDFLARE_DEBUG === 'true' || process.env.DEBUG === 'true';
-    
+
     logger.cloudflare('Initializing Cloudflare client', {
       hasApiToken: true,
       tokenLength: apiToken?.length || 0,
       debugMode: this.debugMode
     });
 
-    // Initialize Cloudflare client with API token only
-    // v4 SDK uses apiToken property
+    // Initialize Cloudflare client with API token
+    // v5 SDK uses same apiToken property; added maxRetries for resilience
     const clientConfig = {
-      apiToken: apiToken.trim() // Ensure no whitespace
+      apiToken: apiToken.trim()
     };
-    
+
     if (this.debugMode) {
       logger.cloudflare('Creating Cloudflare client with config', {
         configKeys: Object.keys(clientConfig),
         hasApiToken: !!clientConfig.apiToken,
-        sdkVersion: '4.5.0'
+        sdkVersion: '5.2.0'
       });
     }
-    
+
     try {
       this.client = new Cloudflare(clientConfig);
-      
-      // Test if the client was initialized properly
+
       if (!this.client) {
         throw new Error('Failed to initialize Cloudflare client');
       }
-      
+
       logger.cloudflare('Cloudflare client created successfully');
     } catch (initError) {
       logger.error('Failed to initialize Cloudflare client', {
@@ -53,9 +53,25 @@ class CloudflareClient {
     }
 
     this.apiToken = apiToken;
-    this.rateLimitRemaining = 1200; // Default Cloudflare rate limit
-    this.rateLimitReset = Date.now() + (5 * 60 * 1000); // 5 minutes from now
+    this.rateLimitRemaining = 1200;
+    this.rateLimitReset = Date.now() + (5 * 60 * 1000);
     this.requestCount = 0;
+  }
+
+  /**
+   * Normalize v5 list responses to a consistent { result, result_info } shape.
+   * v5 list calls return Page objects with .result array; auto-pagination
+   * may return a plain array. This helper ensures downstream code can
+   * always access .result safely.
+   */
+  _unwrapList(page) {
+    if (Array.isArray(page)) {
+      return { result: page, result_info: { total_count: page.length } };
+    }
+    if (page && typeof page === 'object' && 'result' in page) {
+      return page;
+    }
+    return { result: page || [], result_info: null };
   }
 
   /**
@@ -94,7 +110,7 @@ class CloudflareClient {
 
     const requestId = `cf-req-${++this.requestCount}`;
     const startTime = Date.now();
-    
+
     try {
       if (this.debugMode) {
         logger.cloudflare(`Starting API request ${requestId}`, {
@@ -102,9 +118,9 @@ class CloudflareClient {
           requestCount: this.requestCount
         });
       }
-      
+
       const result = await apiCall();
-      
+
       const duration = Date.now() - startTime;
       if (this.debugMode) {
         logger.cloudflare(`API request ${requestId} completed`, {
@@ -114,32 +130,29 @@ class CloudflareClient {
           resultKeys: result ? Object.keys(result) : []
         });
       }
-      
+
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
 
+      // v5 SDK throws typed APIError subclasses with .status and .errors
       const errorDetails = {
         requestId,
         duration,
         message: error.message,
-        code: error.code,
-        statusCode: error.response?.status || error.statusCode,
-        responseData: this.sanitizeResponseData(error.response?.data || error.data),
-        config: {
-          method: error.config?.method
-        }
+        statusCode: error.status || error.statusCode,
+        errors: error.errors || [],
+        isAPIError: error instanceof APIError
       };
-      
+
       logger.error('Cloudflare API error:', errorDetails);
-      
+
       // If it's a 403, provide more specific error message
-      if (error.response?.status === 403 || error.message?.includes('403')) {
-        const errorData = error.response?.data || error.data || {};
-        const errorMessage = errorData.errors?.[0]?.message || error.message;
+      if (error.status === 403 || error.message?.includes('403')) {
+        const errorMessage = error.errors?.[0]?.message || error.message;
         throw new Error(`Cloudflare API Authentication Failed (403): ${errorMessage}. Please verify your API token has the required permissions.`);
       }
-      
+
       throw error;
     }
   }
@@ -171,7 +184,7 @@ class CloudflareClient {
       if (!response.ok || (data && data.success === false)) {
         const errorMessage = data?.errors?.[0]?.message || response.statusText || 'Unknown error';
         const error = new Error(`Cloudflare API request failed (${response.status}): ${errorMessage}`);
-        error.response = { status: response.status, data };
+        error.status = response.status;
         throw error;
       }
 
@@ -210,58 +223,56 @@ class CloudflareClient {
   async testConnection() {
     try {
       logger.info('Testing Cloudflare connection', { hasToken: !!this.apiToken });
-      
+
       return await this.executeWithRateLimit(async () => {
-        // Start with zones list - requires less permissions than user.get()
         logger.info('Fetching zones to test connection...');
-        
+
         if (this.debugMode) {
           logger.cloudflare('Calling client.zones.list()', {
             method: 'GET',
             endpoint: '/zones'
           });
         }
-        
-        const zones = await this.client.zones.list({});
-        
+
+        const zonesPage = await this.client.zones.list({});
+        const zones = this._unwrapList(zonesPage);
+
         if (this.debugMode) {
           logger.cloudflare('Zones response received', {
             count: zones.result?.length || 0,
             totalCount: zones.result_info?.total_count,
-            success: zones.success,
             zoneNames: zones.result?.map(z => z.name) || []
           });
         }
-        
+
         logger.info('Zones fetched successfully', { count: zones.result?.length || 0 });
 
         // Try to get user info if possible, but don't fail if it doesn't work
         let userInfo = null;
         let accountInfo = null;
-        
+
         try {
           logger.info('Attempting to fetch user info...');
-          
+
           if (this.debugMode) {
             logger.cloudflare('Calling client.user.get()', {
               method: 'GET',
               endpoint: '/user'
             });
           }
-          
+
+          // v5: .get() returns the user object directly (no .result wrapper)
           const user = await this.client.user.get();
-          
+
           if (this.debugMode) {
             logger.cloudflare('User response received', {
-              userId: user.result?.id,
-              email: user.result?.email,
-              success: user.success
+              userId: user?.id,
+              email: user?.email
             });
           }
-          
-          userInfo = user.result;
-          
-          // Try to get account info from zones or user data
+
+          userInfo = user;
+
           if (zones.result?.length > 0) {
             const firstZone = zones.result[0];
             accountInfo = {
@@ -275,8 +286,7 @@ class CloudflareClient {
           logger.warn('Could not fetch user info (may need additional permissions)', {
             error: userError.message
           });
-          
-          // Fallback: get account info from first zone if available
+
           if (zones.result?.length > 0) {
             const firstZone = zones.result[0];
             accountInfo = {
@@ -294,7 +304,7 @@ class CloudflareClient {
             };
           }
         }
-        
+
         return {
           success: true,
           account: accountInfo,
@@ -305,19 +315,16 @@ class CloudflareClient {
     } catch (error) {
       logger.error('Test connection failed', {
         message: error.message,
-        code: error.code,
-        stack: error.stack,
-        response: error.response?.data
+        statusCode: error.status
       });
-      
-      // Check if it's a permission error
+
       if (error.message?.includes('9109') || error.message?.includes('Valid user-level authentication')) {
         return {
           success: false,
           error: 'API token lacks required permissions. Ensure the token has at least Zone:Read permissions.'
         };
       }
-      
+
       return {
         success: false,
         error: `Failed to connect to Cloudflare API: ${error.message}`
@@ -337,19 +344,20 @@ class CloudflareClient {
           endpoint: `/zones/${zoneId}`
         });
       }
-      
+
+      // v5: .get() returns the zone object directly
       const zone = await this.client.zones.get({ zone_id: zoneId });
-      
+
       if (this.debugMode) {
         logger.cloudflare('Zone details received', {
           zoneId,
-          name: zone.result?.name,
-          status: zone.result?.status,
-          plan: zone.result?.plan?.name
+          name: zone?.name,
+          status: zone?.status,
+          plan: zone?.plan?.name
         });
       }
-      
-      return zone.result;
+
+      return zone;
     });
   }
 
@@ -358,7 +366,8 @@ class CloudflareClient {
    */
   async listZones() {
     return this.executeWithRateLimit(async () => {
-      const zones = await this.client.zones.list({});
+      const zonesPage = await this.client.zones.list({});
+      const zones = this._unwrapList(zonesPage);
       return zones.result || [];
     });
   }
@@ -376,12 +385,6 @@ class CloudflareClient {
   async getDNSRecords(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if DNS records endpoint exists
-        if (!this.client.zones?.dnsRecords?.list) {
-          logger.debug('DNS records API not available on this client/token', { zoneId });
-          return [];
-        }
-        
         if (this.debugMode) {
           logger.cloudflare('Getting DNS records', {
             zoneId,
@@ -389,10 +392,11 @@ class CloudflareClient {
             endpoint: `/zones/${zoneId}/dns_records`
           });
         }
-        
-        // v4 SDK: Correct API path
-        const records = await this.client.zones.dnsRecords.list({ zone_id: zoneId });
-        
+
+        // v5: DNS is a top-level resource
+        const recordsPage = await this.client.dns.records.list({ zone_id: zoneId });
+        const records = this._unwrapList(recordsPage);
+
         if (this.debugMode) {
           logger.cloudflare('DNS records received', {
             zoneId,
@@ -401,7 +405,7 @@ class CloudflareClient {
             proxiedCount: records.result?.filter(r => r.proxied).length || 0
           });
         }
-        
+
         return records.result || [];
       } catch (error) {
         logger.error('Failed to get DNS records', { error: error.message, zoneId });
@@ -416,18 +420,16 @@ class CloudflareClient {
   async getZoneAnalytics(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Analytics API has different structure
+        // v5 SDK has no client.zones.analytics — use rawRequest
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const until = new Date().toISOString();
-        
-        const analytics = await this.client.zones.analytics.dashboard({ 
-          zone_id: zoneId,
-          since,
-          until
-        });
-        return analytics.result;
+
+        const data = await this.rawRequest(
+          `/zones/${zoneId}/analytics/dashboard?since=${encodeURIComponent(since)}&until=${encodeURIComponent(until)}`
+        );
+        return data?.result || null;
       } catch (error) {
-        logger.warn('Analytics not available:', error.message);
+        logger.warn('Analytics not available:', { error: error.message });
         return null;
       }
     });
@@ -439,34 +441,37 @@ class CloudflareClient {
   async getSSLSettings(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // Get SSL/TLS mode setting
-        const sslMode = await this.client.zones.settings.get('ssl', { 
-          zone_id: zoneId 
+        // zones.settings.get('ssl', ...) is unchanged in v5
+        const sslMode = await this.client.zones.settings.get('ssl', {
+          zone_id: zoneId
         });
-        
-        // Get other SSL-related settings
-        let universalSSL = { result: null };
-        let certificatePacks = { result: [] };
-        let customCerts = { result: [] };
-        
-        // Check if SSL endpoints exist
-        if (this.client.zones?.ssl) {
+        // v5: .get() returns the setting value directly
+        const sslValue = sslMode?.value || sslMode?.result?.value || 'flexible';
+
+        // v5: SSL resources are top-level
+        let universalSSL = null;
+        let certificatePacks = [];
+        let customCerts = [];
+
+        try {
           [universalSSL, certificatePacks, customCerts] = await Promise.all([
-            this.client.zones.ssl.universalSettings?.get({ zone_id: zoneId }).catch(e => ({ result: null })) || { result: null },
-            this.client.zones.ssl.certificatePacks?.list({ zone_id: zoneId }).catch(e => ({ result: [] })) || { result: [] },
-            this.client.zones.ssl.customCertificates?.list({ zone_id: zoneId }).catch(e => ({ result: [] })) || { result: [] }
+            this.client.ssl.universal.settings.get({ zone_id: zoneId }).catch(() => null),
+            this._unwrapList(await this.client.ssl.certificatePacks.list({ zone_id: zoneId }).catch(() => ({ result: [] }))),
+            this._unwrapList(await this.client.customCertificates.list({ zone_id: zoneId }).catch(() => ({ result: [] })))
           ]);
+        } catch (e) {
+          logger.debug('SSL sub-resources not available:', e.message);
         }
 
         return {
           settings: {
-            value: sslMode?.result?.value || 'flexible',
-            mode: sslMode?.result?.value || 'flexible',
-            universal_ssl: universalSSL?.result?.enabled
+            value: sslValue,
+            mode: sslValue,
+            universal_ssl: universalSSL?.enabled ?? universalSSL?.result?.enabled
           },
           certificates: certificatePacks?.result || [],
           customCertificates: customCerts?.result || [],
-          universal: universalSSL?.result || {}
+          universal: universalSSL || {}
         };
       } catch (error) {
         logger.error('Failed to get SSL settings', { error: error.message, zoneId });
@@ -487,26 +492,25 @@ class CloudflareClient {
     return this.executeWithRateLimit(async () => {
       try {
         const settings = {};
-        
-        // Get security level setting
+
+        // zones.settings.get is unchanged in v5
         try {
-          const securityLevel = await this.client.zones.settings.get('security_level', { 
-            zone_id: zoneId 
+          const securityLevel = await this.client.zones.settings.get('security_level', {
+            zone_id: zoneId
           });
-          settings.security_level = securityLevel?.result?.value || 'medium';
+          settings.security_level = securityLevel?.value || securityLevel?.result?.value || 'medium';
         } catch (e) {
           settings.security_level = 'medium';
         }
-        
-        // Check if WAF packages endpoint exists before using it
+
+        // v5: WAF is under client.firewall.waf
         let wafRules = [];
-        if (this.client.zones?.waf?.packages?.list) {
-          try {
-            const wafPackages = await this.client.zones.waf.packages.list({ zone_id: zoneId });
-            wafRules = wafPackages?.result || [];
-          } catch (e) {
-            logger.debug('WAF packages not available:', e.message);
-          }
+        try {
+          const wafPackagesPage = await this.client.firewall.waf.packages.list({ zone_id: zoneId });
+          const wafPackages = this._unwrapList(wafPackagesPage);
+          wafRules = wafPackages?.result || [];
+        } catch (e) {
+          logger.debug('WAF packages not available:', e.message);
         }
 
         return {
@@ -534,65 +538,45 @@ class CloudflareClient {
   async getZeroTrustSettings(accountId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // Check if Zero Trust endpoints exist
-        // In SDK v4.5.0, Zero Trust resources are accessed via zeroTrust property
-        const hasZeroTrustAPI = !!(
-          this.client.zeroTrust?.access?.applications?.list ||
-          this.client.zeroTrust?.organizations?.get ||
-          this.client.zeroTrust?.access?.groups?.list
-        );
-
-        if (!hasZeroTrustAPI) {
-          logger.debug('Zero Trust API endpoints not found in SDK', { accountId });
-          return { error: 'Zero Trust API not available' };
-        }
-        
         // Try multiple endpoints to detect Zero Trust availability
         let zeroTrustAvailable = false;
         let applications = null;
         let organization = null;
 
-        // Try to get organization settings first (least permission required)
         try {
-          if (this.client.zeroTrust?.organizations?.get) {
-            organization = await this.client.zeroTrust.organizations.get({ 
-              account_id: accountId 
-            });
-            zeroTrustAvailable = true;
-          }
+          organization = await this.client.zeroTrust.organizations.get({
+            account_id: accountId
+          });
+          zeroTrustAvailable = true;
         } catch (e) {
           logger.debug('Zero Trust organization check failed:', e.message);
         }
 
-        // Try to get applications
         try {
-          if (this.client.zeroTrust?.access?.applications?.list) {
-            applications = await this.client.zeroTrust.access.applications.list({ 
-              account_id: accountId 
-            });
-            zeroTrustAvailable = true;
-          }
+          const appsPage = await this.client.zeroTrust.access.applications.list({
+            account_id: accountId
+          });
+          applications = this._unwrapList(appsPage);
+          zeroTrustAvailable = true;
         } catch (e) {
           logger.debug('Zero Trust applications check failed:', e.message);
         }
 
-        // Try to get access groups as another indicator
         let accessGroups = null;
         try {
-          if (this.client.zeroTrust?.access?.groups?.list) {
-            accessGroups = await this.client.zeroTrust.access.groups.list({ 
-              account_id: accountId 
-            });
-            zeroTrustAvailable = true;
-          }
+          const groupsPage = await this.client.zeroTrust.access.groups.list({
+            account_id: accountId
+          });
+          accessGroups = this._unwrapList(groupsPage);
+          zeroTrustAvailable = true;
         } catch (e) {
           logger.debug('Zero Trust groups check failed:', e.message);
         }
 
         if (!zeroTrustAvailable) {
-          return { 
-            error: 'Zero Trust not enabled', 
-            details: 'Zero Trust is not enabled for this account. Enable it at https://one.dash.cloudflare.com' 
+          return {
+            error: 'Zero Trust not enabled',
+            details: 'Zero Trust is not enabled for this account. Enable it at https://one.dash.cloudflare.com'
           };
         }
 
@@ -607,43 +591,31 @@ class CloudflareClient {
           gatewayRules,
           dlpProfiles
         ] = await Promise.all([
-          // Access Policies
           this.getZeroTrustPolicies(accountId),
-          // Identity Providers
-          this.client.zeroTrust?.identityProviders?.list({ 
-            account_id: accountId 
-          }).catch(() => ({ result: [] })),
-          // Service Tokens
-          this.client.zeroTrust?.access?.serviceTokens?.list({ 
-            account_id: accountId 
-          }).catch(() => ({ result: [] })),
-          // Tunnels
-          this.client.zeroTrust?.tunnels?.list({ 
-            account_id: accountId 
-          }).catch(() => ({ result: [] })),
-          // Device Policies (check if method exists)
-          (this.client.zeroTrust?.devices?.policies?.list && 
-           typeof this.client.zeroTrust.devices.policies.list === 'function') 
-            ? this.client.zeroTrust.devices.policies.list({ 
-                account_id: accountId 
-              }).catch(() => ({ result: [] }))
-            : Promise.resolve({ result: [] }),
-          // WARP Settings
+          this.client.zeroTrust.identityProviders.list({
+            account_id: accountId
+          }).then(p => this._unwrapList(p)).catch(() => ({ result: [] })),
+          this.client.zeroTrust.access.serviceTokens.list({
+            account_id: accountId
+          }).then(p => this._unwrapList(p)).catch(() => ({ result: [] })),
+          this.client.zeroTrust.tunnels.list({
+            account_id: accountId
+          }).then(p => this._unwrapList(p)).catch(() => ({ result: [] })),
+          this.client.zeroTrust.devices.policies.list({
+            account_id: accountId
+          }).then(p => this._unwrapList(p)).catch(() => ({ result: [] })),
           this.getWARPSettings(accountId),
-          // Gateway Rules
-          this.client.zeroTrust?.gateway?.rules?.list({ 
-            account_id: accountId 
-          }).catch(() => ({ result: [] })),
-          // DLP Profiles
-          this.client.zeroTrust?.dlp?.profiles?.list({ 
-            account_id: accountId 
-          }).catch(() => ({ result: [] }))
+          this.client.zeroTrust.gateway.rules.list({
+            account_id: accountId
+          }).then(p => this._unwrapList(p)).catch(() => ({ result: [] })),
+          this.client.zeroTrust.dlp.profiles.list({
+            account_id: accountId
+          }).then(p => this._unwrapList(p)).catch(() => ({ result: [] }))
         ]);
 
-        // Get device enrollment rules if available
-        const deviceEnrollmentRules = await this.client.zeroTrust?.devices?.enrollmentRules?.list({
+        const deviceEnrollmentRules = await this.client.zeroTrust.devices.enrollmentRules.list({
           account_id: accountId
-        }).catch(() => ({ result: [] }));
+        }).then(p => this._unwrapList(p)).catch(() => ({ result: [] }));
 
         return {
           applications: applications?.result || [],
@@ -655,16 +627,17 @@ class CloudflareClient {
           deviceEnrollmentRules: deviceEnrollmentRules?.result || [],
           warpSettings: warpSettings || {},
           accessGroups: accessGroups?.result || [],
-          organization: organization?.result || {},
+          // v5: .get() returns result directly
+          organization: organization || {},
           gatewayRules: gatewayRules?.result || [],
           dlpProfiles: dlpProfiles?.result || [],
           error: null
         };
       } catch (error) {
         logger.debug('Zero Trust assessment error:', error.message);
-        return { 
-          error: 'Zero Trust not enabled', 
-          details: error.message 
+        return {
+          error: 'Zero Trust not enabled',
+          details: error.message
         };
       }
     });
@@ -675,35 +648,43 @@ class CloudflareClient {
    */
   async getZeroTrustPolicies(accountId) {
     try {
-      // Fetch all Access policies for all applications
-      const applications = await this.client.zeroTrust?.access?.applications?.list({ 
-        account_id: accountId 
+      // v5: policies are accessed via client.zeroTrust.access.policies
+      // but we also iterate applications for app-context enrichment
+      const appsPage = await this.client.zeroTrust.access.applications.list({
+        account_id: accountId
       }).catch(() => ({ result: [] }));
+      const applications = this._unwrapList(appsPage);
 
       const allPolicies = [];
-      
-      // Get policies for each application
+
       for (const app of (applications.result || [])) {
         try {
-          const appPolicies = await this.client.zeroTrust?.access?.applications?.policies?.list({
-            account_id: accountId,
-            uuid: app.id
-          });
-          
-          // Add application context to each policy
+          // v5: try per-app policies first, fall back to direct list
+          let appPolicies;
+          try {
+            const policiesPage = await this.client.zeroTrust.access.applications.policies.list({
+              account_id: accountId,
+              uuid: app.id
+            });
+            appPolicies = this._unwrapList(policiesPage);
+          } catch (e) {
+            // If per-app policies fails, skip this app
+            continue;
+          }
+
           const policiesWithContext = (appPolicies.result || []).map(policy => ({
             ...policy,
             application_id: app.id,
             application_name: app.name,
             application_domain: app.domain
           }));
-          
+
           allPolicies.push(...policiesWithContext);
         } catch (error) {
           logger.debug(`Failed to get policies for app ${app.id}:`, error.message);
         }
       }
-      
+
       return allPolicies;
     } catch (error) {
       logger.debug('Failed to get Zero Trust policies:', error.message);
@@ -716,21 +697,20 @@ class CloudflareClient {
    */
   async getWARPSettings(accountId) {
     try {
-      // WARP settings might be under different endpoints
-      const settings = await this.client.zeroTrust?.devices?.settings?.get({
+      // v5: .get() returns result directly
+      const settings = await this.client.zeroTrust.devices.settings.get({
         account_id: accountId
       }).catch(() => null);
-      
+
       if (!settings) {
-        // Try alternative endpoint for WARP client settings
-        const warpClientSettings = await this.client.zeroTrust?.gateway?.configurations?.get({
+        const warpClientSettings = await this.client.zeroTrust.gateway.configurations.get({
           account_id: accountId
         }).catch(() => null);
-        
-        return warpClientSettings?.result || {};
+
+        return warpClientSettings || {};
       }
-      
-      return settings.result || {};
+
+      return settings || {};
     } catch (error) {
       logger.debug('Failed to get WARP settings:', error.message);
       return {};
@@ -750,11 +730,13 @@ class CloudflareClient {
             endpoint: `/accounts/${accountId}/members`
           });
         }
-        
-        const members = await this.client.accounts.members.list({ 
-          account_id: accountId 
+
+        // accounts.members.list is unchanged in v5
+        const membersPage = await this.client.accounts.members.list({
+          account_id: accountId
         });
-        
+        const members = this._unwrapList(membersPage);
+
         if (this.debugMode) {
           logger.cloudflare('Account members received', {
             accountId,
@@ -771,17 +753,10 @@ class CloudflareClient {
             } : null
           });
         }
-        
+
         return members.result || [];
       } catch (error) {
         logger.debug('Could not fetch account members:', error.message);
-        if (this.debugMode) {
-          logger.cloudflare('Account members fetch failed', {
-            accountId,
-            error: error.message,
-            code: error.code
-          });
-        }
         return [];
       }
     });
@@ -793,10 +768,12 @@ class CloudflareClient {
   async getAuditLogs(accountId, params = {}) {
     return this.executeWithRateLimit(async () => {
       try {
-        const logs = await this.client.accounts.auditLogs.list({ 
+        // v5: auditLogs is a top-level resource
+        const logsPage = await this.client.auditLogs.list({
           account_id: accountId,
           ...params
         });
+        const logs = this._unwrapList(logsPage);
         return logs.result || [];
       } catch (error) {
         logger.debug('Audit logs not available:', error.message);
@@ -811,7 +788,6 @@ class CloudflareClient {
   async getPerformanceSettings(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // Get various performance-related settings
         const performanceSettings = [
           'minify',
           'brotli',
@@ -823,14 +799,16 @@ class CloudflareClient {
         ];
 
         const settings = {};
-        
+
         await Promise.all(
           performanceSettings.map(async (setting) => {
             try {
-              const result = await this.client.zones.settings.get(setting, { 
-                zone_id: zoneId 
+              // zones.settings.get is unchanged in v5
+              const result = await this.client.zones.settings.get(setting, {
+                zone_id: zoneId
               });
-              settings[setting] = result?.result;
+              // v5: .get() returns the setting value directly
+              settings[setting] = result?.value || result?.result || result;
             } catch (e) {
               settings[setting] = null;
             }
@@ -851,83 +829,58 @@ class CloudflareClient {
   async getDNSSECSettings(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // The Cloudflare v4 SDK doesn't have a direct DNSSEC endpoint
-        // We need to make a raw API request using Node.js built-in fetch (Node 18+)
-        const makeRawRequest = async (path, method = 'GET') => {
-          const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
-            method,
-            headers: {
-              'Authorization': `Bearer ${this.apiToken}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          return response.json();
-        };
-        
-        // Try to get DNSSEC status via raw API
+        // Try SDK first (v5: DNSSEC is under client.dns.dnssec)
         try {
-          const dnssecResponse = await makeRawRequest(`/zones/${zoneId}/dnssec`);
-          
+          if (this.debugMode) {
+            logger.cloudflare('Getting DNSSEC settings', {
+              zoneId,
+              method: 'GET',
+              endpoint: `/zones/${zoneId}/dnssec`
+            });
+          }
+
+          // v5: .get() returns result directly
+          const dnssec = await this.client.dns.dnssec.get({ zone_id: zoneId });
+
+          logger.info('DNSSEC API Response', {
+            zoneId,
+            status: dnssec?.status,
+            algorithm: dnssec?.algorithm,
+            digest_type: dnssec?.digest_type
+          });
+
+          if (this.debugMode) {
+            logger.cloudflare('DNSSEC settings received', {
+              zoneId,
+              status: dnssec?.status,
+              algorithm: dnssec?.algorithm,
+              digest_type: dnssec?.digest_type
+            });
+          }
+
+          return dnssec || { status: 'disabled' };
+        } catch (sdkError) {
+          logger.debug('DNSSEC SDK call failed, trying raw API:', sdkError.message);
+        }
+
+        // Fallback: raw API
+        try {
+          const dnssecResponse = await this.rawRequest(`/zones/${zoneId}/dnssec`);
+
           logger.info('DNSSEC Raw API Response', {
             zoneId,
-            success: dnssecResponse?.success,
-            errors: dnssecResponse?.errors,
             hasResult: !!dnssecResponse?.result,
-            status: dnssecResponse?.result?.status,
-            rawResult: JSON.stringify(dnssecResponse?.result)
+            status: dnssecResponse?.result?.status
           });
-          
-          if (dnssecResponse?.success && dnssecResponse?.result) {
+
+          if (dnssecResponse?.result) {
             return dnssecResponse.result;
           }
         } catch (rawError) {
           logger.debug('Raw DNSSEC API failed:', rawError.message);
         }
-        
-        // Fallback: Check if DNSSEC endpoint exists in SDK (for compatibility)
-        if (!this.client.zones?.dnssec?.get) {
-          logger.debug('DNSSEC API not available in SDK', { zoneId });
-          return { status: 'disabled', error: 'API not available' };
-        }
-        
-        if (this.debugMode) {
-          logger.cloudflare('Getting DNSSEC settings', {
-            zoneId,
-            method: 'GET',
-            endpoint: `/zones/${zoneId}/dnssec`
-          });
-        }
-        
-        const dnssec = await this.client.zones.dnssec.get({ zone_id: zoneId });
-        
-        // Enhanced debugging to understand DNSSEC response structure
-        logger.info('DNSSEC API Response', {
-          zoneId,
-          success: dnssec?.success,
-          hasResult: !!dnssec?.result,
-          resultKeys: dnssec?.result ? Object.keys(dnssec.result) : [],
-          status: dnssec?.result?.status,
-          flags: dnssec?.result?.flags,
-          algorithm: dnssec?.result?.algorithm,
-          digest_type: dnssec?.result?.digest_type,
-          digest_algorithm: dnssec?.result?.digest_algorithm,
-          digest: dnssec?.result?.digest,
-          ds: dnssec?.result?.ds,
-          key_tag: dnssec?.result?.key_tag,
-          public_key: dnssec?.result?.public_key ? 'present' : 'absent',
-          rawResult: JSON.stringify(dnssec?.result)
-        });
-        
-        if (this.debugMode) {
-          logger.cloudflare('DNSSEC settings received', {
-            zoneId,
-            status: dnssec.result?.status,
-            algorithm: dnssec.result?.algorithm,
-            digest_type: dnssec.result?.digest_type
-          });
-        }
-        
-        return dnssec.result || { status: 'disabled' };
+
+        return { status: 'disabled', error: 'DNSSEC API not available' };
       } catch (error) {
         logger.error('Failed to get DNSSEC settings', { error: error.message, zoneId });
         return { status: 'error', error: error.message };
@@ -941,29 +894,22 @@ class CloudflareClient {
   async getSecurityAnalytics(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // Check if analytics endpoint exists
-        if (!this.client.zones?.analytics?.dashboard) {
-          logger.debug('Analytics API not available on this client/token', { zoneId });
-          return null;
-        }
-        
+        // v5 SDK has no zones.analytics — use rawRequest
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const until = new Date().toISOString();
-        
-        const analytics = await this.client.zones.analytics.dashboard({ 
-          zone_id: zoneId,
-          since,
-          until
-        });
-        
-        const data = analytics?.result?.data?.[0] || {};
+
+        const data = await this.rawRequest(
+          `/zones/${zoneId}/analytics/dashboard?since=${encodeURIComponent(since)}&until=${encodeURIComponent(until)}`
+        );
+
+        const analyticsResult = data?.result?.data?.[0] || {};
         return {
-          threats_blocked: data.threats || 0,
-          requests_challenged: data.pageviews || 0,
-          requests_passed: data.requests || 0
+          threats_blocked: analyticsResult.threats || 0,
+          requests_challenged: analyticsResult.pageviews || 0,
+          requests_passed: analyticsResult.requests || 0
         };
       } catch (error) {
-        logger.warn('Security analytics not available:', error.message);
+        logger.warn('Security analytics not available:', { error: error.message });
         return null;
       }
     });
@@ -984,15 +930,16 @@ class CloudflareClient {
         ];
 
         const settings = {};
-        
-        // Fetch all settings in parallel
+
         const results = await Promise.allSettled(
           settingNames.map(async (setting) => {
             try {
-              const result = await this.client.zones.settings.get(setting, { 
-                zone_id: zoneId 
+              // zones.settings.get is unchanged in v5
+              const result = await this.client.zones.settings.get(setting, {
+                zone_id: zoneId
               });
-              return { name: setting, value: result?.result };
+              // v5: .get() returns the setting value directly
+              return { name: setting, value: result?.value || result?.result || result };
             } catch (e) {
               return { name: setting, value: null, error: e.message };
             }
@@ -1019,30 +966,23 @@ class CloudflareClient {
   async getFirewallRules(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if rulesets endpoint exists
-        if (!this.client.zones?.rulesets?.list) {
-          logger.debug('Rulesets API not available on this client/token', { zoneId });
-          return [];
-        }
-        
-        // v4 SDK: Firewall rules are now part of Rulesets
-        const rulesets = await this.client.zones.rulesets.list({ zone_id: zoneId });
-        
-        // Filter for firewall rulesets
-        const firewallRulesets = rulesets.result?.filter(rs => 
+        // v5: rulesets is a top-level resource
+        const rulesetsPage = await this.client.rulesets.list({ zone_id: zoneId });
+        const rulesets = this._unwrapList(rulesetsPage);
+
+        const firewallRulesets = rulesets.result?.filter(rs =>
           rs.phase === 'http_request_firewall_custom'
         ) || [];
-        
-        // Get rules for each ruleset
+
         const allRules = [];
         for (const ruleset of firewallRulesets) {
-          const rules = await this.client.zones.rulesets.get({ 
-            zone_id: zoneId, 
-            ruleset_id: ruleset.id 
+          // v5: .get(rulesetId, { zone_id }) — positional rulesetId arg
+          const rules = await this.client.rulesets.get(ruleset.id, {
+            zone_id: zoneId
           });
-          allRules.push(...(rules.result?.rules || []));
+          allRules.push(...(rules?.rules || []));
         }
-        
+
         return allRules;
       } catch (error) {
         logger.error('Failed to get firewall rules', { error: error.message, zoneId });
@@ -1057,16 +997,11 @@ class CloudflareClient {
   async getAccessRules(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if access rules endpoint exists
-        if (!this.client.zones?.accessRules?.list) {
-          logger.debug('Access rules API not available on this client/token', { zoneId });
-          return [];
-        }
-        
-        // v4 SDK: IP Access Rules
-        const rules = await this.client.zones.accessRules.list({ 
-          zone_id: zoneId 
+        // v5: accessRules is under client.firewall
+        const rulesPage = await this.client.firewall.accessRules.list({
+          zone_id: zoneId
         });
+        const rules = this._unwrapList(rulesPage);
         return rules.result || [];
       } catch (error) {
         logger.error('Failed to get access rules', { error: error.message, zoneId });
@@ -1081,13 +1016,9 @@ class CloudflareClient {
   async getPageRules(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if page rules endpoint exists
-        if (!this.client.zones?.pagerules?.list) {
-          logger.debug('Page rules API not available on this client/token', { zoneId });
-          return [];
-        }
-        
-        const rules = await this.client.zones.pagerules.list({ zone_id: zoneId });
+        // v5: pageRules is a top-level resource
+        const rulesPage = await this.client.pageRules.list({ zone_id: zoneId });
+        const rules = this._unwrapList(rulesPage);
         return rules.result || [];
       } catch (error) {
         logger.error('Failed to get page rules', { error: error.message, zoneId });
@@ -1102,14 +1033,9 @@ class CloudflareClient {
   async getRateLimitingRules(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if rate limiting endpoint exists
-        if (!this.client.zones?.ratelimits?.list) {
-          logger.debug('Rate limiting API not available on this client/token', { zoneId });
-          return [];
-        }
-        
-        // v4 SDK: Rate limiting rules are now handled differently
-        const rules = await this.client.zones.ratelimits.list({ zone_id: zoneId });
+        // v5: rateLimits is a top-level resource
+        const rulesPage = await this.client.rateLimits.list({ zone_id: zoneId });
+        const rules = this._unwrapList(rulesPage);
         return rules.result || [];
       } catch (error) {
         logger.error('Failed to get rate limiting rules', { error: error.message, zoneId });
@@ -1124,34 +1050,25 @@ class CloudflareClient {
   async getLoadBalancers(zoneId, accountId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if load balancers endpoint exists
-        if (!this.client.zones?.loadBalancers?.list) {
-          logger.debug('Load balancers API not available on this client/token', { zoneId });
-          return {
-            load_balancers: [],
-            pools: [],
-            monitors: []
-          };
-        }
-        
-        const loadBalancers = await this.client.zones.loadBalancers.list({ 
-          zone_id: zoneId 
-        });
-        
-        // Get pools and monitors if load balancers exist (these are account-level)
+        // v5: loadBalancers is a top-level resource
+        const loadBalancersPage = await this.client.loadBalancers.list({ zone_id: zoneId });
+        const loadBalancers = this._unwrapList(loadBalancersPage);
+
         if (loadBalancers.result?.length > 0 && accountId) {
           const [pools, monitors] = await Promise.all([
-            this.client.accounts.loadBalancers.pools.list({ account_id: accountId }).catch(() => ({ result: [] })),
-            this.client.accounts.loadBalancers.monitors.list({ account_id: accountId }).catch(() => ({ result: [] }))
+            this.client.loadBalancers.pools.list({ account_id: accountId })
+              .then(p => this._unwrapList(p)).catch(() => ({ result: [] })),
+            this.client.loadBalancers.monitors.list({ account_id: accountId })
+              .then(p => this._unwrapList(p)).catch(() => ({ result: [] }))
           ]);
-          
+
           return {
             load_balancers: loadBalancers.result || [],
             pools: pools.result || [],
             monitors: monitors.result || []
           };
         }
-        
+
         return {
           load_balancers: [],
           pools: [],
@@ -1170,25 +1087,28 @@ class CloudflareClient {
   async getBotManagement(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Bot management settings are under zone settings
-        const botFightMode = await this.client.zones.settings.get('bot_fight_mode', { 
+        // zones.settings.get is unchanged in v5
+        const botFightMode = await this.client.zones.settings.get('bot_fight_mode', {
           zone_id: zoneId
         });
-        
-        // Also try to get super bot fight mode for paid plans
+        // v5: .get() returns setting value directly
+        const botFightValue = botFightMode?.value || botFightMode?.result?.value;
+
         let superBotFightMode = null;
         try {
-          superBotFightMode = await this.client.zones.settings.get('super_bot_fight_mode', { 
+          superBotFightMode = await this.client.zones.settings.get('super_bot_fight_mode', {
             zone_id: zoneId
           });
         } catch (e) {
           // Super bot fight mode not available on free plans
         }
-        
+
+        const superBotValue = superBotFightMode?.value || superBotFightMode?.result?.value;
+
         return {
-          enabled: botFightMode?.result?.value === 'on' || superBotFightMode?.result?.value === 'on',
-          bot_fight_mode: botFightMode?.result?.value,
-          super_bot_fight_mode: superBotFightMode?.result?.value
+          enabled: botFightValue === 'on' || superBotValue === 'on',
+          bot_fight_mode: botFightValue,
+          super_bot_fight_mode: superBotValue
         };
       } catch (error) {
         logger.debug('Bot management settings not available:', error.message);
@@ -1203,29 +1123,30 @@ class CloudflareClient {
   async getWorkers(accountId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Workers are account-level, not zone-level
-        const scripts = await this.client.accounts.workers.scripts.list({ 
-          account_id: accountId 
+        // v5: workers is a top-level resource
+        const scriptsPage = await this.client.workers.scripts.list({
+          account_id: accountId
         });
-        
+        const scripts = this._unwrapList(scriptsPage);
+
         const workers = [];
-        
-        // Get details for each worker
+
         for (const script of (scripts.result || [])) {
           try {
-            const details = await this.client.accounts.workers.scripts.get({ 
+            // v5: .get() returns the script details directly
+            const details = await this.client.workers.scripts.get({
               account_id: accountId,
               script_name: script.id
             });
             workers.push({
               ...script,
-              ...details.result
+              ...details
             });
           } catch (e) {
             workers.push(script);
           }
         }
-        
+
         return { workers };
       } catch (error) {
         logger.debug('Workers not available:', error.message);
@@ -1240,10 +1161,12 @@ class CloudflareClient {
   async getPages(accountId) {
     return this.executeWithRateLimit(async () => {
       try {
-        const projects = await this.client.accounts.pages.projects.list({ 
-          account_id: accountId 
+        // v5: pages is a top-level resource
+        const projectsPage = await this.client.pages.projects.list({
+          account_id: accountId
         });
-        
+        const projects = this._unwrapList(projectsPage);
+
         return {
           projects: projects.result || []
         };
@@ -1260,17 +1183,19 @@ class CloudflareClient {
   async getAPIShield(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: API Shield endpoints
-        const [schemas, endpoints] = await Promise.all([
-          this.client.zones.apiShield.schemas.list({ zone_id: zoneId }).catch(() => ({ result: [] })),
-          this.client.zones.apiShield.endpoints.list({ zone_id: zoneId }).catch(() => ({ result: [] }))
+        // v5: API Shield is under client.apiGateway
+        const [schemasPage, endpointsPage] = await Promise.all([
+          this.client.apiGateway.schemas.list({ zone_id: zoneId })
+            .then(p => this._unwrapList(p)).catch(() => ({ result: [] })),
+          this.client.apiGateway.endpoints.list({ zone_id: zoneId })
+            .then(p => this._unwrapList(p)).catch(() => ({ result: [] }))
         ]);
-        
+
         return {
-          source: 'legacy',
-          enabled: (schemas.result?.length || 0) > 0 || (endpoints.result?.length || 0) > 0,
-          schemas: schemas.result || [],
-          endpoints: endpoints.result || []
+          source: 'sdk-v5',
+          enabled: (schemasPage.result?.length || 0) > 0 || (endpointsPage.result?.length || 0) > 0,
+          schemas: schemasPage.result || [],
+          endpoints: endpointsPage.result || []
         };
       } catch (error) {
         logger.debug('API Shield not available:', error.message);
@@ -1285,15 +1210,11 @@ class CloudflareClient {
   async getEmailRoutingRules(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if email routing endpoint exists
-        if (!this.client.zones?.emailRouting?.rules?.list) {
-          logger.debug('Email routing API not available on this client/token', { zoneId });
-          return [];
-        }
-        
-        const rules = await this.client.zones.emailRouting.rules.list({ 
-          zone_id: zoneId 
+        // v5: emailRouting is a top-level resource
+        const rulesPage = await this.client.emailRouting.rules.list({
+          zone_id: zoneId
         });
+        const rules = this._unwrapList(rulesPage);
         return rules.result || [];
       } catch (error) {
         logger.debug('Email routing not available:', error.message);
@@ -1308,15 +1229,6 @@ class CloudflareClient {
   async getSecurityInsights(params = {}) {
     return this.executeWithRateLimit(async () => {
       try {
-        // Check if Security Center API exists
-        if (!this.client.securityCenter?.insights?.list) {
-          logger.debug('Security Center API not available on this client/token');
-          return {
-            insights: [],
-            error: 'Security Center API not available'
-          };
-        }
-
         if (this.debugMode) {
           logger.cloudflare('Getting Security Center Insights', {
             hasAccountId: !!params.accountId,
@@ -1326,13 +1238,11 @@ class CloudflareClient {
           });
         }
 
-        // Prepare API parameters
         const apiParams = {
-          dismissed: false, // Only get active insights
-          per_page: 100    // Get more insights per page
+          dismissed: false,
+          per_page: 100
         };
 
-        // Either account_id or zone_id is required
         if (params.accountId) {
           apiParams.account_id = params.accountId;
         } else if (params.zoneId) {
@@ -1341,7 +1251,6 @@ class CloudflareClient {
           throw new Error('Either accountId or zoneId is required for Security Insights');
         }
 
-        // Add optional filters
         if (params.severity) {
           apiParams.severity = Array.isArray(params.severity) ? params.severity : [params.severity];
         }
@@ -1352,9 +1261,9 @@ class CloudflareClient {
           apiParams.issue_type = Array.isArray(params.issueType) ? params.issueType : [params.issueType];
         }
 
-        // Fetch insights
+        // securityCenter.insights.list path is unchanged in v5
         const response = await this.client.securityCenter.insights.list(apiParams);
-        
+
         if (this.debugMode) {
           logger.cloudflare('Security Insights response received', {
             count: response.count || 0,
@@ -1364,15 +1273,12 @@ class CloudflareClient {
           });
         }
 
-        // Process and return insights
         const insights = response.issues || [];
-        
-        // Sort by severity (Critical > High > Moderate > Low)
+
         const severityOrder = { 'Critical': 0, 'High': 1, 'Moderate': 2, 'Low': 3 };
         insights.sort((a, b) => {
           const severityDiff = (severityOrder[a.severity] || 999) - (severityOrder[b.severity] || 999);
           if (severityDiff !== 0) return severityDiff;
-          // If same severity, sort by timestamp (newest first)
           return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
         });
 
@@ -1400,20 +1306,19 @@ class CloudflareClient {
           }
         };
       } catch (error) {
-        logger.error('Failed to get Security Insights', { 
-          error: error.message, 
+        logger.error('Failed to get Security Insights', {
+          error: error.message,
           accountId: params.accountId,
-          zoneId: params.zoneId 
+          zoneId: params.zoneId
         });
-        
-        // Check for permission errors
-        if (error.message?.includes('403') || error.message?.includes('not authorized')) {
+
+        if (error.status === 403 || error.message?.includes('403') || error.message?.includes('not authorized')) {
           return {
             insights: [],
             error: 'Insufficient permissions to access Security Center Insights'
           };
         }
-        
+
         return {
           insights: [],
           error: error.message
@@ -1428,15 +1333,11 @@ class CloudflareClient {
   async getCustomErrorPages(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        // v4 SDK: Check if custom error pages endpoint exists
-        if (!this.client.zones?.customErrorPages?.list) {
-          logger.debug('Custom error pages API not available on this client/token', { zoneId });
-          return [];
-        }
-        
-        const pages = await this.client.zones.customErrorPages.list({ 
-          zone_id: zoneId 
+        // v5: customPages is a top-level resource
+        const pagesPage = await this.client.customPages.list({
+          zone_id: zoneId
         });
+        const pages = this._unwrapList(pagesPage);
         return pages.result || [];
       } catch (error) {
         logger.debug('Custom error pages not available:', error.message);
@@ -1598,13 +1499,10 @@ class CloudflareClient {
   async getRulesets(zoneId) {
     return this.executeWithRateLimit(async () => {
       try {
-        if (this.client.zones?.rulesets?.list) {
-          const rulesets = await this.client.zones.rulesets.list({ zone_id: zoneId });
-          return rulesets.result || [];
-        }
-
-        const response = await this.rawRequest(`/zones/${zoneId}/rulesets`);
-        return response?.result || [];
+        // v5: rulesets is a top-level resource
+        const rulesetsPage = await this.client.rulesets.list({ zone_id: zoneId });
+        const rulesets = this._unwrapList(rulesetsPage);
+        return rulesets.result || [];
       } catch (error) {
         logger.debug('Rulesets not available:', error.message);
         return [];
@@ -1836,16 +1734,18 @@ class CloudflareClient {
    */
   async verifyToken() {
     try {
-      // Prefer SDK if available, else raw
-      if (this.client.user?.tokens?.verify) {
-        const res = await this.client.user.tokens.verify();
-        return res?.result || res || {};
-      }
-      const response = await this.rawRequest('/user/tokens/verify');
-      return response?.result || {};
+      // v5: user.tokens.verify path unchanged; returns result directly
+      const res = await this.client.user.tokens.verify();
+      return res || {};
     } catch (error) {
-      logger.debug('Token verify failed:', error.message);
-      return { error: error.message };
+      logger.debug('Token verify failed, trying raw:', error.message);
+      try {
+        const response = await this.rawRequest('/user/tokens/verify');
+        return response?.result || {};
+      } catch (rawError) {
+        logger.debug('Raw token verify also failed:', rawError.message);
+        return { error: rawError.message };
+      }
     }
   }
 
@@ -1857,7 +1757,6 @@ class CloudflareClient {
     try {
       const response = await this.rawRequest(`/accounts/${accountId}/r2/buckets?per_page=100`);
       const buckets = response?.result?.buckets || response?.result || [];
-      // Optionally enrich each bucket with custom domain / lifecycle / event notification metadata.
       const enriched = await Promise.all(
         (Array.isArray(buckets) ? buckets : []).map(async (bucket) => {
           const name = bucket.name || bucket.bucket_name || bucket.id;
@@ -1901,16 +1800,11 @@ class CloudflareClient {
    */
   async getWAFManagedRulesets(zoneId) {
     try {
-      let rulesets = [];
-      if (this.client.zones?.rulesets?.list) {
-        const res = await this.client.zones.rulesets.list({ zone_id: zoneId });
-        rulesets = res?.result || res || [];
-      } else {
-        const res = await this.rawRequest(`/zones/${zoneId}/rulesets`);
-        rulesets = res?.result || [];
-      }
+      // v5: rulesets is a top-level resource
+      const rulesetsPage = await this.client.rulesets.list({ zone_id: zoneId });
+      const rulesetsRes = this._unwrapList(rulesetsPage);
+      const rulesets = rulesetsRes.result || [];
 
-      // Find the zone's entry-point ruleset for the managed firewall phase
       const entryPoints = rulesets.filter(r =>
         r.kind === 'zone' && r.phase === 'http_request_firewall_managed'
       );
@@ -1918,10 +1812,9 @@ class CloudflareClient {
       const managedDeployments = [];
       for (const ep of entryPoints) {
         try {
-          const detail = this.client.zones?.rulesets?.get
-            ? await this.client.zones.rulesets.get({ zone_id: zoneId, ruleset_id: ep.id })
-            : await this.rawRequest(`/zones/${zoneId}/rulesets/${ep.id}`);
-          const rules = detail?.result?.rules || detail?.rules || [];
+          // v5: .get(rulesetId, { zone_id }) — positional rulesetId arg
+          const detail = await this.client.rulesets.get(ep.id, { zone_id: zoneId });
+          const rules = detail?.rules || [];
           for (const rule of rules) {
             if (rule.action === 'execute' && rule.action_parameters?.id) {
               managedDeployments.push({

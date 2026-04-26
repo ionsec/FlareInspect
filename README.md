@@ -6,15 +6,15 @@
   <p>
     <a href="https://github.com/ionsec/flareinspect/actions"><img src="https://img.shields.io/badge/node-%E2%89%A520.0.0-green" alt="Node.js ≥20"></a>
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-    <img src="https://img.shields.io/badge/version-1.2.2-f6821f" alt="Version 1.2.2">
+    <img src="https://img.shields.io/badge/version-1.3.0-f6821f" alt="Version 1.3.0">
     <img src="https://img.shields.io/badge/audit-0_vulns-3a9b3a" alt="0 npm audit vulnerabilities">
   </p>
 </div>
 
-> **1.2.2** — new check coverage: API token pre-flight (`CFL-TOK-001`), R2 bucket posture
-> (`CFL-R2-001/002/003`: public access, lifecycle, event notifications), and WAF managed rulesets
-> (`CFL-WAF-006/007/008`: Cloudflare Managed, OWASP Core, log-only drift). 140 tests, all green.
-> See [`docs/changelog.rst`](docs/changelog.rst) for the full list.
+> **1.3.0** — migrated Cloudflare SDK from v4.5.0 to v5.2.0. Namespace paths updated
+> (zone sub-resources promoted to top-level), response unwrapping adapted for v5's direct-return
+> pattern, error handling updated to typed `APIError` subclasses. 140 tests, all green.
+> See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
 
 ## Overview
 
