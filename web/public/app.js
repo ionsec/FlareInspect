@@ -188,7 +188,7 @@ function updateWithAssessment(assessment) {
   const account = assessment.account || {};
 
   $('idle-hero').style.display = 'none';
-  $('score-hero').style.display = 'flex';
+  $('score-hero').style.display = 'block';
 
   // Account / crumb
   const accountName = account.name || '—';
