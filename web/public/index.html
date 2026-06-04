@@ -66,6 +66,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       <span>Full report</span>
     </button>
+    <button class="v1-navlink" data-section="remediate" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a2 2 0 1 0 2.8 2.8l6-6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1 2.5-2.5z"/></svg>
+      <span>Remediate</span>
+    </button>
     <button class="v1-navlink" data-section="api" type="button">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
       <span>API health</span>
@@ -489,6 +493,78 @@
       <div class="v1-health" id="health-info">
         <div class="v1-empty">Loading system information…</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Page: Remediate ── -->
+  <div class="v1-page" id="page-remediate" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Remediate</h1>
+        <div class="v1-page-sub">AI-assisted, safety-first fixes. Plan is a dry-run; every apply is backed up before and after and is reversible.</div>
+      </div>
+      <div class="v1-page-head-meta">
+        <span class="v1-badge" id="remediate-gate-badge">checking…</span>
+      </div>
+    </div>
+
+    <div class="v1-card">
+      <form id="remediate-form" class="v1-form" novalidate>
+        <div class="v1-form-row">
+          <label class="v1-form-label" for="remediate-token">Cloudflare API token <span class="v1-required">*</span></label>
+          <input type="password" id="remediate-token" class="v1-input" placeholder="Cfxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" required />
+          <p class="v1-form-hint"><strong>Plan</strong> (dry-run) needs only read scopes. <strong>Apply</strong> writes config and needs an <em>edit-scoped</em> token: Zone → Zone Settings → Edit, Zone → DNS → Edit. Your read-only assessment token will not work for apply.</p>
+        </div>
+        <div class="v1-form-row">
+          <label class="v1-form-label" for="remediate-zones">Zone filter <span class="v1-form-optional">(optional)</span></label>
+          <input type="text" id="remediate-zones" class="v1-input" placeholder="example.com, api.example.com" spellcheck="false" />
+        </div>
+        <div class="v1-form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label class="v1-form-label" for="remediate-ai-provider">AI planner <span class="v1-form-optional">(optional)</span></label>
+            <select id="remediate-ai-provider" class="v1-input">
+              <option value="none">None — rules-only</option>
+              <option value="ollama">Ollama (local)</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </div>
+          <div>
+            <label class="v1-form-label" for="remediate-ai-model">Model</label>
+            <input type="text" id="remediate-ai-model" class="v1-input" placeholder="llama3.1 / claude-opus-4-8 / gpt-4o" spellcheck="false" />
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+          <button type="submit" class="v1-btn v1-btn-primary" id="remediate-plan-btn">Build plan (dry-run)</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="v1-card" id="remediate-plan-card" style="display:none">
+      <div class="v1-card-head">
+        <div class="v1-card-title">Proposed changes</div>
+        <div class="v1-card-sub" id="remediate-ai-note">—</div>
+      </div>
+      <div id="remediate-plan-body"><div class="v1-empty">Build a plan to see proposed changes.</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fg-3)">
+          <input type="checkbox" id="remediate-force" /> Include high-risk changes
+        </label>
+        <button type="button" class="v1-btn v1-btn-primary" id="remediate-apply-btn" disabled>Apply selected</button>
+      </div>
+    </div>
+
+    <div class="v1-card" id="remediate-manual-card" style="display:none">
+      <div class="v1-card-head"><div class="v1-card-title">Manual remediation required</div></div>
+      <div id="remediate-manual-body"></div>
+    </div>
+
+    <div class="v1-card">
+      <div class="v1-card-head">
+        <div class="v1-card-title">Backups & rollback</div>
+        <button class="v1-btn v1-btn-ghost v1-btn-sm" type="button" id="remediate-refresh-backups">Refresh</button>
+      </div>
+      <div id="remediate-backups-body"><div class="v1-empty">No backups yet.</div></div>
     </div>
   </div>
 

@@ -12,6 +12,7 @@ const { displayBanner, displayCredits } = require('./utils/banner');
 const assessCommand = require('./commands/assess');
 const exportCommand = require('./commands/export');
 const diffCommand = require('./commands/diff');
+const remediateCommand = require('./commands/remediate');
 const helpCommand = require('./commands/help');
 const pkg = require('../../package.json');
 
@@ -72,6 +73,9 @@ program
   .option('-o, --output <file>', 'Output file for diff results')
   .option('-f, --format <format>', 'Output format (json|markdown)', 'json')
   .action(diffCommand.execute);
+
+// Remediate command (plan | apply | rollback)
+remediateCommand.register(program);
 
 // Help command (custom)
 program

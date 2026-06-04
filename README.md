@@ -206,6 +206,64 @@ flareinspect diff --baseline previous.json --current current.json
 flareinspect diff --baseline previous.json --current current.json -f markdown -o drift.md
 ```
 
+### Remediate (AI-assisted, safety-first)
+
+Close the loop: automatically fix the safely-fixable findings from an assessment. The
+design is deliberately conservative:
+
+- **Dry-run by default.** `plan` shows the proposed before→after diff and writes a
+  backup, but changes nothing. You must pass `--apply` to mutate Cloudflare.
+- **Backup before *and* after.** Every run writes a checksum-protected rollback bundle;
+  the "before" snapshot is persisted before any change, so a crash never loses it.
+- **Reversible-only.** Only single-setting, idempotent, reversible flips are
+  auto-applied (SSL mode, min TLS, Always-HTTPS, HSTS, security level, DNSSEC,
+  Brotli/HTTP2/HTTP3, Cache Deception Armor). Findings like MFA, exposed credentials,
+  or code changes are surfaced as **manual-only** and never auto-applied.
+- **AI never invents changes.** The optional AI planner only *orders and annotates* the
+  fixed recipe catalog; it cannot add endpoints or payloads. With no AI configured it
+  falls back to deterministic rules-only ordering.
+
+```bash
+# 1. Dry-run: review proposed changes + write a backup, mutate nothing
+flareinspect remediate plan -i assessment.json --token $TOKEN
+
+# 2. Apply (requires --apply; high-risk changes need confirmation or --force)
+flareinspect remediate apply -i assessment.json --token $TOKEN --apply
+
+# 3. Roll back from a backup bundle
+flareinspect remediate rollback --backup ./remediation-backups/<bundle>.backup.json --token $TOKEN
+```
+
+> **Token permissions — important.** FlareInspect's assessment is intentionally
+> **read-only**: `assess` only needs `Zone:Read`, `DNS:Read`, `SSL and Certificates:Read`.
+> **Remediation writes config**, so `remediate apply` requires a *different*, edit-scoped
+> token — your assessment token will not work for apply. Create a token at
+> dash.cloudflare.com → My Profile → API Tokens with:
+>
+> - **Zone → Zone Settings → Edit** (SSL mode, TLS, HSTS, security level, Brotli, HTTP/2-3, Cache Deception Armor)
+> - **Zone → DNS → Edit** (DNSSEC)
+> - **Zone → Zone → Read** (to enumerate zones)
+>
+> Keep the read-only token for scheduled assessments and use the edit-scoped token only
+> when you intend to apply fixes.
+
+Enable the AI planner by setting `ai.provider` in config (or `--ai-provider`):
+
+- **`anthropic`** / **`openai`** — cloud models; key via `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`.
+  The SDKs (`@anthropic-ai/sdk`, `openai`) are optional dependencies.
+- **`ollama`** (a.k.a. `local`) — a fully offline local model via [Ollama](https://ollama.com).
+  No key, no SDK; talks to `http://localhost:11434` (override with `--ai-base-url` or
+  `OLLAMA_HOST`). Example: `--ai-provider ollama --ai-model llama3.1`.
+- **`none`** — deterministic rules-only ordering (the default).
+
+In every case the AI only *orders and annotates* the fixed recipe catalog; it can never
+invent a change. If the model/server is unavailable, remediation degrades cleanly to
+rules-only ordering.
+
+In the **web dashboard**, the Remediate page mirrors this flow (plan → review diff →
+apply → rollback). Apply/rollback are disabled unless the server is started with
+`FLAREINSPECT_ALLOW_REMEDIATION=true`.
+
 ## Compliance Mapping
 
 Map findings to industry frameworks:
@@ -249,7 +307,7 @@ flareinspect assess --token $TOKEN --sensitivity critical
 ## Web Dashboard
 
 A local dark-themed dashboard with sidebar navigation (Overview · Run · Findings · Compliance ·
-History · Exports · Report · API Health). The Overview hero shows a radial score ring,
+History · Exports · Report · Remediate · API Health). The Overview hero shows a radial score ring,
 per-category breakdown bars, an open-findings severity strip, a four-framework compliance rail,
 top failing findings, and a per-zone posture matrix.
 
@@ -264,6 +322,8 @@ Optional environment variables:
 - `HOST` default `127.0.0.1`
 - `PORT` default auto-selected free port
 - `FLAREINSPECT_API_KEY` to require `X-API-Key` on `/api/*`
+- `FLAREINSPECT_ALLOW_REMEDIATION` set to `true` to enable the apply/rollback endpoints (off by default)
+- `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` to enable the optional AI remediation planner
 
 Assessment data is stored in `web/data/assessments`.
 
@@ -277,6 +337,10 @@ API endpoints:
 | GET | `/api/assessments/:id` | Get assessment by ID |
 | GET | `/api/compliance/:framework` | Get compliance report (cis/soc2/pci/nist) |
 | POST | `/api/diff` | Compare two assessments |
+| POST | `/api/remediate/plan` | Dry-run remediation plan (read-only) |
+| POST | `/api/remediate/apply` | Apply remediations (gated by `FLAREINSPECT_ALLOW_REMEDIATION`) |
+| GET | `/api/remediate/backups` | List rollback bundles |
+| POST | `/api/remediate/rollback` | Roll back from a backup bundle (gated) |
 | GET | `/api/download/json` | Download JSON |
 | GET | `/api/download/html` | Download HTML report |
 | GET | `/api/download/sarif` | Download SARIF |

@@ -46,6 +46,10 @@
     "progress": "^2.0.3",
     "winston": "^3.13.1"
   },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "openai": "^4.77.0"
+  },
   "devDependencies": {
     "eslint": "^9.7.0",
     "jest": "^30.0.5",

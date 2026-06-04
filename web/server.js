@@ -11,6 +11,10 @@ const SARIFExporter = require('../src/exporters/sarif');
 const MarkdownExporter = require('../src/exporters/markdown');
 const CSVExporter = require('../src/exporters/csv');
 const ASFFExporter = require('../src/exporters/asff');
+const CloudflareClient = require('../src/core/services/cloudflareClient');
+const remediationEngine = require('../src/core/remediation/remediationEngine');
+const backupManager = require('../src/core/remediation/backupManager');
+const { createPlanner } = require('../src/core/ai/remediationPlanner');
 const logger = require('../src/core/utils/logger');
 const pkg = require('../package.json');
 const ASSESSMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,6 +35,9 @@ const storageState = {
 };
 
 const API_KEY = process.env.FLAREINSPECT_API_KEY || null;
+// Remediation writes to live Cloudflare config and is OFF unless explicitly allowed.
+const ALLOW_REMEDIATION = process.env.FLAREINSPECT_ALLOW_REMEDIATION === 'true';
+const remediationDir = path.join(__dirname, 'data', 'remediation');
 let lastAssessment = null;
 
 async function ensureStorageDir() {
@@ -420,6 +427,141 @@ app.post('/api/diff', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Remediation endpoints
+// ---------------------------------------------------------------------------
+function parseRemediationToken(body = {}) {
+  const token = typeof body.token === 'string' ? body.token.trim() : '';
+  if (token.length < 10 || token.length > 512) {
+    throw new Error('Invalid Cloudflare API token.');
+  }
+  return token;
+}
+
+async function resolveAssessment(body = {}) {
+  if (body.assessmentId && isValidAssessmentId(String(body.assessmentId))) {
+    return loadAssessmentById(String(body.assessmentId));
+  }
+  return lastAssessment || (await loadLatestAssessmentFromDisk());
+}
+
+function plannerFromBody(body = {}) {
+  // Provider/model may be supplied per-request; key always comes from env vars.
+  const ai = body.ai || {};
+  return createPlanner({ provider: ai.provider, model: ai.model });
+}
+
+// Dry-run plan — read-only, no remediation gate required (still needs API key).
+app.post('/api/remediate/plan', async (req, res) => {
+  try {
+    const token = parseRemediationToken(req.body);
+    const assessment = await resolveAssessment(req.body);
+    if (!assessment) return sendError(res, 404, 'No assessment available to plan against.', req);
+
+    const client = new CloudflareClient(token);
+    const planner = plannerFromBody(req.body);
+    const plan = await remediationEngine.buildPlan(assessment, {
+      client, planner,
+      checks: parseCsvList(req.body.checks, { maxItems: 200 }),
+      zones: parseCsvList(req.body.zones),
+      excludeZones: parseCsvList(req.body.excludeZones)
+    });
+    return res.json({ plan, allowApply: ALLOW_REMEDIATION });
+  } catch (error) {
+    if (error.message === 'Invalid Cloudflare API token.') {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'remediate-plan');
+  }
+});
+
+// Apply — gated behind FLAREINSPECT_ALLOW_REMEDIATION.
+app.post('/api/remediate/apply', async (req, res) => {
+  if (!ALLOW_REMEDIATION) {
+    return sendError(res, 403, 'Remediation is disabled. Set FLAREINSPECT_ALLOW_REMEDIATION=true to enable.', req);
+  }
+  try {
+    const token = parseRemediationToken(req.body);
+    const assessment = await resolveAssessment(req.body);
+    if (!assessment) return sendError(res, 404, 'No assessment available to remediate.', req);
+
+    const client = new CloudflareClient(token);
+    const planner = plannerFromBody(req.body);
+    const plan = await remediationEngine.buildPlan(assessment, {
+      client, planner,
+      checks: parseCsvList(req.body.checks, { maxItems: 200 }),
+      zones: parseCsvList(req.body.zones),
+      excludeZones: parseCsvList(req.body.excludeZones)
+    });
+
+    // Approve only the checkIds the client explicitly selected; high-risk needs force.
+    const selected = Array.isArray(req.body.checkIds) ? new Set(req.body.checkIds.map(String)) : null;
+    const force = req.body.force === true;
+    const approved = plan.items.filter(item => {
+      if (selected && !selected.has(item.checkId)) return false;
+      if (item.risk === 'high' && !force) return false;
+      return true;
+    });
+
+    if (!approved.length) {
+      return res.json({ applied: [], bundleFile: null, message: 'No changes approved.' });
+    }
+
+    const result = await remediationEngine.apply(approved, {
+      client, backupDir: remediationDir, assessment
+    });
+    return res.json({
+      applied: result.results,
+      bundleFile: result.bundlePath ? path.basename(result.bundlePath) : null
+    });
+  } catch (error) {
+    if (error.message === 'Invalid Cloudflare API token.') {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'remediate-apply');
+  }
+});
+
+// List backup bundles.
+app.get('/api/remediate/backups', (req, res) => {
+  try {
+    return res.json({ backups: backupManager.listBundles(remediationDir) });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'remediate-backups');
+  }
+});
+
+// Rollback — gated behind FLAREINSPECT_ALLOW_REMEDIATION.
+app.post('/api/remediate/rollback', async (req, res) => {
+  if (!ALLOW_REMEDIATION) {
+    return sendError(res, 403, 'Remediation is disabled. Set FLAREINSPECT_ALLOW_REMEDIATION=true to enable.', req);
+  }
+  try {
+    const token = parseRemediationToken(req.body);
+    const file = typeof req.body.bundleFile === 'string' ? path.basename(req.body.bundleFile) : '';
+    if (!file.endsWith('.backup.json')) {
+      return sendError(res, 400, 'bundleFile must be a .backup.json file.', req);
+    }
+    const bundlePath = path.join(remediationDir, file);
+    if (!fs.existsSync(bundlePath)) {
+      return sendError(res, 404, 'Backup bundle not found.', req);
+    }
+
+    const bundle = backupManager.loadBundle(bundlePath); // validates checksum
+    const client = new CloudflareClient(token);
+    const result = await remediationEngine.rollback(bundle, { client, backupDir: remediationDir });
+    return res.json({
+      results: result.results,
+      reportFile: result.reportPath ? path.basename(result.reportPath) : null
+    });
+  } catch (error) {
+    if (error.message === 'Invalid Cloudflare API token.') {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'remediate-rollback');
+  }
+});
+
 // Download endpoints
 app.get('/api/download/json', (req, res) => {
   const respond = (assessment) => {
@@ -575,7 +717,8 @@ app.get('/api/health', (req, res) => {
       ready: storageState.ready,
       error: storageState.lastError
     },
-    auth: API_KEY ? 'api-key' : 'none'
+    auth: API_KEY ? 'api-key' : 'none',
+    remediation: ALLOW_REMEDIATION ? 'enabled' : 'disabled'
   });
 });
 

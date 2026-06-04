@@ -1839,6 +1839,58 @@ class CloudflareClient {
       return { error: error.message };
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Mutation wrappers (remediation)
+  //
+  // The assessment surface of this client is read-only. The methods below are
+  // the ONLY sanctioned write paths and are used exclusively by the remediation
+  // recipe registry. Every write is logged via logger.mutation for auditability.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Read a single zone setting value.
+   * @returns {Promise<{value: *, raw: object}>}
+   */
+  async getZoneSetting(zoneId, setting) {
+    const data = await this.rawRequest(`/zones/${zoneId}/settings/${setting}`);
+    return { value: data?.result?.value ?? null, raw: data?.result ?? null };
+  }
+
+  /**
+   * Patch a single zone setting (e.g. ssl, min_tls_version, always_use_https).
+   * @returns {Promise<object>} the Cloudflare result object
+   */
+  async patchZoneSetting(zoneId, setting, value) {
+    logger.mutation(`PATCH /zones/${zoneId}/settings/${setting}`, { value });
+    const data = await this.rawRequest(`/zones/${zoneId}/settings/${setting}`, {
+      method: 'PATCH',
+      body: { value }
+    });
+    return data?.result ?? null;
+  }
+
+  /**
+   * Read DNSSEC status for a zone.
+   * @returns {Promise<{value: string|null, raw: object}>}
+   */
+  async getDnssec(zoneId) {
+    const data = await this.rawRequest(`/zones/${zoneId}/dnssec`);
+    return { value: data?.result?.status ?? null, raw: data?.result ?? null };
+  }
+
+  /**
+   * Update DNSSEC status for a zone ('active' | 'disabled').
+   * @returns {Promise<object>} the Cloudflare result object
+   */
+  async setDnssec(zoneId, status) {
+    logger.mutation(`PATCH /zones/${zoneId}/dnssec`, { status });
+    const data = await this.rawRequest(`/zones/${zoneId}/dnssec`, {
+      method: 'PATCH',
+      body: { status }
+    });
+    return data?.result ?? null;
+  }
 }
 
 module.exports = CloudflareClient;

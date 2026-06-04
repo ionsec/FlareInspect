@@ -23,6 +23,11 @@ reports/
 logs/
 *.log
 
+# Remediation backup bundles (contain Cloudflare config snapshots)
+remediation-backups/
+web/data/remediation/
+*.backup.json
+
 # OS files
 .DS_Store
 Thumbs.db

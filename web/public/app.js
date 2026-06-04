@@ -17,6 +17,7 @@ const TOPBAR_TITLES = {
   report:     'Full report',
   history:    'History',
   api:        'API health',
+  remediate:  'Remediate',
 };
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ function navigateTo(section) {
   if (section === 'findings')   renderFindings();
   if (section === 'report')     refreshReport();
   if (section === 'compliance') renderComplianceCards();
+  if (section === 'remediate')  initRemediate();
 
   $('sidebar')?.classList.remove('open');
   $('sidebar-overlay')?.classList.remove('open');
@@ -756,6 +758,229 @@ async function loadHealth() {
     `).join('');
   } catch {
     info.innerHTML = '<div class="v1-empty" style="color:var(--crit)">Failed to load health info.</div>';
+  }
+}
+
+// ── Remediate ────────────────────────────────────────────────────────────────
+let remediateAllowApply = false;
+let remediatePlan = null;
+let remediateBound = false;
+
+const RISK_BADGE = {
+  low:    'background:rgba(34,197,94,.12);color:#22c55e',
+  medium: 'background:rgba(234,179,8,.12);color:#eab308',
+  high:   'background:rgba(239,68,68,.12);color:#ef4444',
+};
+
+function fmtVal(v) {
+  if (v === null || v === undefined) return '∅';
+  if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return String(v); } }
+  return String(v);
+}
+
+function initRemediate() {
+  bindRemediate();
+  refreshRemediateGate();
+  loadRemediateBackups();
+}
+
+function bindRemediate() {
+  if (remediateBound) return;
+  remediateBound = true;
+  $('remediate-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    buildRemediatePlan();
+  });
+  $('remediate-apply-btn')?.addEventListener('click', applyRemediation);
+  $('remediate-refresh-backups')?.addEventListener('click', loadRemediateBackups);
+}
+
+async function refreshRemediateGate() {
+  const badge = $('remediate-gate-badge');
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    remediateAllowApply = data.remediation === 'enabled';
+  } catch { remediateAllowApply = false; }
+  if (badge) {
+    badge.textContent = remediateAllowApply ? 'Apply enabled' : 'Apply disabled';
+    badge.style.cssText = remediateAllowApply
+      ? 'background:rgba(34,197,94,.12);color:#22c55e'
+      : 'background:rgba(234,179,8,.12);color:#eab308';
+  }
+  syncApplyButton();
+}
+
+function syncApplyButton() {
+  const btn = $('remediate-apply-btn');
+  if (!btn) return;
+  const hasItems = remediatePlan && remediatePlan.items && remediatePlan.items.length > 0;
+  btn.disabled = !(remediateAllowApply && hasItems);
+  btn.title = remediateAllowApply ? '' : 'Set FLAREINSPECT_ALLOW_REMEDIATION=true on the server to enable apply.';
+}
+
+function remediateToken() {
+  return ($('remediate-token')?.value || '').trim();
+}
+
+function remediateAiConfig() {
+  const provider = $('remediate-ai-provider')?.value || 'none';
+  const model = ($('remediate-ai-model')?.value || '').trim();
+  const ai = { provider };
+  if (model) ai.model = model;
+  return ai;
+}
+
+async function buildRemediatePlan() {
+  const token = remediateToken();
+  if (token.length < 10) { showToast('Enter a valid Cloudflare API token.', 'error'); return; }
+  const body = { token, zones: $('remediate-zones')?.value || '', ai: remediateAiConfig() };
+  if (currentAssessment?.assessmentId) body.assessmentId = currentAssessment.assessmentId;
+
+  const btn = $('remediate-plan-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building plan…'; }
+  try {
+    const res = await fetch('/api/remediate/plan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to build plan.');
+    remediatePlan = data.plan;
+    remediateAllowApply = data.allowApply;
+    renderRemediatePlan();
+    showToast('Plan ready (dry-run — nothing changed).', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Build plan (dry-run)'; }
+  }
+}
+
+function renderRemediatePlan() {
+  const card = $('remediate-plan-card');
+  const body = $('remediate-plan-body');
+  const aiNote = $('remediate-ai-note');
+  if (card) card.style.display = 'flex';
+
+  const items = remediatePlan?.items || [];
+  if (aiNote) {
+    aiNote.textContent = remediatePlan?.ai?.used
+      ? `AI planner: ${remediatePlan.ai.provider}${remediatePlan.ai.notes ? ' · ' + remediatePlan.ai.notes : ''}`
+      : 'AI planner: disabled (rules-only ordering)';
+  }
+
+  if (!items.length) {
+    body.innerHTML = '<div class="v1-empty">No automatically remediable findings.</div>';
+  } else {
+    body.innerHTML = items.map((it, i) => `
+      <label class="v1-finding" style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;cursor:pointer">
+        <input type="checkbox" class="remediate-check" data-check="${escHtml(it.checkId)}" data-i="${i}" checked />
+        <div>
+          <div style="font-weight:600">${escHtml(it.checkId)} · ${escHtml(it.title || '')}</div>
+          <div style="font-size:12px;color:var(--fg-3)">${escHtml(it.resourceName || it.resourceId || '')} · ${escHtml(it.setting)}: <code>${escHtml(fmtVal(it.valueBefore))}</code> → <code>${escHtml(fmtVal(it.valueProposed))}</code></div>
+          ${it.aiRationale ? `<div style="font-size:12px;color:var(--fg-4);margin-top:2px">${escHtml(it.aiRationale)}${it.aiRiskNote ? ' — ' + escHtml(it.aiRiskNote) : ''}</div>` : ''}
+        </div>
+        <span class="v1-badge" style="${RISK_BADGE[it.risk] || ''}">${escHtml((it.risk || '').toUpperCase())}</span>
+      </label>
+    `).join('');
+  }
+
+  // Manual findings
+  const manualCard = $('remediate-manual-card');
+  const manualBody = $('remediate-manual-body');
+  const manual = remediatePlan?.manualItems || [];
+  if (manual.length) {
+    if (manualCard) manualCard.style.display = 'flex';
+    manualBody.innerHTML = manual.map(m => `
+      <div class="v1-finding" style="grid-template-columns:1fr">
+        <div><strong>[${escHtml((m.severity || '').toUpperCase())}]</strong> ${escHtml(m.checkId)} ${escHtml(m.checkTitle || '')}</div>
+        ${m.remediation ? `<div style="font-size:12px;color:var(--fg-3)">${escHtml(m.remediation)}</div>` : ''}
+      </div>
+    `).join('');
+  } else if (manualCard) {
+    manualCard.style.display = 'none';
+  }
+
+  syncApplyButton();
+}
+
+async function applyRemediation() {
+  if (!remediateAllowApply) { showToast('Apply is disabled on this server.', 'error'); return; }
+  const token = remediateToken();
+  if (token.length < 10) { showToast('Enter a valid Cloudflare API token.', 'error'); return; }
+
+  const checked = Array.from(document.querySelectorAll('.remediate-check:checked'))
+    .map(el => el.dataset.check);
+  const checkIds = Array.from(new Set(checked));
+  if (!checkIds.length) { showToast('Select at least one change.', 'error'); return; }
+
+  const force = $('remediate-force')?.checked || false;
+  if (!confirm(`Apply ${checkIds.length} change type(s) to live Cloudflare config? A backup is written first.`)) return;
+
+  const body = { token, checkIds, force, ai: remediateAiConfig() };
+  if (currentAssessment?.assessmentId) body.assessmentId = currentAssessment.assessmentId;
+
+  const btn = $('remediate-apply-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+  try {
+    const res = await fetch('/api/remediate/apply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Apply failed.');
+    const applied = data.applied || [];
+    const failed = applied.filter(r => r.error).length;
+    showToast(failed ? `Applied with ${failed} failure(s). Backup: ${data.bundleFile}` : `Applied ${applied.length} change(s). Backup: ${data.bundleFile}`, failed ? 'error' : 'success');
+    loadRemediateBackups();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) { btn.textContent = 'Apply selected'; }
+    syncApplyButton();
+  }
+}
+
+async function loadRemediateBackups() {
+  const body = $('remediate-backups-body');
+  if (!body) return;
+  try {
+    const res = await fetch('/api/remediate/backups');
+    const data = await res.json();
+    const backups = (data.backups || []).filter(b => b.phase === 'complete');
+    if (!backups.length) { body.innerHTML = '<div class="v1-empty">No backups yet.</div>'; return; }
+    body.innerHTML = backups.map(b => `
+      <div class="v1-finding" style="grid-template-columns:1fr auto;align-items:center">
+        <div>
+          <div style="font-weight:600">${escHtml(b.accountName || b.assessmentId || b.file)}</div>
+          <div style="font-size:12px;color:var(--fg-3)">${escHtml(new Date(b.createdAt).toLocaleString())} · ${b.appliedCount}/${b.entryCount} applied</div>
+        </div>
+        <button class="v1-btn v1-btn-sm" type="button" data-rollback="${escHtml(b.file)}">Rollback</button>
+      </div>
+    `).join('');
+    body.querySelectorAll('[data-rollback]').forEach(btn => {
+      btn.addEventListener('click', () => rollbackRemediation(btn.dataset.rollback));
+    });
+  } catch {
+    body.innerHTML = '<div class="v1-empty" style="color:var(--crit)">Failed to load backups.</div>';
+  }
+}
+
+async function rollbackRemediation(bundleFile) {
+  if (!remediateAllowApply) { showToast('Rollback is disabled on this server.', 'error'); return; }
+  const token = remediateToken();
+  if (token.length < 10) { showToast('Enter your Cloudflare API token above first.', 'error'); return; }
+  if (!confirm(`Roll back all applied changes in ${bundleFile}?`)) return;
+  try {
+    const res = await fetch('/api/remediate/rollback', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, bundleFile })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Rollback failed.');
+    const failed = (data.results || []).filter(r => r.error).length;
+    showToast(failed ? `Rollback completed with ${failed} failure(s).` : 'Rollback completed.', failed ? 'error' : 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }
 
