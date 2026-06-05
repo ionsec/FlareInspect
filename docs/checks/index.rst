@@ -29,6 +29,11 @@ Cloudflare account and zones.
    custom-hostnames
    ai-gateway
    origin-certs
+   credentials
+   notifications
+   ddos
+   email
+   enterprise-sase
 
 Categories
 ----------

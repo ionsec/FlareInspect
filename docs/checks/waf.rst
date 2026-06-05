@@ -2,70 +2,56 @@
 WAF Security Checks
 ===================
 
-Checks that evaluate Web Application Firewall configuration including security level, custom rules, rate limiting, and OWASP rule sets.
+Checks that evaluate Web Application Firewall configuration including
+security level, custom rules, rate limiting, and managed rulesets
+(Cloudflare Managed and OWASP Core).
 
 Check Summary
 -------------
 
-===========  =====================  ========  ==========================================
-Check ID     Title                  Severity  Compliance                                
-===========  =====================  ========  ==========================================
-CFL-WAF-001  WAF Security Level     high      CIS 4.1, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-CFL-WAF-002  Custom Firewall Rules  high      CIS 4.2, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-CFL-WAF-003  Rate Limiting          high      CIS 4.3, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-CFL-WAF-004  Bot Management         medium    CIS 4.4, SOC2 CC6.1, NIST PR.IP-1         
-CFL-WAF-005  OWASP Rule Set         high      CIS 4.5, SOC2 CC6.1, PCI 6.5, NIST PR.IP-1
-===========  =====================  ========  ==========================================
+==============  ======================================  ========  ============
+Check ID        Title                                   Severity  Compliance
+==============  ======================================  ========  ============
+CFL-WAF-001     Security Level                          low       CIS, SOC2, PCI, NIST
+CFL-WAF-006     Cloudflare Managed Ruleset Deployed    high      CIS, SOC2, PCI, NIST
+CFL-WAF-007     OWASP Core Ruleset Deployed            high      CIS, SOC2, PCI, NIST
+CFL-WAF-008     Managed Ruleset Override Posture       medium    CIS, SOC2
+CFL-WAF-009     Browser Integrity Check                low       SOC2
+==============  ======================================  ========  ============
 
-CFL-WAF-001: WAF Security Level
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+CFL-WAF-006: Cloudflare Managed Ruleset Deployed
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Severity:** high | **Category:** waf | **Compliance:** CIS 4.1
+The Cloudflare Managed Ruleset is curated by Cloudflare security
+engineers and updated continuously as new CVEs are disclosed.
 
-WAF should be set to an appropriate security level (medium or higher) to protect against common attacks.
+**Remediation:** Deploy the ruleset via FlareInspect's recipe
+(deploys in log mode by default — promote to block after reviewing
+false positives).
 
-**Remediation:** Set WAF security level to "Medium" or "High" in Security → WAF → Settings.
+CFL-WAF-007: OWASP Core Ruleset Deployed
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
----
+The OWASP ModSecurity Core Rule Set (CRS) is the industry baseline
+for WAF coverage against the OWASP Top 10.
 
-CFL-WAF-002: Custom Firewall Rules
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Remediation:** Same as CFL-WAF-006 — deploy in log mode first.
 
-**Severity:** high | **Category:** waf | **Compliance:** CIS 4.2
+CFL-WAF-008: Managed Ruleset Override Posture
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Custom firewall rules provide targeted protection for application-specific attack patterns.
+Ruleset overrides that downgrade the action to *log* (or skip rules)
+are useful for tuning but weaken the default posture if left
+indefinitely.
 
-**Remediation:** Create custom WAF rules to protect against application-specific threats.
+**Remediation:** Review any log-only overrides — promote to block
+once false-positive traffic has been ruled out.
 
----
+CFL-WAF-009: Browser Integrity Check
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-CFL-WAF-003: Rate Limiting
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Browser Integrity Check challenges requests that exhibit suspicious
+client headers (e.g. headless browsers, bot UAs).
 
-**Severity:** high | **Category:** waf | **Compliance:** CIS 4.3
-
-Rate limiting protects against brute force and DDoS attacks by throttling excessive requests.
-
-**Remediation:** Configure rate limiting rules to prevent abuse and DDoS attacks.
-
----
-
-CFL-WAF-004: Bot Management
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Severity:** medium | **Category:** waf | **Compliance:** CIS 4.4
-
-Bot management detects and mitigates automated traffic including credential stuffing and content scraping.
-
-**Remediation:** Enable Bot Fight Mode or Bot Management for automated traffic protection.
-
----
-
-CFL-WAF-005: OWASP Rule Set
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Severity:** high | **Category:** waf | **Compliance:** CIS 4.5
-
-The OWASP ModSecurity Core Rule Set (CRS) provides broad protection against the OWASP Top 10 vulnerabilities.
-
-**Remediation:** Enable the OWASP ModSecurity Core Rule Set in Security → WAF → Managed Rules.
+**Remediation:** Use FlareInspect's recipe, or toggle the setting in
+*Security → Settings → Browser Integrity Check*.
