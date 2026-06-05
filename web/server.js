@@ -24,7 +24,14 @@ const { shipFindings: shipSplunk } = require('../src/core/integrations/siem/splu
 const EcsExporter = require('../src/exporters/ecs');
 const SplunkHecExporter = require('../src/exporters/splunkHec');
 const logger = require('../src/core/utils/logger');
+const runtimeSettings = require('../src/core/config/runtimeSettings');
 const pkg = require('../package.json');
+
+// Swagger UI assets are bundled (offline-capable). Loaded lazily/softly so the
+// server still boots if the optional dependency is absent.
+let swaggerUiAssetPath = null;
+try { swaggerUiAssetPath = require('swagger-ui-dist').getAbsoluteFSPath(); } catch (_) { swaggerUiAssetPath = null; }
+const openapiPath = path.join(__dirname, 'openapi.json');
 const ASSESSMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_NOTE_LENGTH = 2000;
 const MAX_ZONE_FILTERS = 100;
@@ -284,7 +291,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       imgSrc: ["'self'", 'data:'],
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       connectSrc: ["'self'"],
       frameSrc: ["'self'"],
       baseUri: ["'self'"],
@@ -428,15 +436,22 @@ app.post('/api/notify', async (req, res) => {
     }
     if (!assessment) return sendError(res, 400, 'Provide an assessment, assessmentId, or run /api/assess first.', req);
 
-    const envTargets = notificationService.targetsFromEnv();
+    // Channel URLs/secret resolve from the runtime settings overlay first, then env.
+    const cfgTargets = {
+      slack:   runtimeSettings.resolve('slackWebhook'),
+      teams:   runtimeSettings.resolve('teamsWebhook'),
+      webhook: runtimeSettings.resolve('webhookUrl'),
+      secret:  runtimeSettings.resolve('webhookSecret'),
+      threshold: runtimeSettings.resolve('notifyThreshold')
+    };
     const target = String(body.target || 'all').toLowerCase();
     const want = (k) => target === 'all' || target === k;
     const targets = {
-      slack:   want('slack')   ? envTargets.slack   : null,
-      teams:   want('teams')   ? envTargets.teams   : null,
-      webhook: want('webhook') ? envTargets.webhook : null,
-      secret:  envTargets.secret,
-      threshold: body.threshold || envTargets.threshold,
+      slack:   want('slack')   ? cfgTargets.slack   : null,
+      teams:   want('teams')   ? cfgTargets.teams   : null,
+      webhook: want('webhook') ? cfgTargets.webhook : null,
+      secret:  cfgTargets.secret,
+      threshold: body.threshold || cfgTargets.threshold,
       dryRun: !!body.dryRun
     };
 
@@ -489,10 +504,10 @@ app.post('/api/integrations/ship', async (req, res) => {
     const result = { ok: true, target, elastic: null, splunk: null };
 
     if (want('elastic')) {
-      const esUrl    = body.esUrl    || process.env.FLAREINSPECT_ES_URL    || null;
-      const apiKey   = body.esApiKey || process.env.FLAREINSPECT_ES_APIKEY || null;
-      const username = body.esUsername || process.env.FLAREINSPECT_ES_USERNAME || null;
-      const password = body.esPassword || process.env.FLAREINSPECT_ES_PASSWORD || null;
+      const esUrl    = body.esUrl    || runtimeSettings.resolve('esUrl');
+      const apiKey   = body.esApiKey || runtimeSettings.resolve('esApiKey');
+      const username = body.esUsername || runtimeSettings.resolve('esUsername');
+      const password = body.esPassword || runtimeSettings.resolve('esPassword');
       if (!esUrl) return sendError(res, 400, 'Missing esUrl (or FLAREINSPECT_ES_URL env).', req);
       if (!apiKey && !(username && password)) {
         return sendError(res, 400, 'Missing credentials: provide esApiKey OR (esUsername + esPassword).', req);
@@ -506,8 +521,8 @@ app.post('/api/integrations/ship', async (req, res) => {
     }
 
     if (want('splunk')) {
-      const hecUrl   = body.hecUrl   || process.env.FLAREINSPECT_SPLUNK_HEC_URL   || null;
-      const hecToken = body.hecToken || process.env.FLAREINSPECT_SPLUNK_HEC_TOKEN || null;
+      const hecUrl   = body.hecUrl   || runtimeSettings.resolve('hecUrl');
+      const hecToken = body.hecToken || runtimeSettings.resolve('hecToken');
       if (!hecUrl)   return sendError(res, 400, 'Missing hecUrl (or FLAREINSPECT_SPLUNK_HEC_URL env).', req);
       if (!hecToken) return sendError(res, 400, 'Missing hecToken (or FLAREINSPECT_SPLUNK_HEC_TOKEN env).', req);
       result.splunk = await shipSplunk({ hecUrl, hecToken, assessment, dryRun: !!body.dryRun });
@@ -527,6 +542,84 @@ app.post('/api/integrations/ship', async (req, res) => {
 // GET /api/integrations/template/elastic — returns the recommended ES index template
 app.get('/api/integrations/template/elastic', (req, res) => {
   res.json(buildEsTemplate());
+});
+
+// ---------------------------------------------------------------------------
+// Runtime settings — an overlay on top of .env so notifications, the AI planner,
+// and SIEM credentials can be configured from the dashboard without a restart.
+// Secrets are write-only: GET never returns a raw secret (masked view only).
+// The remediation kill-switch / edit-scope stay env-only by design.
+// ---------------------------------------------------------------------------
+app.get('/api/settings', (req, res) => {
+  try {
+    return res.json({ settings: runtimeSettings.maskedView(), remediation: ALLOW_REMEDIATION ? 'enabled' : 'disabled' });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'settings-get');
+  }
+});
+
+app.put('/api/settings', (req, res) => {
+  try {
+    runtimeSettings.saveSettings(req.body || {});
+    return res.json({ ok: true, settings: runtimeSettings.maskedView() });
+  } catch (error) {
+    if (/^(Settings payload must be|Invalid value for)/.test(error.message || '')) {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'settings-put');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// API documentation — bundled Swagger UI (offline) + the raw OpenAPI 3 spec.
+// Served outside the /api prefix so the docs render even when an API key is set.
+// ---------------------------------------------------------------------------
+app.get('/api-docs/openapi.json', (req, res) => {
+  res.sendFile(openapiPath, err => {
+    if (err && !res.headersSent) res.status(404).json({ error: 'OpenAPI spec not found.' });
+  });
+});
+
+if (swaggerUiAssetPath) {
+  app.use('/api-docs/assets', express.static(swaggerUiAssetPath));
+}
+
+app.get('/api-docs', (req, res) => {
+  if (!swaggerUiAssetPath) {
+    return res
+      .type('html')
+      .send('<!doctype html><meta charset="utf-8"><title>FlareInspect API</title>'
+        + '<body style="font-family:sans-serif;max-width:640px;margin:60px auto;padding:0 20px">'
+        + '<h1>API documentation</h1>'
+        + '<p>The bundled Swagger UI is not installed. Run <code>npm install</code> to add '
+        + '<code>swagger-ui-dist</code>, or view the raw spec:</p>'
+        + '<p><a href="/api-docs/openapi.json">/api-docs/openapi.json</a></p></body>');
+  }
+  res.type('html').send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlareInspect API — Swagger UI</title>
+  <link rel="icon" type="image/svg+xml" href="/flare-inspect-glyph.svg" />
+  <link rel="stylesheet" href="/api-docs/assets/swagger-ui.css" />
+  <style>body{margin:0;background:#0e0e14}.topbar{display:none}</style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="/api-docs/assets/swagger-ui-bundle.js"></script>
+  <script src="/api-docs/assets/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: '/api-docs/openapi.json',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      layout: 'BaseLayout'
+    });
+  </script>
+</body>
+</html>`);
 });
 
 // Compliance endpoint
@@ -606,9 +699,19 @@ async function resolveAssessment(body = {}) {
 }
 
 function plannerFromBody(body = {}) {
-  // Provider/model may be supplied per-request; key always comes from env vars.
+  // Provider/model may be supplied per-request; otherwise fall back to the
+  // runtime settings overlay (then env). API keys/base URL come from the
+  // settings overlay or env — never from the request body.
   const ai = body.ai || {};
-  return createPlanner({ provider: ai.provider, model: ai.model });
+  const provider = (ai.provider || runtimeSettings.resolve('aiProvider') || 'none').toLowerCase();
+  const model = ai.model || runtimeSettings.resolve('aiModel') || undefined;
+  const apiKey = provider === 'anthropic'
+    ? runtimeSettings.resolve('anthropicApiKey')
+    : (provider === 'openai' ? runtimeSettings.resolve('openaiApiKey') : undefined);
+  const baseUrl = (provider === 'ollama' || provider === 'local')
+    ? runtimeSettings.resolve('ollamaHost') || undefined
+    : undefined;
+  return createPlanner({ provider, model, apiKey: apiKey || undefined, baseUrl });
 }
 
 // Dry-run plan — read-only, no remediation gate required (still needs API key).

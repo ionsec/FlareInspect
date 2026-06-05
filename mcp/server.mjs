@@ -175,7 +175,7 @@ async function startServer() {
   const { z } = await import('zod');
 
   const server = new McpServer(
-    { name: 'flareinspect', version: '1.3.0' },
+    { name: 'flareinspect', version: '2.0.0' },
     {
       capabilities: { tools: {} },
       instructions: 'FlareInspect: read-only by default. apply_remediation/rollback require FLAREINSPECT_ALLOW_REMEDIATION + an edit-scope token.'

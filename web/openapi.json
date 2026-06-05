@@ -1,0 +1,370 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FlareInspect API",
+    "version": "2.0.0",
+    "description": "REST API for the FlareInspect web dashboard — Cloudflare security posture assessment, attack-path analysis, compliance mapping, AI-assisted remediation, SIEM streaming, and notifications.\n\n**Authentication:** if the server is started with `FLAREINSPECT_API_KEY` set, every `/api/*` route requires an `X-API-Key` header. When the variable is unset, the API is open (intended for localhost use). Use the **Authorize** button to set your key for *Try it out*.\n\n**Rate limiting:** `/api/*` is limited to 60 requests per minute per IP.\n\n**Remediation gate:** `POST /api/remediate/apply` and `POST /api/remediate/rollback` return `403` unless the server was started with `FLAREINSPECT_ALLOW_REMEDIATION=true`.",
+    "license": { "name": "MIT" },
+    "contact": { "name": "IONSEC.IO", "url": "https://github.com/ionsec/flareinspect" }
+  },
+  "servers": [{ "url": "/", "description": "This server" }],
+  "tags": [
+    { "name": "Assessments", "description": "Run and retrieve security assessments" },
+    { "name": "Posture", "description": "Resource graph and attack paths" },
+    { "name": "Compliance", "description": "Framework control mapping" },
+    { "name": "Diff", "description": "Compare two assessments" },
+    { "name": "Remediation", "description": "AI-assisted, reversible fixes (apply/rollback are gated)" },
+    { "name": "Integrations", "description": "SIEM streaming and notifications" },
+    { "name": "Settings", "description": "Runtime configuration overlay (notifications, AI, SIEM)" },
+    { "name": "Exports", "description": "Download assessment results" },
+    { "name": "System", "description": "Health and documentation" }
+  ],
+  "security": [{ "ApiKeyAuth": [] }],
+  "paths": {
+    "/api/assess": {
+      "post": {
+        "tags": ["Assessments"],
+        "summary": "Run a new assessment",
+        "description": "Runs a full assessment against the supplied Cloudflare API token. Long-running.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AssessRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Assessment completed", "content": { "application/json": { "schema": { "type": "object", "properties": { "assessment": { "$ref": "#/components/schemas/Assessment" } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/assessment": {
+      "get": {
+        "tags": ["Assessments"],
+        "summary": "Get the latest assessment",
+        "responses": {
+          "200": { "description": "Latest assessment", "content": { "application/json": { "schema": { "type": "object", "properties": { "assessment": { "$ref": "#/components/schemas/Assessment" } } } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/assessments": {
+      "get": {
+        "tags": ["Assessments"],
+        "summary": "List saved assessments",
+        "responses": {
+          "200": { "description": "Assessment summaries", "content": { "application/json": { "schema": { "type": "object", "properties": { "assessments": { "type": "array", "items": { "$ref": "#/components/schemas/AssessmentSummary" } } } } } } }
+        }
+      }
+    },
+    "/api/assessments/{id}": {
+      "get": {
+        "tags": ["Assessments"],
+        "summary": "Get a saved assessment by id",
+        "parameters": [{ "$ref": "#/components/parameters/AssessmentId" }],
+        "responses": {
+          "200": { "description": "Assessment", "content": { "application/json": { "schema": { "type": "object", "properties": { "assessment": { "$ref": "#/components/schemas/Assessment" } } } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/posture/graph": {
+      "get": {
+        "tags": ["Posture"],
+        "summary": "Resource graph + attack paths",
+        "parameters": [{ "name": "assessmentId", "in": "query", "required": false, "schema": { "type": "string", "format": "uuid" }, "description": "Defaults to the latest assessment." }],
+        "responses": {
+          "200": { "description": "Graph and attack paths", "content": { "application/json": { "schema": { "type": "object", "properties": { "meta": { "type": "object" }, "graph": { "type": "object", "properties": { "nodes": { "type": "array", "items": { "type": "object" } }, "edges": { "type": "array", "items": { "type": "object" } } } }, "paths": { "type": "array", "items": { "type": "object" } } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/compliance/{framework}": {
+      "get": {
+        "tags": ["Compliance"],
+        "summary": "Map findings to a compliance framework",
+        "parameters": [{ "name": "framework", "in": "path", "required": true, "schema": { "type": "string", "enum": ["cis", "cis-benchmark", "soc2", "soc-2", "pci", "pci-dss", "nist", "nist-csf"] } }],
+        "responses": {
+          "200": { "description": "Compliance mapping", "content": { "application/json": { "schema": { "type": "object", "properties": { "compliance": { "type": "object", "properties": { "overallScore": { "type": "number" }, "passedControls": { "type": "integer" }, "totalControls": { "type": "integer" } } } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/diff": {
+      "post": {
+        "tags": ["Diff"],
+        "summary": "Compare two assessments",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["baselineId", "currentId"], "properties": { "baselineId": { "type": "string", "format": "uuid" }, "currentId": { "type": "string", "format": "uuid" } } } } } },
+        "responses": {
+          "200": { "description": "Diff result", "content": { "application/json": { "schema": { "type": "object", "properties": { "diff": { "type": "object" } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/notify": {
+      "post": {
+        "tags": ["Integrations"],
+        "summary": "Send an assessment summary to notification channels",
+        "description": "Channel webhook URLs and secret resolve from the runtime settings overlay, then env (`FLAREINSPECT_SLACK_WEBHOOK`, `FLAREINSPECT_TEAMS_WEBHOOK`, `FLAREINSPECT_WEBHOOK_URL`, `FLAREINSPECT_WEBHOOK_SECRET`). Secrets are never accepted in the request body.",
+        "requestBody": { "required": false, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotifyRequest" } } } },
+        "responses": {
+          "200": { "description": "Dispatch result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotifyResult" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/integrations/ship": {
+      "post": {
+        "tags": ["Integrations"],
+        "summary": "Ship findings to a SIEM (Elasticsearch / Splunk / file)",
+        "description": "Credentials resolve from the request body, then the runtime settings overlay, then env.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ShipRequest" } } } },
+        "responses": {
+          "200": { "description": "Ship result", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/integrations/template/elastic": {
+      "get": {
+        "tags": ["Integrations"],
+        "summary": "Recommended Elasticsearch index template",
+        "responses": { "200": { "description": "ECS index template", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Read the runtime settings overlay (masked)",
+        "description": "Secrets are never returned in the clear — only `configured`, `source`, and a short `hint`.",
+        "responses": { "200": { "description": "Masked settings view", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SettingsView" } } } } }
+      },
+      "put": {
+        "tags": ["Settings"],
+        "summary": "Update the runtime settings overlay",
+        "description": "Partial patch. An empty string clears a key (falls back to env). Unknown keys are ignored. The remediation kill-switch and edit-scope are NOT settable here (env-only).",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SettingsPatch" } } } },
+        "responses": {
+          "200": { "description": "Saved", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" }, "settings": { "$ref": "#/components/schemas/SettingsView" } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/remediate/plan": {
+      "post": {
+        "tags": ["Remediation"],
+        "summary": "Build a remediation plan (dry-run, read-only)",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RemediatePlanRequest" } } } },
+        "responses": {
+          "200": { "description": "Plan", "content": { "application/json": { "schema": { "type": "object", "properties": { "plan": { "type": "object" }, "allowApply": { "type": "boolean" } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/remediate/apply": {
+      "post": {
+        "tags": ["Remediation"],
+        "summary": "Apply approved remediation items (gated)",
+        "description": "Returns 403 unless `FLAREINSPECT_ALLOW_REMEDIATION=true`. Writes to live Cloudflare config; a backup bundle is written first.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RemediateApplyRequest" } } } },
+        "responses": {
+          "200": { "description": "Apply result", "content": { "application/json": { "schema": { "type": "object", "properties": { "applied": { "type": "array", "items": { "type": "object" } }, "bundleFile": { "type": "string", "nullable": true } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/RemediationDisabled" }
+        }
+      }
+    },
+    "/api/remediate/backups": {
+      "get": {
+        "tags": ["Remediation"],
+        "summary": "List rollback backup bundles",
+        "responses": { "200": { "description": "Backups", "content": { "application/json": { "schema": { "type": "object", "properties": { "backups": { "type": "array", "items": { "type": "object" } } } } } } } }
+      }
+    },
+    "/api/remediate/rollback": {
+      "post": {
+        "tags": ["Remediation"],
+        "summary": "Roll back a backup bundle (gated)",
+        "description": "Returns 403 unless `FLAREINSPECT_ALLOW_REMEDIATION=true`.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["token", "bundleFile"], "properties": { "token": { "type": "string" }, "bundleFile": { "type": "string", "description": "A *.backup.json filename from /api/remediate/backups" } } } } } },
+        "responses": {
+          "200": { "description": "Rollback result", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/RemediationDisabled" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/download/json": { "get": { "tags": ["Exports"], "summary": "Download the latest assessment as JSON", "responses": { "200": { "description": "JSON file", "content": { "application/json": {} } }, "404": { "$ref": "#/components/responses/NotFound" } } } },
+    "/api/download/html": { "get": { "tags": ["Exports"], "summary": "Download the styled HTML report", "responses": { "200": { "description": "HTML file", "content": { "text/html": {} } }, "404": { "$ref": "#/components/responses/NotFound" } } } },
+    "/api/download/sarif": { "get": { "tags": ["Exports"], "summary": "Download SARIF (CI/CD)", "responses": { "200": { "description": "SARIF file", "content": { "application/json": {} } }, "404": { "$ref": "#/components/responses/NotFound" } } } },
+    "/api/download/markdown": { "get": { "tags": ["Exports"], "summary": "Download a Markdown report", "responses": { "200": { "description": "Markdown file", "content": { "text/markdown": {} } }, "404": { "$ref": "#/components/responses/NotFound" } } } },
+    "/api/download/csv": { "get": { "tags": ["Exports"], "summary": "Download findings as CSV", "responses": { "200": { "description": "CSV file", "content": { "text/csv": {} } }, "404": { "$ref": "#/components/responses/NotFound" } } } },
+    "/api/download/asff": { "get": { "tags": ["Exports"], "summary": "Download ASFF (AWS Security Hub)", "responses": { "200": { "description": "ASFF file", "content": { "application/json": {} } }, "404": { "$ref": "#/components/responses/NotFound" } } } },
+    "/report": { "get": { "tags": ["Exports"], "summary": "View the embedded HTML report", "security": [], "responses": { "200": { "description": "HTML report", "content": { "text/html": {} } }, "404": { "description": "No assessment available" } } } },
+    "/api/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health and configuration status",
+        "responses": { "200": { "description": "Health", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } } }
+      }
+    },
+    "/api-docs": { "get": { "tags": ["System"], "summary": "Swagger UI (this page)", "security": [], "responses": { "200": { "description": "HTML", "content": { "text/html": {} } } } } },
+    "/api-docs/openapi.json": { "get": { "tags": ["System"], "summary": "This OpenAPI spec", "security": [], "responses": { "200": { "description": "OpenAPI document", "content": { "application/json": {} } } } } }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": { "type": "apiKey", "in": "header", "name": "X-API-Key", "description": "Required only when the server was started with FLAREINSPECT_API_KEY set." }
+    },
+    "parameters": {
+      "AssessmentId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "Assessment UUID" }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Missing or invalid X-API-Key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "ServerError": { "description": "Unexpected error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "RemediationDisabled": { "description": "Remediation is disabled (set FLAREINSPECT_ALLOW_REMEDIATION=true)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Error": { "type": "object", "properties": { "error": { "type": "string" }, "requestId": { "type": "string" } } },
+      "AssessRequest": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": { "type": "string", "minLength": 10, "maxLength": 512, "description": "Cloudflare API token (Zone:Read, DNS:Read, SSL:Read, Firewall:Read)" },
+          "zones": { "type": "string", "description": "Comma-separated zone names (max 100). Blank = all accessible zones." },
+          "note": { "type": "string", "maxLength": 2000 },
+          "concurrency": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "compliance": { "type": "string", "enum": ["cis", "cis-benchmark", "soc2", "soc-2", "pci", "pci-dss", "nist", "nist-csf"] }
+        }
+      },
+      "NotifyRequest": {
+        "type": "object",
+        "properties": {
+          "assessmentId": { "type": "string", "format": "uuid" },
+          "target": { "type": "string", "enum": ["all", "slack", "teams", "webhook"], "default": "all" },
+          "threshold": { "type": "string", "enum": ["critical", "high", "medium", "low", "informational"] },
+          "link": { "type": "string" },
+          "dryRun": { "type": "boolean", "description": "Return the payloads without sending." }
+        }
+      },
+      "NotifyResult": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "sent": { "type": "array", "items": { "type": "object" } },
+          "skipped": { "type": "array", "items": { "type": "object" }, "description": "Includes {reason:'no-targets'} when no channels are configured." },
+          "errors": { "type": "array", "items": { "type": "object" } },
+          "payloads": { "type": "object", "description": "Present only when dryRun=true." }
+        }
+      },
+      "ShipRequest": {
+        "type": "object",
+        "required": ["target"],
+        "properties": {
+          "assessmentId": { "type": "string", "format": "uuid" },
+          "target": { "type": "string", "enum": ["all", "elastic", "splunk", "file"] },
+          "esUrl": { "type": "string" }, "esApiKey": { "type": "string" }, "esUsername": { "type": "string" }, "esPassword": { "type": "string" },
+          "hecUrl": { "type": "string" }, "hecToken": { "type": "string" },
+          "indexName": { "type": "string" }, "outDir": { "type": "string" }, "dryRun": { "type": "boolean" }, "includeTemplate": { "type": "boolean" }
+        }
+      },
+      "RemediatePlanRequest": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": { "type": "string", "minLength": 10, "maxLength": 512 },
+          "assessmentId": { "type": "string", "format": "uuid" },
+          "checks": { "type": "string", "description": "Comma-separated checkIds (max 200)." },
+          "zones": { "type": "string" },
+          "excludeZones": { "type": "string" },
+          "ai": { "type": "object", "properties": { "provider": { "type": "string", "enum": ["none", "anthropic", "openai", "ollama"] }, "model": { "type": "string" } } }
+        }
+      },
+      "RemediateApplyRequest": {
+        "allOf": [
+          { "$ref": "#/components/schemas/RemediatePlanRequest" },
+          { "type": "object", "properties": { "checkIds": { "type": "array", "items": { "type": "string" } }, "force": { "type": "boolean", "description": "Include high-risk changes." } } }
+        ]
+      },
+      "SettingsPatch": {
+        "type": "object",
+        "description": "Any subset of these keys. Empty string clears a key (env fallback resumes).",
+        "properties": {
+          "slackWebhook": { "type": "string" }, "teamsWebhook": { "type": "string" }, "webhookUrl": { "type": "string" }, "webhookSecret": { "type": "string" },
+          "notifyThreshold": { "type": "string", "enum": ["", "critical", "high", "medium", "low", "informational"] },
+          "aiProvider": { "type": "string", "enum": ["", "none", "anthropic", "openai", "ollama"] }, "aiModel": { "type": "string" },
+          "anthropicApiKey": { "type": "string" }, "openaiApiKey": { "type": "string" }, "ollamaHost": { "type": "string" },
+          "esUrl": { "type": "string" }, "esApiKey": { "type": "string" }, "esUsername": { "type": "string" }, "esPassword": { "type": "string" },
+          "hecUrl": { "type": "string" }, "hecToken": { "type": "string" }
+        }
+      },
+      "SettingsView": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "env": { "type": "string", "description": "Equivalent environment variable." },
+                "secret": { "type": "boolean" },
+                "configured": { "type": "boolean" },
+                "source": { "type": "string", "enum": ["settings", "env", "none"] },
+                "value": { "type": "string", "nullable": true, "description": "Present for non-secret keys only." },
+                "hint": { "type": "string", "nullable": true, "description": "Masked tail for secret keys only." }
+              }
+            }
+          },
+          "remediation": { "type": "string", "enum": ["enabled", "disabled"] }
+        }
+      },
+      "AssessmentSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "status": { "type": "string" }, "startedAt": { "type": "string" }, "completedAt": { "type": "string" },
+          "accountName": { "type": "string" }, "score": { "type": "number" }, "grade": { "type": "string" }
+        }
+      },
+      "Assessment": {
+        "type": "object",
+        "properties": {
+          "assessmentId": { "type": "string", "format": "uuid" },
+          "account": { "type": "object" },
+          "zones": { "type": "array", "items": { "type": "object" } },
+          "findings": { "type": "array", "items": { "$ref": "#/components/schemas/Finding" } },
+          "summary": { "type": "object" },
+          "score": { "type": "object", "properties": { "overallScore": { "type": "number" }, "grade": { "type": "string" }, "breakdown": { "type": "object" } } },
+          "completedAt": { "type": "string" }
+        }
+      },
+      "Finding": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "checkId": { "type": "string" }, "checkTitle": { "type": "string" },
+          "service": { "type": "string" }, "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "informational"] },
+          "status": { "type": "string", "enum": ["PASS", "FAIL", "WARNING"] },
+          "description": { "type": "string" }, "remediation": { "type": "string" },
+          "compliance": { "type": "array", "items": { "type": "string" } },
+          "evidence": { "type": "object" }, "metadata": { "type": "object" }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" }, "uptime": { "type": "number" }, "version": { "type": "string" },
+          "lastAssessmentAt": { "type": "string", "nullable": true },
+          "storage": { "type": "object", "properties": { "ready": { "type": "boolean" }, "error": { "type": "string", "nullable": true } } },
+          "auth": { "type": "string", "enum": ["api-key", "none"] },
+          "remediation": { "type": "string", "enum": ["enabled", "disabled"] }
+        }
+      }
+    }
+  }
+}

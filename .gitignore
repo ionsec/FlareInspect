@@ -18,6 +18,11 @@ reports/
 !package-lock.json
 !templates/*.html
 !web/public/index.html
+!index.html
+!web/openapi.json
+
+# Runtime settings overlay — may contain webhook URLs / API keys (local only)
+web/data/settings.json
 
 # Logs
 logs/
