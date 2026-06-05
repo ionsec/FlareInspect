@@ -236,6 +236,148 @@ function wafManagedRulesetRecipe({ checkId, title, rulesetId, risk }) {
   };
 }
 
+/**
+ * security.txt (CFL-SEC-001): publish a security.txt with operator-supplied
+ * contact + expiry. Defaults to `mailto:security@example.com` and a 1-year
+ * expiry if no operator input is provided. The recipe honors
+ * `proposed({operatorInput: {contact, expires}})` for CLI/web prompting.
+ */
+const securityTxtRecipe = {
+  checkId: 'CFL-SEC-001',
+  title: 'Publish security.txt',
+  scope: 'zone',
+  risk: 'low', // public file; no security impact from publishing
+  reversible: true,
+  setting: 'security-txt',
+  async read(client, ctx) {
+    const cur = await client.getSecurityTxt(ctx.zoneId);
+    return cur || null;
+  },
+  isCompliant(currentValue) {
+    return !!(currentValue && currentValue.enabled && Array.isArray(currentValue.contact) && currentValue.contact.length > 0);
+  },
+  proposed(ctx) {
+    const op = (ctx && ctx.finding && ctx.finding.metadata && ctx.finding.metadata.operatorInput) || {};
+    const contact = op.contact || (ctx && ctx.operatorInput && ctx.operatorInput.contact) || ['mailto:security@example.com'];
+    const expires = op.expires || (ctx && ctx.operatorInput && ctx.operatorInput.expires) || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    return { enabled: true, contact, expires };
+  },
+  async apply(client, ctx) {
+    const proposed = this.proposed(ctx);
+    return client.putSecurityTxt(ctx.zoneId, proposed);
+  },
+  async restore(client, ctx, backupValue) {
+    if (!backupValue || !backupValue.enabled) {
+      return client.deleteSecurityTxt(ctx.zoneId);
+    }
+    return client.putSecurityTxt(ctx.zoneId, backupValue);
+  },
+  async verify(client, ctx) {
+    const cur = await client.getSecurityTxt(ctx.zoneId);
+    return !!(cur && cur.enabled);
+  }
+};
+
+/**
+ * Notification policy recipe factory. Operator-prompted: the recipe expects
+ * `ctx.finding.metadata.operatorInput = { emailIds, webhookIds, name }` or
+ * the CLI default of one email destination id. Apply creates a policy in
+ * DISABLED state — the operator enables it in the dashboard once they
+ * confirm the destination. Delete on rollback.
+ */
+function notificationPolicyRecipe({ checkId, title, alertType, risk = 'medium' }) {
+  return {
+    checkId,
+    title,
+    scope: 'account',
+    risk,
+    reversible: true,
+    setting: 'notification-policy',
+    async read(client, ctx) {
+      const policies = await client.getNotificationPolicies(ctx.accountId);
+      const list = Array.isArray(policies) ? policies : [];
+      return { count: list.length, hasType: list.some(p => p.alert_type === alertType && p.enabled) };
+    },
+    isCompliant(currentValue) {
+      return !!(currentValue && currentValue.hasType);
+    },
+    proposed(ctx) {
+      const op = (ctx && ctx.finding && ctx.finding.metadata && ctx.finding.metadata.operatorInput) || {};
+      const name = op.name || `FlareInspect: ${alertType}`;
+      const mechanisms = {};
+      if (op.emailIds && op.emailIds.length) mechanisms.email = op.emailIds.map(id => ({ id }));
+      if (op.webhookIds && op.webhookIds.length) mechanisms.webhooks = op.webhookIds.map(id => ({ id }));
+      return {
+        name,
+        description: `Auto-created by FlareInspect for ${alertType}`,
+        enabled: false, // operator must enable after confirming destination
+        alert_type: alertType,
+        mechanisms
+      };
+    },
+    async apply(client, ctx) {
+      const body = this.proposed(ctx);
+      const created = await client.createNotificationPolicy(ctx.accountId, body);
+      return { id: created && created.id, resourceType: 'notification_policy' };
+    },
+    async restore(client, ctx, capturedId) {
+      if (!capturedId) return null;
+      return client.deleteNotificationPolicy(ctx.accountId, capturedId);
+    },
+    async verify(client, ctx) {
+      const policies = await client.getNotificationPolicies(ctx.accountId);
+      const list = Array.isArray(policies) ? policies : [];
+      return list.some(p => p.alert_type === alertType);
+    }
+  };
+}
+
+/**
+ * DNS TXT record recipe factory. Conservative defaults for SPF/DMARC.
+ * Idempotent: if a record with the same name already exists, we skip create
+ * (and there's nothing to delete on rollback).
+ */
+function dnsTxtRecordRecipe({ checkId, title, recordName, content, risk = 'medium' }) {
+  return {
+    checkId,
+    title,
+    scope: 'zone',
+    risk,
+    reversible: true,
+    setting: 'dns-record',
+    async read(client, ctx) {
+      const records = await client.getDNSRecords(ctx.zoneId);
+      const list = Array.isArray(records) ? records : [];
+      const existing = list.find(r => r.type === 'TXT' && r.name === recordName);
+      return { hasMatching: !!existing, recordId: existing && existing.id, content: existing && existing.content };
+    },
+    isCompliant(currentValue) {
+      return !!(currentValue && currentValue.hasMatching);
+    },
+    proposed() {
+      return { type: 'TXT', name: recordName, content, ttl: 3600 };
+    },
+    async apply(client, ctx) {
+      const body = this.proposed(ctx);
+      const records = await client.getDNSRecords(ctx.zoneId);
+      const existing = (records || []).find(r => r.type === 'TXT' && r.name === recordName);
+      if (existing) {
+        return { id: existing.id, resourceType: 'dns_record' };
+      }
+      const created = await client.createDNSRecord(ctx.zoneId, body);
+      return { id: created && created.id, resourceType: 'dns_record' };
+    },
+    async restore(client, ctx, capturedId) {
+      if (!capturedId) return null;
+      return client.deleteDNSRecord(ctx.zoneId, capturedId);
+    },
+    async verify(client, ctx) {
+      const records = await client.getDNSRecords(ctx.zoneId);
+      return (records || []).some(r => r.type === 'TXT' && r.name === recordName);
+    }
+  };
+}
+
 const RECIPES = [
   zoneSettingRecipe({
     checkId: 'CFL-SSL-001',
@@ -360,6 +502,43 @@ const RECIPES = [
     title: 'Deploy OWASP Core Ruleset (log mode)',
     rulesetId: OWASP_RULESET_ID,
     risk: 'high'
+  }),
+
+  // --- Phase 2b: security.txt + Notifications + SPF/DMARC ---------------
+  securityTxtRecipe,
+  notificationPolicyRecipe({
+    checkId: 'CFL-ALERT-001',
+    title: 'Create WAF anomaly notification policy',
+    alertType: 'clickhouse_alert_fw_anomaly'
+  }),
+  notificationPolicyRecipe({
+    checkId: 'CFL-ALERT-002',
+    title: 'Create origin error notification policy',
+    alertType: 'http_alert_origin_error'
+  }),
+  notificationPolicyRecipe({
+    checkId: 'CFL-ALERT-003',
+    title: 'Create SSL/TLS cert notification policy',
+    alertType: 'universal_ssl_event_type'
+  }),
+  notificationPolicyRecipe({
+    checkId: 'CFL-ALERT-004',
+    title: 'Create L7 DDoS notification policy',
+    alertType: 'dos_attack_l7'
+  }),
+  dnsTxtRecordRecipe({
+    checkId: 'CFL-EMAIL-001',
+    title: 'Publish SPF record (v=spf1 -all)',
+    recordName: '@',
+    content: '"v=spf1 -all"',
+    risk: 'medium'
+  }),
+  dnsTxtRecordRecipe({
+    checkId: 'CFL-EMAIL-003',
+    title: 'Publish DMARC record (p=none, reporting-only)',
+    recordName: '_dmarc',
+    content: '"v=DMARC1; p=none; rua=mailto:dmarc-reports@example.com"',
+    risk: 'medium'
   })
 ];
 
