@@ -533,6 +533,86 @@ class SecurityBaseline {
         severity: 'high',
         compliance: ['SOC2', 'NIST']
       },
+
+      // --- Phase 2: Credentials (Leaked Credentials Detection) -----------
+      {
+        id: 'CFL-LEAK-001',
+        category: 'credentials',
+        title: 'Leaked Credentials Detection',
+        description: 'Enable Leaked Credentials Detection to identify and block requests with compromised credentials',
+        severity: 'high',
+        compliance: ['OWASP', 'PCI-DSS', 'NIST']
+      },
+
+      // --- Phase 2: WAF Managed Rulesets (promote from manual) ----------
+      {
+        id: 'CFL-WAF-006',
+        category: 'waf',
+        title: 'Cloudflare Managed Ruleset Deployment',
+        description: 'Deploy the Cloudflare Managed Ruleset at zone scope (log mode recommended for first deploy)',
+        severity: 'high',
+        compliance: ['OWASP', 'CIS']
+      },
+      {
+        id: 'CFL-WAF-007',
+        category: 'waf',
+        title: 'OWASP Core Ruleset Deployment',
+        description: 'Deploy the OWASP Core Ruleset at zone scope (log mode recommended for first deploy)',
+        severity: 'high',
+        compliance: ['OWASP', 'CIS']
+      },
+
+      // --- Phase 2: Notifications (account-scope) ------------------------
+      {
+        id: 'CFL-ALERT-001',
+        category: 'notifications',
+        title: 'WAF Anomaly Notification',
+        description: 'Notification policy for WAF anomalies is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ALERT-002',
+        category: 'notifications',
+        title: 'Origin Error Notification',
+        description: 'Notification policy for origin errors is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ALERT-003',
+        category: 'notifications',
+        title: 'SSL/TLS Certificate Notification',
+        description: 'Notification policy for SSL/TLS certificate events is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ALERT-004',
+        category: 'notifications',
+        title: 'L7 DDoS Notification',
+        description: 'Notification policy for L7 DDoS attacks is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+
+      // --- Phase 2: DDoS L7 / Account WAF (advisory) ---------------------
+      {
+        id: 'CFL-DDOS-001',
+        category: 'ddos',
+        title: 'DDoS L7 Ruleset Posture',
+        description: 'DDoS L7 ruleset may have been disabled or overridden',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ACCTWAF-001',
+        category: 'account-waf',
+        title: 'Account-level WAF Coverage',
+        description: 'Account has no reusable WAF rulesets or managed coverage',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
       {
         id: 'CFL-DLP-001',
         category: 'dlp',
@@ -882,6 +962,16 @@ class SecurityBaseline {
       'CFL-INSIGHT-003': 'Set up regular reviews of Security Center insights and create processes to address them promptly.',
       'CFL-INSIGHT-004': 'Rotate exposed credentials immediately, review access logs, and implement credential scanning in CI/CD.',
       'CFL-INSIGHT-005': 'Enable Cloudflare proxy (orange cloud) for all DNS records that point to origin servers.',
+
+      'CFL-LEAK-001': 'Enable Leaked Credentials Detection in Security > WAF > Leaked Credentials.',
+      'CFL-WAF-006': 'Deploy the Cloudflare Managed Ruleset in Security > WAF > Managed Rules.',
+      'CFL-WAF-007': 'Deploy the OWASP Core Ruleset in Security > WAF > Managed Rules.',
+      'CFL-ALERT-001': 'Create a WAF anomaly notification in Cloudflare Alerts (alert_type=clickhouse_alert_fw_anomaly).',
+      'CFL-ALERT-002': 'Create an origin error notification in Cloudflare Alerts (alert_type=http_alert_origin_error).',
+      'CFL-ALERT-003': 'Create a Universal SSL cert event notification in Cloudflare Alerts (alert_type=universal_ssl_event_type).',
+      'CFL-ALERT-004': 'Create an L7 DDoS attack notification in Cloudflare Alerts (alert_type=dos_attack_l7).',
+      'CFL-DDOS-001': 'Review the DDoS L7 ruleset for any overrides or disabled rules.',
+      'CFL-ACCTWAF-001': 'Create account-level custom or managed WAF rulesets for shared coverage.',
 
       // New Cloudflare technology checks
       'CFL-DLP-001': 'Configure DLP profiles and rules in Zero Trust > Data Loss Prevention to detect and prevent sensitive data exfiltration.',
