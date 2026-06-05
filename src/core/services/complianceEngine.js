@@ -82,7 +82,39 @@ class ComplianceEngine {
       'CFL-ORIGCERT-001': { cis: ['3.9'], soc2: ['CC6.7'], pci: ['4.1', '4.2'], nist: ['PR.DS-2'] },
       'CFL-CFRULE-001': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
       'CFL-TXRULE-001': { cis: ['4.9'], soc2: ['CC6.1'], pci: ['6.5'], nist: ['PR.IP-1'] },
-      'CFL-DEVICE-001': { cis: ['5.10'], soc2: ['CC6.1', 'CC6.3'], pci: ['8.3'], nist: ['PR.AC-3'] }
+      'CFL-DEVICE-001': { cis: ['5.10'], soc2: ['CC6.1', 'CC6.3'], pci: ['8.3'], nist: ['PR.AC-3'] },
+      // Phase 1-2 new checks
+      'CFL-SSL-006': { cis: ['3.8'], soc2: ['CC6.7'], pci: ['4.1'], nist: ['PR.DS-2'] },
+      'CFL-SSL-007': { soc2: ['CC6.7'], nist: ['PR.DS-2'] },
+      'CFL-SSL-008': { soc2: ['CC6.7'], nist: ['PR.DS-2'] },
+      'CFL-WAF-009': { cis: ['4.9'], soc2: ['CC6.1'], pci: ['6.5'], nist: ['PR.IP-1'] },
+      'CFL-PERF-006': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
+      'CFL-LEAK-001': { cis: ['4.10'], soc2: ['CC6.1', 'CC6.6'], pci: ['6.5', '8.6'], nist: ['PR.AC-7', 'PR.IP-1'] },
+      'CFL-WAF-006': { cis: ['4.11'], soc2: ['CC6.1', 'CC6.6'], pci: ['6.5'], nist: ['PR.IP-1'] },
+      'CFL-WAF-007': { cis: ['4.12'], soc2: ['CC6.1', 'CC6.6'], pci: ['6.5'], nist: ['PR.IP-1'] },
+      'CFL-ALERT-001': { soc2: ['CC7.2', 'CC7.3'], pci: ['10.6'], nist: ['DE.AE-3'] },
+      'CFL-ALERT-002': { soc2: ['CC7.2', 'CC7.3'], pci: ['10.6'], nist: ['DE.AE-3'] },
+      'CFL-ALERT-003': { soc2: ['CC7.2', 'CC7.3'], pci: ['10.6'], nist: ['DE.AE-3'] },
+      'CFL-ALERT-004': { soc2: ['CC7.2', 'CC7.3'], pci: ['10.6'], nist: ['DE.AE-3'] },
+      'CFL-DDOS-001': { soc2: ['CC7.2'], nist: ['DE.CM-1'] },
+      'CFL-ACCTWAF-001': { soc2: ['CC6.1', 'CC6.6'], pci: ['6.5'], nist: ['PR.IP-1'] },
+      // Phase 3 detection
+      'CFL-WORK-003': { soc2: ['CC6.1', 'CC6.7'], pci: ['8.6'], nist: ['PR.DS-5'] },
+      'CFL-WORK-004': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
+      'CFL-STORE-001': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
+      'CFL-STORE-002': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
+      'CFL-STORE-003': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
+      'CFL-ZARAZ-001': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
+      // Phase 4 Enterprise / SASE
+      'CFL-HOLD-001': { cis: ['1.6'], soc2: ['CC6.1', 'CC7.1'], nist: ['PR.IP-3'] },
+      'CFL-POSTURE-001': { soc2: ['CC6.1', 'CC6.3'], pci: ['8.3'], nist: ['PR.AC-3'] },
+      'CFL-ZT-007': { soc2: ['CC6.1', 'CC6.2'], pci: ['8.3'], nist: ['PR.AC-4'] },
+      'CFL-ZT-008': { soc2: ['CC6.1'], nist: ['PR.AC-4'] },
+      'CFL-ZT-009': { soc2: ['CC6.1', 'CC6.2'], nist: ['PR.AC-4'] },
+      'CFL-CASB-001': { cis: ['1.7'], soc2: ['CC6.1', 'CC7.1'], nist: ['ID.RA-1', 'DE.CM-8'] },
+      'CFL-EMAILSEC-001': { soc2: ['CC6.1', 'CC6.6'], nist: ['PR.DS-5', 'PR.IP-1'] },
+      'CFL-RBI-001': { soc2: ['CC6.1'], nist: ['PR.IP-1'] },
+      'CFL-MAGIC-001': { cis: ['1.8'], soc2: ['CC6.1', 'CC6.6'], nist: ['PR.IP-1'] }
     };
   }
 

@@ -55,9 +55,15 @@ function makeClient(token) {
 // read-only; remediation writes config and therefore needs a different, edit-scoped
 // token. Create one at dash.cloudflare.com -> My Profile -> API Tokens.
 const REQUIRED_WRITE_SCOPES = [
-  'Zone → Zone Settings → Edit   (SSL mode, TLS, HSTS, security level, Brotli, HTTP/2-3, …)',
-  'Zone → DNS → Edit             (DNSSEC)',
-  'Zone → Zone → Read            (to enumerate zones)'
+  'Zone → Zone Settings → Edit   (SSL mode, TLS, HSTS, security level, Brotli, HTTP/2-3, TLS 1.3, HTTPS rewrites, opportunistic encryption, browser check, email obfuscation, bot fight mode, …)',
+  'Zone → DNS → Edit             (DNSSEC, SPF/DMARC TXT records)',
+  'Zone → WAF → Edit             (leaked credentials, WAF managed rulesets, custom rules)',
+  'Zone → Security Center → Edit (security.txt)',
+  'Zone → Zone → Read            (to enumerate zones)',
+  'Account → Alerts → Edit       (notification policies)',
+  'Account → Members → Edit      (2FA enforcement)',
+  'Account → Workers → Edit      (Workers scripts, bindings — write scope is rarely needed; reads only by default)',
+  'Account → Settings → Edit     (zone hold — Enterprise only)'
 ];
 
 function printScopeNotice() {
