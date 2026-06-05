@@ -317,6 +317,54 @@ class SecurityBaseline {
         severity: 'medium',
         compliance: ['OWASP']
       },
+      {
+        id: 'CFL-WORK-003',
+        category: 'workers',
+        title: 'Worker Plaintext Secret Bindings',
+        description: 'Workers using plain_text bindings may leak secret values in code, logs, and dashboard exports',
+        severity: 'high',
+        compliance: ['SOC2', 'PCI-DSS', 'NIST']
+      },
+      {
+        id: 'CFL-WORK-004',
+        category: 'workers',
+        title: 'Worker Route Inventory',
+        description: 'Inventory of Worker routes (and any cron triggers) to map the attack surface',
+        severity: 'informational',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-STORE-001',
+        category: 'storage',
+        title: 'KV Namespace Inventory',
+        description: 'KV namespaces are present on the account (informational inventory)',
+        severity: 'informational',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-STORE-002',
+        category: 'storage',
+        title: 'D1 Database Inventory',
+        description: 'D1 databases are present on the account (informational inventory)',
+        severity: 'informational',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-STORE-003',
+        category: 'storage',
+        title: 'Queues Inventory',
+        description: 'Queues are present on the account (informational inventory)',
+        severity: 'informational',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ZARAZ-001',
+        category: 'zaraz',
+        title: 'Zaraz Third-Party Tools Consent',
+        description: 'Zaraz is loading third-party tools without a configured consent management setup',
+        severity: 'medium',
+        compliance: ['GDPR', 'SOC2']
+      },
 
       // Bot Management Checks
       {
@@ -930,6 +978,12 @@ class SecurityBaseline {
       
       'CFL-WORK-001': 'Add try-catch blocks and proper error handling to Workers scripts.',
       'CFL-WORK-002': 'Implement rate limiting logic in Workers using KV or Durable Objects.',
+      'CFL-WORK-003': 'Replace plain_text bindings with secret_text bindings and store the value via `wrangler secret put`.',
+      'CFL-WORK-004': 'Inventory Worker routes; ensure each is bound to an authenticated route or behind Access.',
+      'CFL-STORE-001': 'Inventory KV namespaces; review access patterns and consider encryption-at-rest for sensitive data.',
+      'CFL-STORE-002': 'Inventory D1 databases; ensure time-travel and backup posture is configured.',
+      'CFL-STORE-003': 'Inventory Queues; review DLQ configuration and message retention.',
+      'CFL-ZARAZ-001': 'Configure Zaraz consent management before loading third-party tools.',
       
       'CFL-BOT-001': 'Enable Bot Fight Mode in Security > Bots.',
       
