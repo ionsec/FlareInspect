@@ -1,0 +1,48 @@
+<dashboard version="1.1" theme="dark">
+  <label>FlareInspect overview</label>
+  <description>FlareInspect Cloudflare security findings — overview</description>
+  <row>
+    <panel>
+      <title>Findings by severity</title>
+      <chart>
+        <search>
+          <query>`flareinspect` | stats count by vulnerability.severity</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Top attack paths</title>
+      <chart>
+        <search>
+          <query>`flareinspect` | spath input=event.flareinspect.attack_paths output=paths
+| mvexpand paths
+| spath input=paths
+| stats count by id, title, severity
+| sort - count
+| head 10</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Recent findings</title>
+      <table>
+        <search>
+          <query>`flareinspect` | table _time, vulnerability.severity, vulnerability.signature, vulnerability.description, host, cloud.account_id, flareinspect.node_id</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">20</option>
+        <option name="displayRowNumbers">true</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>

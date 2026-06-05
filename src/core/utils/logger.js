@@ -106,6 +106,11 @@ logger.cloudflare = function(message, meta) {
   logger.log('debug', chalk.blue('☁️  ' + message), meta);
 };
 
+// Mutation logging — surfaced at WARN so every Cloudflare write is auditable
+logger.mutation = function(message, meta) {
+  logger.log('warn', chalk.yellow('✎ MUTATION ' + message), meta);
+};
+
 // Progress logging
 logger.progress = function(current, total, message) {
   const percentage = Math.round((current / total) * 100);

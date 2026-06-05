@@ -7,29 +7,27 @@ Checks for Cloudflare Bot Fight Mode and Turnstile widget configuration.
 Check Summary
 -------------
 
-============  ================  ========  =================================
-Check ID      Title             Severity  Compliance                       
-============  ================  ========  =================================
-CFL-BOT-001   Bot Fight Mode    medium    CIS 4.4, SOC2 CC6.1, NIST PR.IP-1
-CFL-TURN-001  Turnstile Widget  medium    SOC2 CC6.1, NIST PR.IP-1         
-============  ================  ========  =================================
+==============  ======================================  ========  ============
+Check ID        Title                                   Severity  Compliance
+==============  ======================================  ========  ============
+CFL-BOT-001     Bot Fight Mode                          medium    CIS, SOC2, PCI, NIST
+==============  ======================================  ========  ============
 
 CFL-BOT-001: Bot Fight Mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Severity:** medium | **Category:** bot
 
-Bot Fight Mode provides automated bot detection and mitigation for zones without Bot Management subscriptions.
+Bot Fight Mode challenges requests identified as automated and
+definitely not from a human. It is one-click to enable and a useful
+first line of defense even for zones without a full Bot Management
+subscription.
 
-**Remediation:** Enable Bot Fight Mode in Security → Bots.
+**Remediation:** Use FlareInspect's recipe to enable Bot Fight Mode,
+or toggle it on in *Security → Bots → Bot Fight Mode*.
 
----
+.. warning::
 
-CFL-TURN-001: Turnstile Widget
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Severity:** medium | **Category:** bot
-
-Turnstile is a privacy-preserving CAPTCHA alternative. Without it, forms and authentication endpoints are vulnerable to automated abuse.
-
-**Remediation:** Enable Turnstile for authentication and form submission endpoints.
+   Bot Fight Mode may challenge legitimate bots (e.g. uptime
+   monitors, search engine crawlers). Apply the recipe only after
+   testing in log mode if you depend on third-party bots.

@@ -133,6 +133,30 @@ class SecurityBaseline {
         severity: 'medium',
         compliance: ['PCI-DSS', 'NIST']
       },
+      {
+        id: 'CFL-SSL-006',
+        category: 'ssl',
+        title: 'TLS 1.3',
+        description: 'Enable TLS 1.3 (zrt) for stronger handshake with 0-RTT support',
+        severity: 'medium',
+        compliance: ['NIST', 'CIS']
+      },
+      {
+        id: 'CFL-SSL-007',
+        category: 'ssl',
+        title: 'Automatic HTTPS Rewrites',
+        description: 'Rewrite HTTP URLs in HTML to HTTPS to fix mixed content',
+        severity: 'low',
+        compliance: ['NIST']
+      },
+      {
+        id: 'CFL-SSL-008',
+        category: 'ssl',
+        title: 'Opportunistic Encryption',
+        description: 'Serve HTTP/2 over TLS without certificates for supported clients',
+        severity: 'low',
+        compliance: ['NIST']
+      },
 
       // WAF Security Checks
       {
@@ -267,6 +291,14 @@ class SecurityBaseline {
         severity: 'informational',
         compliance: ['CIS']
       },
+      {
+        id: 'CFL-PERF-006',
+        category: 'performance',
+        title: 'Email Obfuscation',
+        description: 'Obfuscate email addresses on the page to prevent scrapers from harvesting them',
+        severity: 'low',
+        compliance: ['NIST']
+      },
 
       // Workers Security Checks
       {
@@ -284,6 +316,54 @@ class SecurityBaseline {
         description: 'Implement rate limiting in Workers',
         severity: 'medium',
         compliance: ['OWASP']
+      },
+      {
+        id: 'CFL-WORK-003',
+        category: 'workers',
+        title: 'Worker Plaintext Secret Bindings',
+        description: 'Workers using plain_text bindings may leak secret values in code, logs, and dashboard exports',
+        severity: 'high',
+        compliance: ['SOC2', 'PCI-DSS', 'NIST']
+      },
+      {
+        id: 'CFL-WORK-004',
+        category: 'workers',
+        title: 'Worker Route Inventory',
+        description: 'Inventory of Worker routes (and any cron triggers) to map the attack surface',
+        severity: 'informational',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-STORE-001',
+        category: 'storage',
+        title: 'KV Namespace Inventory',
+        description: 'KV namespaces are present on the account (informational inventory)',
+        severity: 'informational',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-STORE-002',
+        category: 'storage',
+        title: 'D1 Database Inventory',
+        description: 'D1 databases are present on the account (informational inventory)',
+        severity: 'informational',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-STORE-003',
+        category: 'storage',
+        title: 'Queues Inventory',
+        description: 'Queues are present on the account (informational inventory)',
+        severity: 'informational',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ZARAZ-001',
+        category: 'zaraz',
+        title: 'Zaraz Third-Party Tools Consent',
+        description: 'Zaraz is loading third-party tools without a configured consent management setup',
+        severity: 'medium',
+        compliance: ['GDPR', 'SOC2']
       },
 
       // Bot Management Checks
@@ -501,6 +581,86 @@ class SecurityBaseline {
         severity: 'high',
         compliance: ['SOC2', 'NIST']
       },
+
+      // --- Phase 2: Credentials (Leaked Credentials Detection) -----------
+      {
+        id: 'CFL-LEAK-001',
+        category: 'credentials',
+        title: 'Leaked Credentials Detection',
+        description: 'Enable Leaked Credentials Detection to identify and block requests with compromised credentials',
+        severity: 'high',
+        compliance: ['OWASP', 'PCI-DSS', 'NIST']
+      },
+
+      // --- Phase 2: WAF Managed Rulesets (promote from manual) ----------
+      {
+        id: 'CFL-WAF-006',
+        category: 'waf',
+        title: 'Cloudflare Managed Ruleset Deployment',
+        description: 'Deploy the Cloudflare Managed Ruleset at zone scope (log mode recommended for first deploy)',
+        severity: 'high',
+        compliance: ['OWASP', 'CIS']
+      },
+      {
+        id: 'CFL-WAF-007',
+        category: 'waf',
+        title: 'OWASP Core Ruleset Deployment',
+        description: 'Deploy the OWASP Core Ruleset at zone scope (log mode recommended for first deploy)',
+        severity: 'high',
+        compliance: ['OWASP', 'CIS']
+      },
+
+      // --- Phase 2: Notifications (account-scope) ------------------------
+      {
+        id: 'CFL-ALERT-001',
+        category: 'notifications',
+        title: 'WAF Anomaly Notification',
+        description: 'Notification policy for WAF anomalies is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ALERT-002',
+        category: 'notifications',
+        title: 'Origin Error Notification',
+        description: 'Notification policy for origin errors is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ALERT-003',
+        category: 'notifications',
+        title: 'SSL/TLS Certificate Notification',
+        description: 'Notification policy for SSL/TLS certificate events is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ALERT-004',
+        category: 'notifications',
+        title: 'L7 DDoS Notification',
+        description: 'Notification policy for L7 DDoS attacks is missing',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+
+      // --- Phase 2: DDoS L7 / Account WAF (advisory) ---------------------
+      {
+        id: 'CFL-DDOS-001',
+        category: 'ddos',
+        title: 'DDoS L7 Ruleset Posture',
+        description: 'DDoS L7 ruleset may have been disabled or overridden',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ACCTWAF-001',
+        category: 'account-waf',
+        title: 'Account-level WAF Coverage',
+        description: 'Account has no reusable WAF rulesets or managed coverage',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
       {
         id: 'CFL-DLP-001',
         category: 'dlp',
@@ -666,7 +826,89 @@ class SecurityBaseline {
         description: 'Detect production zones where managed rulesets are still in log-only mode (drift)',
         severity: 'medium',
         compliance: ['OWASP', 'NIST']
-      }
+      },
+      {
+        id: 'CFL-WAF-009',
+        category: 'waf',
+        title: 'Browser Integrity Check',
+        description: 'Enable Browser Integrity Check to challenge common bot/spam headers',
+        severity: 'low',
+        compliance: ['OWASP']
+      },
+
+      // --- Phase 4: Enterprise / SASE (ENT-gated at assess time) --------
+      {
+        id: 'CFL-HOLD-001',
+        category: 'account-waf',
+        title: 'Zone Hold (Anti-Takeover)',
+        description: 'Enable zone hold to prevent unauthorized transfer of the zone (Enterprise only)',
+        severity: 'high',
+        compliance: ['CIS', 'SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-POSTURE-001',
+        category: 'posture',
+        title: 'Device Posture Rules',
+        description: 'No device posture rules defined — bound to Zero Trust policies for trusted endpoints',
+        severity: 'high',
+        compliance: ['SOC2', 'PCI-DSS', 'NIST']
+      },
+      {
+        id: 'CFL-ZT-007',
+        category: 'zerotrust',
+        title: 'Access App Depth — No "Allow Everyone"',
+        description: 'Some Access applications have policies that allow everyone without MFA or posture',
+        severity: 'critical',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-ZT-008',
+        category: 'zerotrust',
+        title: 'Access App Session Duration',
+        description: 'Access applications should have a bounded session duration',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ZT-009',
+        category: 'zerotrust',
+        title: 'Access App Require MFA / Posture',
+        description: 'Access applications should require MFA or device posture for sensitive apps',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-CASB-001',
+        category: 'casb',
+        title: 'CASB Integrations and Open Findings',
+        description: 'CASB integrations are connected and open critical/high findings should be reviewed',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-EMAILSEC-001',
+        category: 'email-security',
+        title: 'Cloud Email Security Policies',
+        description: 'Cloud Email Security (Area 1) policies are active',
+        severity: 'medium',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-RBI-001',
+        category: 'rbi',
+        title: 'Browser Isolation Policies',
+        description: 'Browser Isolation should be applied to risky categories / uploads',
+        severity: 'medium',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-MAGIC-001',
+        category: 'magic',
+        title: 'Magic Firewall / Magic Transit Ruleset',
+        description: 'Magic Firewall / Magic Transit ruleset is present and has rules',
+        severity: 'high',
+        compliance: ['CIS', 'SOC2', 'NIST']
+      },
 
     ];
   }
@@ -779,12 +1021,20 @@ class SecurityBaseline {
       'CFL-SSL-003': 'Monitor certificate expiration in SSL/TLS > Edge Certificates.',
       'CFL-SSL-004': 'Enable HSTS in SSL/TLS > Edge Certificates.',
       'CFL-SSL-005': 'Enable Always Use HTTPS in SSL/TLS > Edge Certificates.',
+
+      'CFL-SSL-006': 'Enable TLS 1.3 (Zero Round-Trip) in Network > TLS/SSL > TLS 1.3.',
+      'CFL-SSL-007': 'Enable Automatic HTTPS Rewrites in SSL/TLS > Edge Certificates.',
+      'CFL-SSL-008': 'Enable Opportunistic Encryption in Network > TLS/SSL > Opportunistic Encryption.',
       
       'CFL-WAF-001': 'Set security level to High in Security > Settings.',
       'CFL-WAF-002': 'Create custom firewall rules in Security > WAF.',
       'CFL-WAF-003': 'Configure rate limiting in Security > Rate Limiting.',
       'CFL-WAF-004': 'Enable Bot Fight Mode in Security > Bots.',
       'CFL-WAF-005': 'Enable managed rulesets in Security > WAF.',
+      'CFL-WAF-006': 'Deploy the Cloudflare Managed Ruleset in Security > WAF > Managed Rules.',
+      'CFL-WAF-007': 'Deploy the OWASP Core Ruleset in Security > WAF > Managed Rules.',
+      'CFL-WAF-008': 'Move WAF managed rulesets out of log-only mode once verified in dashboard.',
+      'CFL-WAF-009': 'Enable Browser Integrity Check in Security > Settings > Browser Integrity Check.',
       
       'CFL-ZT-001': 'Configure identity providers in Zero Trust > Settings > Authentication.',
       'CFL-ZT-002': 'Create access policies in Zero Trust > Access > Applications.',
@@ -798,9 +1048,16 @@ class SecurityBaseline {
       'CFL-PERF-003': 'Enable HTTP/3 (QUIC) in Network settings.',
       'CFL-PERF-004': 'Enable minification for JS, CSS, and HTML in Speed > Optimization.',
       'CFL-PERF-005': 'Enable Rocket Loader in Speed > Optimization > Content Optimization.',
+      'CFL-PERF-006': 'Enable Email Obfuscation in Speed > Optimization > Content Optimization.',
       
       'CFL-WORK-001': 'Add try-catch blocks and proper error handling to Workers scripts.',
       'CFL-WORK-002': 'Implement rate limiting logic in Workers using KV or Durable Objects.',
+      'CFL-WORK-003': 'Replace plain_text bindings with secret_text bindings and store the value via `wrangler secret put`.',
+      'CFL-WORK-004': 'Inventory Worker routes; ensure each is bound to an authenticated route or behind Access.',
+      'CFL-STORE-001': 'Inventory KV namespaces; review access patterns and consider encryption-at-rest for sensitive data.',
+      'CFL-STORE-002': 'Inventory D1 databases; ensure time-travel and backup posture is configured.',
+      'CFL-STORE-003': 'Inventory Queues; review DLQ configuration and message retention.',
+      'CFL-ZARAZ-001': 'Configure Zaraz consent management before loading third-party tools.',
       
       'CFL-BOT-001': 'Enable Bot Fight Mode in Security > Bots.',
       
@@ -834,6 +1091,16 @@ class SecurityBaseline {
       'CFL-INSIGHT-004': 'Rotate exposed credentials immediately, review access logs, and implement credential scanning in CI/CD.',
       'CFL-INSIGHT-005': 'Enable Cloudflare proxy (orange cloud) for all DNS records that point to origin servers.',
 
+      'CFL-LEAK-001': 'Enable Leaked Credentials Detection in Security > WAF > Leaked Credentials.',
+      'CFL-WAF-006': 'Deploy the Cloudflare Managed Ruleset in Security > WAF > Managed Rules.',
+      'CFL-WAF-007': 'Deploy the OWASP Core Ruleset in Security > WAF > Managed Rules.',
+      'CFL-ALERT-001': 'Create a WAF anomaly notification in Cloudflare Alerts (alert_type=clickhouse_alert_fw_anomaly).',
+      'CFL-ALERT-002': 'Create an origin error notification in Cloudflare Alerts (alert_type=http_alert_origin_error).',
+      'CFL-ALERT-003': 'Create a Universal SSL cert event notification in Cloudflare Alerts (alert_type=universal_ssl_event_type).',
+      'CFL-ALERT-004': 'Create an L7 DDoS attack notification in Cloudflare Alerts (alert_type=dos_attack_l7).',
+      'CFL-DDOS-001': 'Review the DDoS L7 ruleset for any overrides or disabled rules.',
+      'CFL-ACCTWAF-001': 'Create account-level custom or managed WAF rulesets for shared coverage.',
+
       // New Cloudflare technology checks
       'CFL-DLP-001': 'Configure DLP profiles and rules in Zero Trust > Data Loss Prevention to detect and prevent sensitive data exfiltration.',
       'CFL-PAGESHIELD-001': 'Enable Page Shield in Security > Page Shield to monitor JavaScript dependencies and detect supply chain attacks.',
@@ -848,6 +1115,16 @@ class SecurityBaseline {
       'CFL-CFRULE-001': 'Review configuration rules to ensure they do not override security settings like WAF or SSL enforcement.',
       'CFL-TXRULE-001': 'Audit URL rewrite and header modification rules for security implications such as removing security headers.',
       'CFL-DEVICE-001': 'Configure device enrollment and posture checks in Zero Trust > Devices to ensure only compliant devices can access resources.',
+
+      'CFL-HOLD-001': 'Enable zone hold in Account > Account Settings > Zone Hold (Enterprise only).',
+      'CFL-POSTURE-001': 'Define device posture rules in Zero Trust > Devices > Posture.',
+      'CFL-ZT-007': 'Remove "Allow everyone" policies from Access applications; require authentication.',
+      'CFL-ZT-008': 'Set a bounded session duration (e.g. 24h max) on every Access application.',
+      'CFL-ZT-009': 'Add MFA or device posture requirements to sensitive Access applications.',
+      'CFL-CASB-001': 'Review open CASB findings — critical/high should be remediated or accepted.',
+      'CFL-EMAILSEC-001': 'Activate anti-spoof and phishing protection in Cloud Email Security.',
+      'CFL-RBI-001': 'Add Browser Isolation policies for risky categories / uploads.',
+      'CFL-MAGIC-001': 'Add Magic Firewall / Magic Transit rules for known-bad traffic.',
 
     };
 

@@ -117,6 +117,16 @@ class ConfigManager {
       ci: {
         threshold: null,
         failOn: null
+      },
+      remediation: {
+        enabled: false,
+        backupDir: './remediation-backups',
+        autoApprove: false
+      },
+      ai: {
+        provider: 'none',
+        model: null,        // each provider applies its own default
+        baseUrl: null       // for ollama/local (defaults to http://localhost:11434)
       }
     };
   }
@@ -148,6 +158,28 @@ class ConfigManager {
       threshold: cliOptions.threshold || this.get('ci.threshold'),
       failOn: cliOptions.failOn || this.get('ci.failOn'),
       ci: cliOptions.ci || false
+    };
+  }
+
+  /**
+   * Resolve remediation + AI options from CLI flags, config file, and env vars.
+   */
+  mergeRemediationOptions(cliOptions = {}) {
+    return {
+      token: cliOptions.token || this.get('token') || process.env.CLOUDFLARE_TOKEN,
+      backupDir: cliOptions.backupDir || this.get('remediation.backupDir', './remediation-backups'),
+      autoApprove: cliOptions.autoApprove ?? this.get('remediation.autoApprove', false),
+      concurrency: cliOptions.concurrency || this.get('assessment.concurrency', 3),
+      checks: cliOptions.checks ? cliOptions.checks.split(',') : null,
+      zones: cliOptions.zones ? cliOptions.zones.split(',') : this.get('assessment.zones'),
+      excludeZones: cliOptions.excludeZones ? cliOptions.excludeZones.split(',') : this.get('assessment.excludeZones'),
+      ai: {
+        // --no-ai sets cliOptions.ai === false; otherwise fall back to config
+        provider: cliOptions.ai === false ? 'none' : (cliOptions.aiProvider || this.get('ai.provider', 'none')),
+        // No hardcoded default — each provider applies its own (e.g. ollama -> llama3.1)
+        model: cliOptions.aiModel || this.get('ai.model'),
+        baseUrl: cliOptions.aiBaseUrl || this.get('ai.baseUrl') || process.env.OLLAMA_HOST
+      }
     };
   }
 }

@@ -11,8 +11,27 @@ const SARIFExporter = require('../src/exporters/sarif');
 const MarkdownExporter = require('../src/exporters/markdown');
 const CSVExporter = require('../src/exporters/csv');
 const ASFFExporter = require('../src/exporters/asff');
+const CloudflareClient = require('../src/core/services/cloudflareClient');
+const remediationEngine = require('../src/core/remediation/remediationEngine');
+const backupManager = require('../src/core/remediation/backupManager');
+const { createPlanner } = require('../src/core/ai/remediationPlanner');
+const { buildResourceGraph } = require('../src/core/graph/resourceGraph');
+const { findAttackPaths, RULES } = require('../src/core/graph/attackPaths');
+const { SEVERITY_ORDER } = require('../src/core/graph/severity');
+const notificationService = require('../src/core/integrations/notify/notificationService');
+const { shipFindings: shipElastic, buildIndexTemplate: buildEsTemplate } = require('../src/core/integrations/siem/elastic');
+const { shipFindings: shipSplunk } = require('../src/core/integrations/siem/splunk');
+const EcsExporter = require('../src/exporters/ecs');
+const SplunkHecExporter = require('../src/exporters/splunkHec');
 const logger = require('../src/core/utils/logger');
+const runtimeSettings = require('../src/core/config/runtimeSettings');
 const pkg = require('../package.json');
+
+// Swagger UI assets are bundled (offline-capable). Loaded lazily/softly so the
+// server still boots if the optional dependency is absent.
+let swaggerUiAssetPath = null;
+try { swaggerUiAssetPath = require('swagger-ui-dist').getAbsoluteFSPath(); } catch (_) { swaggerUiAssetPath = null; }
+const openapiPath = path.join(__dirname, 'openapi.json');
 const ASSESSMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_NOTE_LENGTH = 2000;
 const MAX_ZONE_FILTERS = 100;
@@ -31,6 +50,9 @@ const storageState = {
 };
 
 const API_KEY = process.env.FLAREINSPECT_API_KEY || null;
+// Remediation writes to live Cloudflare config and is OFF unless explicitly allowed.
+const ALLOW_REMEDIATION = process.env.FLAREINSPECT_ALLOW_REMEDIATION === 'true';
+const remediationDir = path.join(__dirname, 'data', 'remediation');
 let lastAssessment = null;
 
 async function ensureStorageDir() {
@@ -269,7 +291,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       imgSrc: ["'self'", 'data:'],
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       connectSrc: ["'self'"],
       frameSrc: ["'self'"],
       baseUri: ["'self'"],
@@ -362,6 +385,243 @@ app.get('/api/assessments/:id', async (req, res) => {
   return res.json({ assessment });
 });
 
+// Resource graph + attack paths (Foundation phase — single source of truth
+// shared by the Posture map UI, the SIEM exporters, and the MCP server).
+app.get('/api/posture/graph', async (req, res) => {
+  try {
+    const assessmentId = req.query.assessmentId ? String(req.query.assessmentId) : null;
+    if (assessmentId && !isValidAssessmentId(assessmentId)) {
+      return sendError(res, 400, 'Invalid assessmentId.', req);
+    }
+    const assessment = assessmentId
+      ? await loadAssessmentById(assessmentId)
+      : (lastAssessment || await loadLatestAssessmentFromDisk());
+    if (!assessment) {
+      return sendError(res, 404, 'No assessment available yet.', req);
+    }
+    if (assessmentId) lastAssessment = assessment;
+
+    const graph = buildResourceGraph(assessment);
+    const paths = findAttackPaths(graph, assessment);
+    return res.json({
+      meta: {
+        assessmentId: assessment.assessmentId,
+        generatedAt: new Date().toISOString(),
+        rules: RULES.map(kind => ({ kind })),
+        severityOrder: SEVERITY_ORDER
+      },
+      graph,
+      paths
+    });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'posture-graph');
+  }
+});
+
+// Notification endpoint — POST /api/notify
+// Body: { assessment: { ... } | assessmentId?, target?: 'all'|'slack'|'teams'|'webhook',
+//                      threshold?, link?, dryRun? }
+// Secrets come from env (FLAREINSPECT_*_WEBHOOK) — never from the request body.
+app.post('/api/notify', async (req, res) => {
+  try {
+    const body = req.body || {};
+    let assessment = body.assessment;
+    if (!assessment && body.assessmentId) {
+      if (!isValidAssessmentId(body.assessmentId)) return sendError(res, 400, 'Invalid assessmentId.', req);
+      assessment = await loadAssessmentById(body.assessmentId);
+      if (!assessment) return sendError(res, 404, 'Assessment not found.', req);
+    }
+    if (!assessment) {
+      assessment = lastAssessment || await loadLatestAssessmentFromDisk();
+    }
+    if (!assessment) return sendError(res, 400, 'Provide an assessment, assessmentId, or run /api/assess first.', req);
+
+    // Channel URLs/secret resolve from the runtime settings overlay first, then env.
+    const cfgTargets = {
+      slack:   runtimeSettings.resolve('slackWebhook'),
+      teams:   runtimeSettings.resolve('teamsWebhook'),
+      webhook: runtimeSettings.resolve('webhookUrl'),
+      secret:  runtimeSettings.resolve('webhookSecret'),
+      threshold: runtimeSettings.resolve('notifyThreshold')
+    };
+    const target = String(body.target || 'all').toLowerCase();
+    const want = (k) => target === 'all' || target === k;
+    const targets = {
+      slack:   want('slack')   ? cfgTargets.slack   : null,
+      teams:   want('teams')   ? cfgTargets.teams   : null,
+      webhook: want('webhook') ? cfgTargets.webhook : null,
+      secret:  cfgTargets.secret,
+      threshold: body.threshold || cfgTargets.threshold,
+      dryRun: !!body.dryRun
+    };
+
+    const summary = notificationService.buildSummary(assessment, {
+      link: body.link || null,
+      attackPathCount: body.attackPathCount
+    });
+    const result = await notificationService.dispatch(summary, targets);
+    if (body.dryRun) {
+      return res.json({ ok: result.ok, sent: result.sent, skipped: result.skipped, errors: result.errors, payloads: result.payloads });
+    }
+    return res.json({ ok: result.ok, sent: result.sent, skipped: result.skipped, errors: result.errors });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'notify');
+  }
+});
+
+// SIEM ship endpoint — POST /api/integrations/ship
+// Body: { assessment?, assessmentId?, target: 'elastic'|'splunk'|'all'|'file',
+//         esUrl?, esApiKey?, esUsername?, esPassword?, hecUrl?, hecToken?,
+//         indexName?, splunkIndex?, outDir?, dryRun? }
+// Secrets are read from request body OR env (FLAREINSPECT_ES_URL/_ES_APIKEY, etc.).
+app.post('/api/integrations/ship', async (req, res) => {
+  try {
+    const body = req.body || {};
+    let assessment = body.assessment;
+    if (!assessment && body.assessmentId) {
+      if (!isValidAssessmentId(body.assessmentId)) return sendError(res, 400, 'Invalid assessmentId.', req);
+      assessment = await loadAssessmentById(body.assessmentId);
+      if (!assessment) return sendError(res, 404, 'Assessment not found.', req);
+    }
+    if (!assessment) {
+      assessment = lastAssessment || await loadLatestAssessmentFromDisk();
+    }
+    if (!assessment) return sendError(res, 400, 'Provide an assessment, assessmentId, or run /api/assess first.', req);
+
+    const target = String(body.target || 'all').toLowerCase();
+    const want = (k) => target === 'all' || target === k;
+
+    // File export branch — no live HTTP, just NDJSON to disk.
+    if (target === 'file' || body.outDir) {
+      const dir = body.outDir || `./out-${Date.now()}`;
+      const ecs = new EcsExporter({ indexName: body.indexName || 'flareinspect-findings' });
+      const hec = new SplunkHecExporter();
+      const ecsR = await ecs.exportToFile(assessment, dir);
+      const hecR = await hec.exportToFile(assessment, dir);
+      return res.json({ ok: true, target: 'file', dir, files: { ecs: ecsR.file, hec: ecsR.file }, counts: { ecs: ecsR.count, hec: hecR.count } });
+    }
+
+    const result = { ok: true, target, elastic: null, splunk: null };
+
+    if (want('elastic')) {
+      const esUrl    = body.esUrl    || runtimeSettings.resolve('esUrl');
+      const apiKey   = body.esApiKey || runtimeSettings.resolve('esApiKey');
+      const username = body.esUsername || runtimeSettings.resolve('esUsername');
+      const password = body.esPassword || runtimeSettings.resolve('esPassword');
+      if (!esUrl) return sendError(res, 400, 'Missing esUrl (or FLAREINSPECT_ES_URL env).', req);
+      if (!apiKey && !(username && password)) {
+        return sendError(res, 400, 'Missing credentials: provide esApiKey OR (esUsername + esPassword).', req);
+      }
+      result.elastic = await shipElastic({
+        esUrl, apiKey, username, password, assessment,
+        indexName: body.indexName || 'flareinspect-findings',
+        dryRun: !!body.dryRun
+      });
+      if (!result.elastic.ok) result.ok = false;
+    }
+
+    if (want('splunk')) {
+      const hecUrl   = body.hecUrl   || runtimeSettings.resolve('hecUrl');
+      const hecToken = body.hecToken || runtimeSettings.resolve('hecToken');
+      if (!hecUrl)   return sendError(res, 400, 'Missing hecUrl (or FLAREINSPECT_SPLUNK_HEC_URL env).', req);
+      if (!hecToken) return sendError(res, 400, 'Missing hecToken (or FLAREINSPECT_SPLUNK_HEC_TOKEN env).', req);
+      result.splunk = await shipSplunk({ hecUrl, hecToken, assessment, dryRun: !!body.dryRun });
+      if (!result.splunk.ok) result.ok = false;
+    }
+
+    // Echo the index template (so dashboards can be wired off the same response).
+    if (body.includeTemplate) {
+      result.indexTemplate = buildEsTemplate();
+    }
+    return res.json(result);
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'ship');
+  }
+});
+
+// GET /api/integrations/template/elastic — returns the recommended ES index template
+app.get('/api/integrations/template/elastic', (req, res) => {
+  res.json(buildEsTemplate());
+});
+
+// ---------------------------------------------------------------------------
+// Runtime settings — an overlay on top of .env so notifications, the AI planner,
+// and SIEM credentials can be configured from the dashboard without a restart.
+// Secrets are write-only: GET never returns a raw secret (masked view only).
+// The remediation kill-switch / edit-scope stay env-only by design.
+// ---------------------------------------------------------------------------
+app.get('/api/settings', (req, res) => {
+  try {
+    return res.json({ settings: runtimeSettings.maskedView(), remediation: ALLOW_REMEDIATION ? 'enabled' : 'disabled' });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'settings-get');
+  }
+});
+
+app.put('/api/settings', (req, res) => {
+  try {
+    runtimeSettings.saveSettings(req.body || {});
+    return res.json({ ok: true, settings: runtimeSettings.maskedView() });
+  } catch (error) {
+    if (/^(Settings payload must be|Invalid value for)/.test(error.message || '')) {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'settings-put');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// API documentation — bundled Swagger UI (offline) + the raw OpenAPI 3 spec.
+// Served outside the /api prefix so the docs render even when an API key is set.
+// ---------------------------------------------------------------------------
+app.get('/api-docs/openapi.json', (req, res) => {
+  res.sendFile(openapiPath, err => {
+    if (err && !res.headersSent) res.status(404).json({ error: 'OpenAPI spec not found.' });
+  });
+});
+
+if (swaggerUiAssetPath) {
+  app.use('/api-docs/assets', express.static(swaggerUiAssetPath));
+}
+
+app.get('/api-docs', (req, res) => {
+  if (!swaggerUiAssetPath) {
+    return res
+      .type('html')
+      .send('<!doctype html><meta charset="utf-8"><title>FlareInspect API</title>'
+        + '<body style="font-family:sans-serif;max-width:640px;margin:60px auto;padding:0 20px">'
+        + '<h1>API documentation</h1>'
+        + '<p>The bundled Swagger UI is not installed. Run <code>npm install</code> to add '
+        + '<code>swagger-ui-dist</code>, or view the raw spec:</p>'
+        + '<p><a href="/api-docs/openapi.json">/api-docs/openapi.json</a></p></body>');
+  }
+  res.type('html').send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlareInspect API — Swagger UI</title>
+  <link rel="icon" type="image/svg+xml" href="/flare-inspect-glyph.svg" />
+  <link rel="stylesheet" href="/api-docs/assets/swagger-ui.css" />
+  <style>body{margin:0;background:#0e0e14}.topbar{display:none}</style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="/api-docs/assets/swagger-ui-bundle.js"></script>
+  <script src="/api-docs/assets/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: '/api-docs/openapi.json',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      layout: 'BaseLayout'
+    });
+  </script>
+</body>
+</html>`);
+});
+
 // Compliance endpoint
 app.get('/api/compliance/:framework', (req, res) => {
   const respondWithCompliance = (assessment) => {
@@ -417,6 +677,151 @@ app.post('/api/diff', async (req, res) => {
       return sendError(res, 400, error.message, req);
     }
     return sendUnexpectedError(res, error, req, 'diff');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Remediation endpoints
+// ---------------------------------------------------------------------------
+function parseRemediationToken(body = {}) {
+  const token = typeof body.token === 'string' ? body.token.trim() : '';
+  if (token.length < 10 || token.length > 512) {
+    throw new Error('Invalid Cloudflare API token.');
+  }
+  return token;
+}
+
+async function resolveAssessment(body = {}) {
+  if (body.assessmentId && isValidAssessmentId(String(body.assessmentId))) {
+    return loadAssessmentById(String(body.assessmentId));
+  }
+  return lastAssessment || (await loadLatestAssessmentFromDisk());
+}
+
+function plannerFromBody(body = {}) {
+  // Provider/model may be supplied per-request; otherwise fall back to the
+  // runtime settings overlay (then env). API keys/base URL come from the
+  // settings overlay or env — never from the request body.
+  const ai = body.ai || {};
+  const provider = (ai.provider || runtimeSettings.resolve('aiProvider') || 'none').toLowerCase();
+  const model = ai.model || runtimeSettings.resolve('aiModel') || undefined;
+  const apiKey = provider === 'anthropic'
+    ? runtimeSettings.resolve('anthropicApiKey')
+    : (provider === 'openai' ? runtimeSettings.resolve('openaiApiKey') : undefined);
+  const baseUrl = (provider === 'ollama' || provider === 'local')
+    ? runtimeSettings.resolve('ollamaHost') || undefined
+    : undefined;
+  return createPlanner({ provider, model, apiKey: apiKey || undefined, baseUrl });
+}
+
+// Dry-run plan — read-only, no remediation gate required (still needs API key).
+app.post('/api/remediate/plan', async (req, res) => {
+  try {
+    const token = parseRemediationToken(req.body);
+    const assessment = await resolveAssessment(req.body);
+    if (!assessment) return sendError(res, 404, 'No assessment available to plan against.', req);
+
+    const client = new CloudflareClient(token);
+    const planner = plannerFromBody(req.body);
+    const plan = await remediationEngine.buildPlan(assessment, {
+      client, planner,
+      checks: parseCsvList(req.body.checks, { maxItems: 200 }),
+      zones: parseCsvList(req.body.zones),
+      excludeZones: parseCsvList(req.body.excludeZones)
+    });
+    return res.json({ plan, allowApply: ALLOW_REMEDIATION });
+  } catch (error) {
+    if (error.message === 'Invalid Cloudflare API token.') {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'remediate-plan');
+  }
+});
+
+// Apply — gated behind FLAREINSPECT_ALLOW_REMEDIATION.
+app.post('/api/remediate/apply', async (req, res) => {
+  if (!ALLOW_REMEDIATION) {
+    return sendError(res, 403, 'Remediation is disabled. Set FLAREINSPECT_ALLOW_REMEDIATION=true to enable.', req);
+  }
+  try {
+    const token = parseRemediationToken(req.body);
+    const assessment = await resolveAssessment(req.body);
+    if (!assessment) return sendError(res, 404, 'No assessment available to remediate.', req);
+
+    const client = new CloudflareClient(token);
+    const planner = plannerFromBody(req.body);
+    const plan = await remediationEngine.buildPlan(assessment, {
+      client, planner,
+      checks: parseCsvList(req.body.checks, { maxItems: 200 }),
+      zones: parseCsvList(req.body.zones),
+      excludeZones: parseCsvList(req.body.excludeZones)
+    });
+
+    // Approve only the checkIds the client explicitly selected; high-risk needs force.
+    const selected = Array.isArray(req.body.checkIds) ? new Set(req.body.checkIds.map(String)) : null;
+    const force = req.body.force === true;
+    const approved = plan.items.filter(item => {
+      if (selected && !selected.has(item.checkId)) return false;
+      if (item.risk === 'high' && !force) return false;
+      return true;
+    });
+
+    if (!approved.length) {
+      return res.json({ applied: [], bundleFile: null, message: 'No changes approved.' });
+    }
+
+    const result = await remediationEngine.apply(approved, {
+      client, backupDir: remediationDir, assessment
+    });
+    return res.json({
+      applied: result.results,
+      bundleFile: result.bundlePath ? path.basename(result.bundlePath) : null
+    });
+  } catch (error) {
+    if (error.message === 'Invalid Cloudflare API token.') {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'remediate-apply');
+  }
+});
+
+// List backup bundles.
+app.get('/api/remediate/backups', (req, res) => {
+  try {
+    return res.json({ backups: backupManager.listBundles(remediationDir) });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'remediate-backups');
+  }
+});
+
+// Rollback — gated behind FLAREINSPECT_ALLOW_REMEDIATION.
+app.post('/api/remediate/rollback', async (req, res) => {
+  if (!ALLOW_REMEDIATION) {
+    return sendError(res, 403, 'Remediation is disabled. Set FLAREINSPECT_ALLOW_REMEDIATION=true to enable.', req);
+  }
+  try {
+    const token = parseRemediationToken(req.body);
+    const file = typeof req.body.bundleFile === 'string' ? path.basename(req.body.bundleFile) : '';
+    if (!file.endsWith('.backup.json')) {
+      return sendError(res, 400, 'bundleFile must be a .backup.json file.', req);
+    }
+    const bundlePath = path.join(remediationDir, file);
+    if (!fs.existsSync(bundlePath)) {
+      return sendError(res, 404, 'Backup bundle not found.', req);
+    }
+
+    const bundle = backupManager.loadBundle(bundlePath); // validates checksum
+    const client = new CloudflareClient(token);
+    const result = await remediationEngine.rollback(bundle, { client, backupDir: remediationDir });
+    return res.json({
+      results: result.results,
+      reportFile: result.reportPath ? path.basename(result.reportPath) : null
+    });
+  } catch (error) {
+    if (error.message === 'Invalid Cloudflare API token.') {
+      return sendError(res, 400, error.message, req);
+    }
+    return sendUnexpectedError(res, error, req, 'remediate-rollback');
   }
 });
 
@@ -575,18 +980,24 @@ app.get('/api/health', (req, res) => {
       ready: storageState.ready,
       error: storageState.lastError
     },
-    auth: API_KEY ? 'api-key' : 'none'
+    auth: API_KEY ? 'api-key' : 'none',
+    remediation: ALLOW_REMEDIATION ? 'enabled' : 'disabled'
   });
 });
 
-const server = app.listen(port, host, () => {
-  const address = server.address();
-  const actualPort = address && typeof address === 'object' ? address.port : port;
-  console.log(`FlareInspect web app running on http://${host}:${actualPort}`);
-  if (API_KEY) {
-    console.log('API key authentication enabled');
-  }
-});
+// Only start listening when this file is the process entry point. When
+// `require()`'d (e.g. from tests), we expose `app` for an in-process
+// `supertest`/raw-http test harness without auto-binding a port.
+if (require.main === module) {
+  const server = app.listen(port, host, () => {
+    const address = server.address();
+    const actualPort = address && typeof address === 'object' ? address.port : port;
+    console.log(`FlareInspect web app running on http://${host}:${actualPort}`);
+    if (API_KEY) {
+      console.log('API key authentication enabled');
+    }
+  });
+}
 
 app.use((err, req, res, next) => {
   if (res.headersSent) {
@@ -594,3 +1005,5 @@ app.use((err, req, res, next) => {
   }
   return sendUnexpectedError(res, err, req, 'middleware');
 });
+
+module.exports = { app };

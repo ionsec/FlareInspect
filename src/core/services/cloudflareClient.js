@@ -1839,6 +1839,445 @@ class CloudflareClient {
       return { error: error.message };
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Phase 2-4 read surface: leaked creds, rulesets, security.txt, notifications,
+  // DNS records, zone hold, account members, workers, KV, D1, queues, zaraz,
+  // account-scoped WAF/posture/access/CASB/email-security/RBI/magic. Read-only.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Read Leaked Credentials Detection status for a zone.
+   * @returns {Promise<{value: {enabled: boolean}, raw: object}>}
+   */
+  async getLeakedCredChecks(zoneId) {
+    try {
+      const data = await this.rawRequest(`/zones/${zoneId}/leaked-credential-checks`);
+      return { value: data?.result || { enabled: false }, raw: data?.result || null };
+    } catch (error) {
+      return { value: { enabled: false }, raw: { error: error.message } };
+    }
+  }
+
+  /**
+   * Read a specific ruleset phase entrypoint for a zone (e.g. http_request_firewall_managed,
+   * ddos_l7). Returns {id, rules, kind, phase, ...} or null if not found.
+   */
+  async getRulesetPhase(zoneId, phase) {
+    try {
+      const data = await this.rawRequest(`/zones/${zoneId}/rulesets/phases/${phase}/entrypoint`);
+      return data?.result || null;
+    } catch (error) {
+      if (error.status === 404 || /not found/i.test(error.message)) return null;
+      throw error;
+    }
+  }
+
+  /** List account-scoped rulesets (read for coverage assessment). */
+  async getAccountRulesets(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/rulesets`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** Read DDoS L7 ruleset posture for a zone (read-only). */
+  async getDDoSL7Ruleset(zoneId) {
+    try {
+      const data = await this.rawRequest(`/zones/${zoneId}/rulesets/phases/ddos_l7/entrypoint`);
+      return data?.result || null;
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** Read existing security.txt (already exposes getSecurityTxt above; alias for clarity). */
+
+  /** List notification policies for an account. */
+  async getNotificationPolicies(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/alerting/v3/policies`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List available alert types for an account (drives the notification recipes). */
+  async getAvailableAlerts(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/alerting/v3/available_alerts`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** Read zone hold status. */
+  async getZoneHold(zoneId) {
+    try {
+      const data = await this.rawRequest(`/zones/${zoneId}/hold`);
+      return data?.result || null;
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List Workers scripts for an account. */
+  async getWorkersScripts(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/workers/scripts`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List Workers script bindings (top-level array per v5 API). */
+  async getWorkersBindings(accountId, scriptName) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/workers/scripts/${scriptName}/bindings`);
+      return Array.isArray(data) ? data : (data?.result || []);
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List Workers routes (zone-scoped). */
+  async getWorkersRoutes(zoneId) {
+    try {
+      const data = await this.rawRequest(`/zones/${zoneId}/workers/routes`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List KV namespaces for an account. */
+  async getKVNamespaces(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/storage/kv/namespaces`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List D1 databases for an account. */
+  async getD1Databases(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/d1/database`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List Queues for an account. */
+  async getQueues(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/queues`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** Read Zaraz published config (excludes secret values). */
+  async getZarazConfig(zoneId) {
+    try {
+      const data = await this.rawRequest(`/zones/${zoneId}/settings/zaraz/config`);
+      return data?.result || null;
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List device posture rules (Enterprise, account-scoped). */
+  async getDevicePosture(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/devices/posture`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List Access applications + their policies (Enterprise, account-scoped). */
+  async getAccessApplications(accountId) {
+    try {
+      const apps = await this.rawRequest(`/accounts/${accountId}/access/applications`);
+      const appList = apps?.result || [];
+      // Fetch policies for each app (best-effort, bounded)
+      const enriched = await Promise.all(appList.slice(0, 50).map(async app => {
+        try {
+          const pols = await this.rawRequest(`/accounts/${accountId}/access/applications/${app.id}/policies`);
+          return { ...app, policies: pols?.result || [] };
+        } catch {
+          return { ...app, policies: [], policyError: 'unreadable' };
+        }
+      }));
+      return enriched;
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List CASB integrations and findings (Enterprise, account-scoped). */
+  async getCASBFindings(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/casb/findings`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List Cloud Email Security policies (Enterprise, account-scoped). */
+  async getEmailSecurityPolicies(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/email-security/policies`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** Inspect gateway HTTP policies for browser-isolation actions (Enterprise). */
+  async getBrowserIsolationPolicies(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/gateway/rules`);
+      const rules = data?.result || [];
+      return rules.filter(r => (r.actions || []).some(a => a === 'isolate' || a?.action === 'isolate'));
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /** List Magic Transit/Firewall ruleset IDs (Enterprise). */
+  async getMagicFirewallRulesets(accountId) {
+    try {
+      const data = await this.rawRequest(`/accounts/${accountId}/rulesets?phase=magic_transit`);
+      return data?.result || [];
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mutation wrappers (remediation)
+  //
+  // The assessment surface of this client is read-only. The methods below are
+  // the ONLY sanctioned write paths and are used exclusively by the remediation
+  // recipe registry. Every write is logged via logger.mutation for auditability.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Read a single zone setting value.
+   * @returns {Promise<{value: *, raw: object}>}
+   */
+  async getZoneSetting(zoneId, setting) {
+    const data = await this.rawRequest(`/zones/${zoneId}/settings/${setting}`);
+    return { value: data?.result?.value ?? null, raw: data?.result ?? null };
+  }
+
+  /**
+   * Patch a single zone setting (e.g. ssl, min_tls_version, always_use_https).
+   * @returns {Promise<object>} the Cloudflare result object
+   */
+  async patchZoneSetting(zoneId, setting, value) {
+    logger.mutation(`PATCH /zones/${zoneId}/settings/${setting}`, { value });
+    const data = await this.rawRequest(`/zones/${zoneId}/settings/${setting}`, {
+      method: 'PATCH',
+      body: { value }
+    });
+    return data?.result ?? null;
+  }
+
+  /**
+   * Read DNSSEC status for a zone.
+   * @returns {Promise<{value: string|null, raw: object}>}
+   */
+  async getDnssec(zoneId) {
+    const data = await this.rawRequest(`/zones/${zoneId}/dnssec`);
+    return { value: data?.result?.status ?? null, raw: data?.result ?? null };
+  }
+
+  /**
+   * Update DNSSEC status for a zone ('active' | 'disabled').
+   * @returns {Promise<object>} the Cloudflare result object
+   */
+  async setDnssec(zoneId, status) {
+    logger.mutation(`PATCH /zones/${zoneId}/dnssec`, { status });
+    const data = await this.rawRequest(`/zones/${zoneId}/dnssec`, {
+      method: 'PATCH',
+      body: { status }
+    });
+    return data?.result ?? null;
+  }
+
+  // --- Phase 2-4 mutation wrappers: create/delete recipes --------------------
+
+  /**
+   * Enable/disable Leaked Credentials Detection for a zone (non-blocking,
+   * detection-only — does not change traffic behavior).
+   * @returns {Promise<object>} the Cloudflare result object
+   */
+  async setLeakedCredChecks(zoneId, enabled) {
+    logger.mutation(`POST /zones/${zoneId}/leaked-credential-checks`, { enabled });
+    const data = await this.rawRequest(`/zones/${zoneId}/leaked-credential-checks`, {
+      method: 'POST',
+      body: { enabled: !!enabled }
+    });
+    return data?.result ?? null;
+  }
+
+  /**
+   * PUT a ruleset phase entrypoint (e.g. deploy WAF managed in log mode).
+   * @param {string} zoneId
+   * @param {string} phase e.g. 'http_request_firewall_managed'
+   * @param {object[]} rules rules array
+   * @returns {Promise<object>}
+   */
+  async putRulesetPhase(zoneId, phase, rules) {
+    logger.mutation(`PUT /zones/${zoneId}/rulesets/phases/${phase}/entrypoint`, { ruleCount: rules.length });
+    const data = await this.rawRequest(`/zones/${zoneId}/rulesets/phases/${phase}/entrypoint`, {
+      method: 'PUT',
+      body: { rules }
+    });
+    return data?.result ?? null;
+  }
+
+  /**
+   * Add a single rule to a ruleset (returns the created rule with id).
+   * @returns {Promise<{id: string, ...}>}
+   */
+  async createRulesetRule(zoneId, rulesetId, body) {
+    logger.mutation(`POST /zones/${zoneId}/rulesets/${rulesetId}/rules`, { action: body?.action });
+    const data = await this.rawRequest(`/zones/${zoneId}/rulesets/${rulesetId}/rules`, {
+      method: 'POST',
+      body
+    });
+    return data?.result ?? null;
+  }
+
+  /** Delete a single rule from a ruleset (by id). */
+  async deleteRulesetRule(zoneId, rulesetId, ruleId) {
+    logger.mutation(`DELETE /zones/${zoneId}/rulesets/${rulesetId}/rules/${ruleId}`);
+    await this.rawRequest(`/zones/${zoneId}/rulesets/${rulesetId}/rules/${ruleId}`, {
+      method: 'DELETE'
+    });
+    return true;
+  }
+
+  /**
+   * PUT security.txt for a zone. Fields: contact[], expires, enabled, encryption[],
+   * policy[], canonical[], acknowledgments[], hiring[], preferred_languages.
+   * @returns {Promise<object>}
+   */
+  async putSecurityTxt(zoneId, payload) {
+    logger.mutation(`PUT /zones/${zoneId}/security-center/securitytxt`, {
+      enabled: payload?.enabled, contactCount: payload?.contact?.length, expires: payload?.expires
+    });
+    const data = await this.rawRequest(`/zones/${zoneId}/security-center/securitytxt`, {
+      method: 'PUT',
+      body: payload
+    });
+    return data?.result ?? null;
+  }
+
+  /** Delete security.txt for a zone (revert). */
+  async deleteSecurityTxt(zoneId) {
+    logger.mutation(`DELETE /zones/${zoneId}/security-center/securitytxt`);
+    await this.rawRequest(`/zones/${zoneId}/security-center/securitytxt`, {
+      method: 'DELETE'
+    });
+    return true;
+  }
+
+  /**
+   * Create a notification policy. Body shape: {name, description, enabled, alert_type,
+   * mechanisms: {email:[{id}], webhooks:[{id}]}, filters}.
+   * @returns {Promise<{id: string, ...}>} the new policy
+   */
+  async createNotificationPolicy(accountId, body) {
+    logger.mutation(`POST /accounts/${accountId}/alerting/v3/policies`, {
+      name: body?.name, alert_type: body?.alert_type, enabled: body?.enabled
+    });
+    const data = await this.rawRequest(`/accounts/${accountId}/alerting/v3/policies`, {
+      method: 'POST',
+      body
+    });
+    return data?.result ?? null;
+  }
+
+  /** Delete a notification policy by id. */
+  async deleteNotificationPolicy(accountId, policyId) {
+    logger.mutation(`DELETE /accounts/${accountId}/alerting/v3/policies/${policyId}`);
+    await this.rawRequest(`/accounts/${accountId}/alerting/v3/policies/${policyId}`, {
+      method: 'DELETE'
+    });
+    return true;
+  }
+
+  /**
+   * Create a DNS record. Body shape: {type, name, content, ttl, proxied?, comment?}.
+   * @returns {Promise<{id: string, ...}>}
+   */
+  async createDNSRecord(zoneId, body) {
+    logger.mutation(`POST /zones/${zoneId}/dns_records`, {
+      type: body?.type, name: body?.name
+    });
+    const data = await this.rawRequest(`/zones/${zoneId}/dns_records`, {
+      method: 'POST',
+      body
+    });
+    return data?.result ?? null;
+  }
+
+  /** Delete a DNS record by id. */
+  async deleteDNSRecord(zoneId, recordId) {
+    logger.mutation(`DELETE /zones/${zoneId}/dns_records/${recordId}`);
+    await this.rawRequest(`/zones/${zoneId}/dns_records/${recordId}`, {
+      method: 'DELETE'
+    });
+    return true;
+  }
+
+  /**
+   * Enable zone hold (anti-takeover). Body: {include_subdomains: bool, hold_after?: ISO}.
+   * @returns {Promise<{id?: string, hold: boolean, ...}>}
+   */
+  async setZoneHold(zoneId, body) {
+    logger.mutation(`POST /zones/${zoneId}/hold`, body);
+    const data = await this.rawRequest(`/zones/${zoneId}/hold`, {
+      method: 'POST',
+      body: body || {}
+    });
+    return data?.result ?? null;
+  }
+
+  /** Remove zone hold. */
+  async removeZoneHold(zoneId) {
+    logger.mutation(`DELETE /zones/${zoneId}/hold`);
+    await this.rawRequest(`/zones/${zoneId}/hold`, { method: 'DELETE' });
+    return true;
+  }
+
+  /**
+   * Toggle account-wide 2FA enforcement. Body: {settings: {enforce_twofactor: bool}}.
+   * @returns {Promise<object>}
+   */
+  async enforceAccount2FA(accountId, enabled) {
+    logger.mutation(`PUT /accounts/${accountId}`, { enforce_twofactor: !!enabled });
+    const data = await this.rawRequest(`/accounts/${accountId}`, {
+      method: 'PUT',
+      body: { settings: { enforce_twofactor: !!enabled } }
+    });
+    return data?.result ?? null;
+  }
 }
 
 module.exports = CloudflareClient;
