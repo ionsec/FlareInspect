@@ -150,6 +150,40 @@ const dnssecRecipe = {
   }
 };
 
+// --- Phase 4: Zone Hold (ENT only) --------------------------------------
+const zoneHoldRecipe = {
+  checkId: 'CFL-HOLD-001',
+  title: 'Enable zone hold (anti-takeover)',
+  scope: 'zone',
+  risk: 'high', // zone hold is reversible but can block legitimate transfers
+  reversible: true,
+  setting: 'zone-hold',
+  async read(client, ctx) {
+    const hold = await client.getZoneHold(ctx.zoneId);
+    return { hold: !!hold?.hold, hold_after: hold?.hold_after || null };
+  },
+  isCompliant(currentValue) {
+    return !!currentValue?.hold;
+  },
+  proposed() {
+    return { hold: true };
+  },
+  async apply(client, ctx) {
+    return client.setZoneHold(ctx.zoneId);
+  },
+  async restore(client, ctx, backupValue) {
+    // If previously off, remove the hold. If it was already on, no-op.
+    if (!backupValue || !backupValue.hold) {
+      return client.removeZoneHold(ctx.zoneId);
+    }
+    return null;
+  },
+  async verify(client, ctx) {
+    const hold = await client.getZoneHold(ctx.zoneId);
+    return !!hold?.hold;
+  }
+};
+
 // --- Phase 2a: Leaked Credentials + WAF Managed Rulesets ---------------
 
 /**
@@ -539,7 +573,10 @@ const RECIPES = [
     recordName: '_dmarc',
     content: '"v=DMARC1; p=none; rua=mailto:dmarc-reports@example.com"',
     risk: 'medium'
-  })
+  }),
+
+  // --- Phase 4: Enterprise zone hold (ENT only) --------------------------
+  zoneHoldRecipe
 ];
 
 
