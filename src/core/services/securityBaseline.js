@@ -836,6 +836,80 @@ class SecurityBaseline {
         compliance: ['OWASP']
       },
 
+      // --- Phase 4: Enterprise / SASE (ENT-gated at assess time) --------
+      {
+        id: 'CFL-HOLD-001',
+        category: 'account-waf',
+        title: 'Zone Hold (Anti-Takeover)',
+        description: 'Enable zone hold to prevent unauthorized transfer of the zone (Enterprise only)',
+        severity: 'high',
+        compliance: ['CIS', 'SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-POSTURE-001',
+        category: 'posture',
+        title: 'Device Posture Rules',
+        description: 'No device posture rules defined — bound to Zero Trust policies for trusted endpoints',
+        severity: 'high',
+        compliance: ['SOC2', 'PCI-DSS', 'NIST']
+      },
+      {
+        id: 'CFL-ZT-007',
+        category: 'zerotrust',
+        title: 'Access App Depth — No "Allow Everyone"',
+        description: 'Some Access applications have policies that allow everyone without MFA or posture',
+        severity: 'critical',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-ZT-008',
+        category: 'zerotrust',
+        title: 'Access App Session Duration',
+        description: 'Access applications should have a bounded session duration',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      {
+        id: 'CFL-ZT-009',
+        category: 'zerotrust',
+        title: 'Access App Require MFA / Posture',
+        description: 'Access applications should require MFA or device posture for sensitive apps',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-CASB-001',
+        category: 'casb',
+        title: 'CASB Integrations and Open Findings',
+        description: 'CASB integrations are connected and open critical/high findings should be reviewed',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-EMAILSEC-001',
+        category: 'email-security',
+        title: 'Cloud Email Security Policies',
+        description: 'Cloud Email Security (Area 1) policies are active',
+        severity: 'medium',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-RBI-001',
+        category: 'rbi',
+        title: 'Browser Isolation Policies',
+        description: 'Browser Isolation should be applied to risky categories / uploads',
+        severity: 'medium',
+        compliance: ['SOC2', 'NIST']
+      },
+      {
+        id: 'CFL-MAGIC-001',
+        category: 'magic',
+        title: 'Magic Firewall / Magic Transit Ruleset',
+        description: 'Magic Firewall / Magic Transit ruleset is present and has rules',
+        severity: 'high',
+        compliance: ['CIS', 'SOC2', 'NIST']
+      },
+
     ];
   }
 
@@ -1041,6 +1115,16 @@ class SecurityBaseline {
       'CFL-CFRULE-001': 'Review configuration rules to ensure they do not override security settings like WAF or SSL enforcement.',
       'CFL-TXRULE-001': 'Audit URL rewrite and header modification rules for security implications such as removing security headers.',
       'CFL-DEVICE-001': 'Configure device enrollment and posture checks in Zero Trust > Devices to ensure only compliant devices can access resources.',
+
+      'CFL-HOLD-001': 'Enable zone hold in Account > Account Settings > Zone Hold (Enterprise only).',
+      'CFL-POSTURE-001': 'Define device posture rules in Zero Trust > Devices > Posture.',
+      'CFL-ZT-007': 'Remove "Allow everyone" policies from Access applications; require authentication.',
+      'CFL-ZT-008': 'Set a bounded session duration (e.g. 24h max) on every Access application.',
+      'CFL-ZT-009': 'Add MFA or device posture requirements to sensitive Access applications.',
+      'CFL-CASB-001': 'Review open CASB findings — critical/high should be remediated or accepted.',
+      'CFL-EMAILSEC-001': 'Activate anti-spoof and phishing protection in Cloud Email Security.',
+      'CFL-RBI-001': 'Add Browser Isolation policies for risky categories / uploads.',
+      'CFL-MAGIC-001': 'Add Magic Firewall / Magic Transit rules for known-bad traffic.',
 
     };
 

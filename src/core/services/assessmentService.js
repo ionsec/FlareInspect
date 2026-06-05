@@ -582,6 +582,35 @@ class AssessmentService {
         await this.assessStorageInventory(account, q, 'CFL-STORE-003', 'queues', assessment);
       }
 
+      // Phase 4 account-scoped Enterprise / SASE checks (ENT-gated)
+      const isEnt = (account.plan?.name || '').toLowerCase().includes('enterprise');
+      if (isEnt) {
+        if (client.getDevicePosture) {
+          const posture = await client.getDevicePosture(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessDevicePosture(account, posture, assessment);
+        }
+        if (client.getAccessApplications) {
+          const apps = await client.getAccessApplications(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessAccessDepth(account, apps, assessment);
+        }
+        if (client.getCASBFindings) {
+          const casb = await client.getCASBFindings(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessCASB(account, casb, assessment);
+        }
+        if (client.getEmailSecurityPolicies) {
+          const esp = await client.getEmailSecurityPolicies(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessEmailSecurity(account, esp, assessment);
+        }
+        if (client.getBrowserIsolationPolicies) {
+          const rbi = await client.getBrowserIsolationPolicies(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessBrowserIsolation(account, rbi, assessment);
+        }
+        if (client.getMagicFirewallRulesets) {
+          const mf = await client.getMagicFirewallRulesets(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessMagicFirewall(account, mf, assessment);
+        }
+      }
+
     } catch (error) {
       logger.error('Account assessment failed', {
         assessmentId: assessment.assessmentId,
@@ -780,6 +809,13 @@ class AssessmentService {
         if (!assessment.configuration.workers) assessment.configuration.workers = {};
         if (!assessment.configuration.workers.routes) assessment.configuration.workers.routes = {};
         assessment.configuration.workers.routes[zone.name] = Array.isArray(routes) ? routes : [];
+      }
+
+      // Phase 4 zone-scoped Enterprise / SASE checks (ENT-gated)
+      const isEntZone = (zone.plan?.name || '').toLowerCase().includes('enterprise');
+      if (isEntZone && client.getZoneHold) {
+        const hold = await client.getZoneHold(zone.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessZoneHold(zone, hold, assessment);
       }
 
       // Run general zone security checks
@@ -3691,6 +3727,265 @@ class AssessmentService {
           observed: `${tools.length} tools, consent=${hasConsent ? 'on' : 'off'}`,
           source: { category: 'zaraz', endpoint: 'zones.settings.zaraz.config.get' },
           raw: { toolCount: tools.length, hasConsent, toolNames: tools }
+        }
+      }
+    ));
+  }
+
+  // ---------- Phase 4: Enterprise / SASE assess methods ----------
+
+  async assessZoneHold(zone, hold, assessment) {
+    const checks = this.securityBaseline.getChecksByCategory('account-waf');
+    const check = checks.find(c => c.id === 'CFL-HOLD-001') || {
+      id: 'CFL-HOLD-001',
+      title: 'Zone Hold (Anti-Takeover)',
+      description: 'Enable zone hold to prevent unauthorized transfer of the zone (Enterprise only)',
+      severity: 'high',
+      compliance: ['CIS', 'SOC2', 'NIST']
+    };
+    const isHeld = hold && (hold.hold === true || hold.hold_after);
+    const status = isHeld ? 'PASS' : 'FAIL';
+    const observed = isHeld
+      ? `hold=${hold.hold}${hold.hold_after ? ` after ${hold.hold_after}` : ''}`
+      : 'hold not set';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `Zone hold is ${isHeld ? 'enabled' : 'disabled'}`,
+      'Zone hold is enabled',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `Zone hold for ${zone.name}: ${isHeld ? 'on' : 'off'}.`,
+          expected: 'hold enabled (anti-takeover)',
+          observed,
+          source: { category: 'account-waf', endpoint: 'zones.hold.get' },
+          raw: { hold }
+        }
+      }
+    ));
+  }
+
+  async assessDevicePosture(account, posture, assessment) {
+    const check = {
+      id: 'CFL-POSTURE-001',
+      title: 'Device Posture Rules',
+      description: 'No device posture rules defined — bound to Zero Trust policies for trusted endpoints',
+      severity: 'high',
+      compliance: ['SOC2', 'PCI-DSS', 'NIST']
+    };
+    const list = Array.isArray(posture) ? posture : (posture && Array.isArray(posture.rules) ? posture.rules : []);
+    const status = list.length > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${list.length} device posture rule(s)`,
+      'At least one posture rule defined',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${list.length} device posture rule(s) configured for account ${account.name}.`,
+          expected: '≥1 posture rule',
+          observed: `${list.length} rules`,
+          source: { category: 'posture', endpoint: 'accounts.devices.posture.list' },
+          raw: { count: list.length, ruleNames: list.map(r => r.name || r.id) }
+        }
+      }
+    ));
+  }
+
+  async assessAccessDepth(account, apps, assessment) {
+    const list = Array.isArray(apps) ? apps : [];
+    const checks = {
+      allowEveryone: list.find(c => c.id === 'CFL-ZT-007') || {
+        id: 'CFL-ZT-007',
+        title: 'Access App Depth — No "Allow Everyone"',
+        severity: 'critical',
+        compliance: ['SOC2', 'NIST']
+      },
+      sessionDuration: list.find(c => c.id === 'CFL-ZT-008') || {
+        id: 'CFL-ZT-008',
+        title: 'Access App Session Duration',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      requireMfa: list.find(c => c.id === 'CFL-ZT-009') || {
+        id: 'CFL-ZT-009',
+        title: 'Access App Require MFA / Posture',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
+      }
+    };
+    const resource = { id: account.id, type: 'account', name: account.name };
+
+    const everyone = list.filter(app => {
+      const policies = Array.isArray(app.policies) ? app.policies : [];
+      return policies.some(p => (p.include || []).some(inc => inc.everyone || inc.anyone) || (p.include || []).some(inc => inc.email && Array.isArray(inc.email) && inc.email.length === 0));
+    });
+    assessment.findings.push(this.securityBaseline.createFinding(
+      checks.allowEveryone,
+      everyone.length === 0 ? 'PASS' : 'FAIL',
+      `${everyone.length} Access app(s) with allow-everyone policy`,
+      'No Access app with allow-everyone',
+      resource,
+      {
+        evidence: {
+          summary: `${everyone.length} Access app(s) allow everyone without identity binding.`,
+          expected: '0',
+          observed: `${everyone.length}`,
+          affectedEntities: everyone.map(a => ({ id: a.id, name: a.name })),
+          source: { category: 'zerotrust', endpoint: 'accounts.access.applications.list' },
+          raw: { everyoneAppIds: everyone.map(a => a.id) }
+        }
+      }
+    ));
+
+    const unbounded = list.filter(app => {
+      const dur = app.session_duration || app.policies?.[0]?.session_duration;
+      return !dur || dur === '24h' || dur === '168h' || dur === '720h' || dur === '8760h';
+    });
+    assessment.findings.push(this.securityBaseline.createFinding(
+      checks.sessionDuration,
+      unbounded.length === 0 ? 'PASS' : 'WARNING',
+      `${unbounded.length} Access app(s) with default/long session duration`,
+      'Bounded session duration (≤24h)',
+      resource,
+      {
+        evidence: {
+          summary: `${unbounded.length} Access app(s) use a default or >24h session duration.`,
+          expected: '≤24h session duration on all apps',
+          observed: `${unbounded.length} unbounded apps`,
+          source: { category: 'zerotrust', endpoint: 'accounts.access.applications.list' }
+        }
+      }
+    ));
+
+    const noMfa = list.filter(app => {
+      const policies = Array.isArray(app.policies) ? app.policies : [];
+      return !policies.some(p => Array.isArray(p.require) && p.require.length > 0);
+    });
+    assessment.findings.push(this.securityBaseline.createFinding(
+      checks.requireMfa,
+      noMfa.length === 0 ? 'PASS' : 'FAIL',
+      `${noMfa.length} Access app(s) without require rules (MFA/posture)`,
+      'All sensitive apps require MFA or posture',
+      resource,
+      {
+        evidence: {
+          summary: `${noMfa.length} Access app(s) have no MFA / posture requirements.`,
+          expected: '0',
+          observed: `${noMfa.length}`,
+          affectedEntities: noMfa.map(a => ({ id: a.id, name: a.name })),
+          source: { category: 'zerotrust', endpoint: 'accounts.access.applications.list' }
+        }
+      }
+    ));
+  }
+
+  async assessCASB(account, casb, assessment) {
+    const check = {
+      id: 'CFL-CASB-001',
+      title: 'CASB Integrations and Open Findings',
+      severity: 'high',
+      compliance: ['SOC2', 'NIST']
+    };
+    const findings = Array.isArray(casb) ? casb : (casb?.findings || []);
+    const openCritical = findings.filter(f => f.status === 'open' && (f.severity === 'critical' || f.severity === 'high'));
+    const status = openCritical.length === 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${openCritical.length} open critical/high CASB finding(s)`,
+      'No open critical/high CASB findings',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${openCritical.length} open critical/high CASB findings across ${findings.length} total.`,
+          expected: '0',
+          observed: `${openCritical.length}`,
+          source: { category: 'casb', endpoint: 'accounts.casb.findings.list' },
+          raw: { total: findings.length, openCritical: openCritical.length }
+        }
+      }
+    ));
+  }
+
+  async assessEmailSecurity(account, esp, assessment) {
+    const check = {
+      id: 'CFL-EMAILSEC-001',
+      title: 'Cloud Email Security Policies',
+      severity: 'medium',
+      compliance: ['SOC2', 'NIST']
+    };
+    const list = Array.isArray(esp) ? esp : [];
+    const active = list.filter(p => p.enabled);
+    const status = active.length > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${active.length} active Cloud Email Security polic(y/ies)`,
+      'At least one active policy',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${active.length} of ${list.length} Cloud Email Security polic(y/ies) active.`,
+          expected: '≥1',
+          observed: `${active.length}`,
+          source: { category: 'email-security', endpoint: 'accounts.email_security.policies.list' },
+          raw: { activeCount: active.length, total: list.length, activeNames: active.map(p => p.name) }
+        }
+      }
+    ));
+  }
+
+  async assessBrowserIsolation(account, rbi, assessment) {
+    const check = {
+      id: 'CFL-RBI-001',
+      title: 'Browser Isolation Policies',
+      severity: 'medium',
+      compliance: ['SOC2', 'NIST']
+    };
+    const list = Array.isArray(rbi) ? rbi : [];
+    const status = list.length > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${list.length} Browser Isolation polic(y/ies)`,
+      'At least one Browser Isolation policy',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${list.length} Browser Isolation polic(y/ies) defined.`,
+          expected: '≥1',
+          observed: `${list.length}`,
+          source: { category: 'rbi', endpoint: 'accounts.browser_isolation.policies.list' }
+        }
+      }
+    ));
+  }
+
+  async assessMagicFirewall(account, mf, assessment) {
+    const check = {
+      id: 'CFL-MAGIC-001',
+      title: 'Magic Firewall / Magic Transit Ruleset',
+      severity: 'high',
+      compliance: ['CIS', 'SOC2', 'NIST']
+    };
+    const list = Array.isArray(mf) ? mf : (mf?.rulesets || []);
+    const totalRules = list.reduce((sum, r) => sum + ((r.rules || []).length), 0);
+    const status = list.length > 0 && totalRules > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${list.length} ruleset(s), ${totalRules} total rules`,
+      'Magic Firewall ruleset with at least one rule',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${list.length} Magic Firewall ruleset(s), ${totalRules} rules total.`,
+          expected: '≥1 ruleset with ≥1 rule',
+          observed: `${list.length} / ${totalRules}`,
+          source: { category: 'magic', endpoint: 'accounts.magic_firewall.rulesets.list' }
         }
       }
     ));
