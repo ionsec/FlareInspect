@@ -89,9 +89,9 @@ Grade and Score
 ^^^^^^^^^^^^^^^
 
 =========  ====================================================================================
-Component  Description                                                                         
+Component  Description
 =========  ====================================================================================
-**Grade**  Letter grade from A (best) to F (worst), derived from the numeric score             
+**Grade**  Letter grade from A (best) to F (worst), derived from the numeric score
 **Score**  Numeric score from 0 to 100, calculated from pass/fail findings weighted by severity
 =========  ====================================================================================
 
@@ -101,13 +101,25 @@ Findings by Severity
 Each finding has a severity level:
 
 ============  =====================================================
-Severity      Meaning                                              
+Severity      Meaning
 ============  =====================================================
-**Critical**  Immediate risk — requires urgent remediation         
-**High**      Significant security gap — should be addressed soon  
-**Medium**    Moderate risk — remediation recommended              
+**Critical**  Immediate risk — requires urgent remediation
+**High**      Significant security gap — should be addressed soon
+**Medium**    Moderate risk — remediation recommended
 **Low**       Minor issue or informational — review when convenient
 ============  =====================================================
+
+Attack paths *(v2.0)*
+^^^^^^^^^^^^^^^^^^^^^
+
+Since v2.0 the assessment also produces a **resource graph** (14 node
+types, 8 edge types) and runs five rule-based attack-path detectors
+that connect findings into chains of exposure
+(``exposed-origin``, ``weak-transport``, ``open-access-app``,
+``tunnel-without-access``, ``worker-plaintext-secret``).  Open the
+dashboard's **Posture map** page to visualise them, or query the
+graph via ``GET /api/posture/graph``.  See
+:doc:`/architecture/resource-graph` for the data model.
 
 Top Risks
 ^^^^^^^^^
@@ -141,3 +153,11 @@ For a Markdown-formatted drift report:
 .. code-block:: bash
 
    flareinspect diff --baseline baseline.json --current latest.json -f markdown -o drift-report.md
+
+Where to go next
+----------------
+
+- :doc:`/posture-map/index` — visualise the resource graph + attack paths in the dashboard
+- :doc:`/siem/index` — ship findings to Elasticsearch or Splunk HEC
+- :doc:`/mcp/index` — drive the full assess → plan → apply loop from an MCP-aware agent
+- :doc:`/architecture/resource-graph` — the typed node/edge model and the five attack-path detectors
