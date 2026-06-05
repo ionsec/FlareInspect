@@ -1,149 +1,222 @@
-# Roadmap: New Cloudflare Services for FlareInspect (Assessment + Remediation)
+# Handover Plan: Posture Map (Attack-Path Visualization) for FlareInspect Dashboard
 
-## Context
+> **For the implementing model.** This is a self-contained spec — you do not need prior
+> conversation context. Read the "Repo facts" section carefully; the dashboard is **vanilla JS
+> classic scripts (no framework, no build step)**, so the integration rules are specific.
 
-FlareInspect today ships **71 assessment checks across ~28 categories** and **10 remediation
-recipes** (all single-setting, reversible zone-setting flips + DNSSEC). An audit of the codebase
-(`securityBaseline.js`, `assessmentService.js`, `cloudflareClient.js`, `recipeRegistry.js`) shows
-the tool touches ~59 Cloudflare API methods — roughly **half** of Cloudflare's security-relevant
-API surface — and remediation only covers a thin slice of what it *detects* (most failing findings
-are advisory-only).
+## Goal
 
-This roadmap is a **prioritized, phased research survey** of new Cloudflare services to add, for
-**both assessment and remediation**, balanced across self-serve (Free/Pro/Biz) and Enterprise/SASE
-tiers. Each candidate is scored on: **security value × read availability × safe-reversible-write
-feasibility**. The guiding constraint is unchanged — remediation must stay deterministic, reversible,
-backed-up, and AI-off-the-critical-path (per the existing `recipeRegistry` trust-boundary model).
+Add a new **Posture Map** section to the FlareInspect web dashboard: an interactive, Wiz-style
+**entity graph** that visualizes the account's Cloudflare entities (account → zones → security
+services) as connected nodes, colors them by finding severity, and **highlights attack paths**
+(chains that lead to a high/critical exposure). Aesthetic must match modern security platforms
+(Wiz, Orca, Cloudflare One): dark, glassy nodes with icons, severity glow, smooth curved edges,
+pan/zoom, and a click-to-inspect detail drawer.
 
-Goal: a build order, not a build-now spec. Each phase is independently shippable.
+Pure front-end feature. **No backend, no new npm deps, no build tooling.** It renders from the
+assessment JSON already loaded in the browser.
 
-## Scoring legend
+## Repo facts you must respect
 
-- **Assess** = new detection check(s). **Remediate** = safe auto-fix recipe.
-- Reversibility: 🟢 setting flip · 🟡 create/delete resource (capture id to reverse) · 🔴 not auto-remediable (advisory only).
-- Tier: **SS** = self-serve (Free/Pro/Biz) · **ENT** = Enterprise/SASE.
+**Stack & conventions** (`web/public/`):
+- The SPA is **classic `<script>` tags**, not modules. `web/public/app.js` declares top-level
+  `let`/`const`/`function` that live in the **shared global lexical scope** — a second classic
+  script loaded *after* `app.js` can reference them directly. You will rely on this.
+- Reusable globals from `app.js` you SHOULD use (do not re-declare):
+  - `let currentAssessment` — the loaded assessment object (or `null`). Set in `updateWithAssessment()` (app.js:184).
+  - `function escHtml(str)` — HTML-escape helper (app.js:24). **Use for all interpolated strings.**
+  - `function $(id)` — `document.getElementById` shorthand (app.js:39).
+  - `const SEVERITY_ORDER = { critical:0, high:1, medium:2, low:3, informational:4 }` (app.js:9).
+  - `function navigateTo(section)` (app.js:43) — section router; shows `#page-<section>`, hides others, sets active navlink + crumb, and calls per-section loaders. **You add a hook here.**
+  - `const TOPBAR_TITLES = {…}` (app.js:11) — breadcrumb labels. **Add an entry.**
+  - `function showToast(message, type)` — toast helper (optional, for errors).
+- Section pages are `<div class="v1-page" id="page-<name>" style="display:none">`; `navigateTo`
+  sets `page.style.display = 'flex'`.
 
-## Architectural enablers (prerequisite for Phases 2+)
+**CSP** (`web/server.js`, helmet): `scriptSrc 'self' 'unsafe-inline' https://cdn.jsdelivr.net`,
+`styleSrc 'self' 'unsafe-inline'`, `imgSrc 'self' data:`. → Inline SVG and inline styles are fine.
+**Prefer zero external deps** (build it in raw SVG). If you really want a lib, jsdelivr is the only
+allowed CDN — but the bar is: don't add one unless it materially improves quality.
 
-The current `recipeRegistry` only models `PATCH /zones/{id}/settings/{x}` + DNSSEC. To remediate
-the higher-value services below, generalize three things (small, well-scoped changes):
+**Design system** (`web/public/styles.css` `:root`) — REUSE these variables, do not hardcode hex:
+- Surfaces: `--bg-0:#08080b … --bg-3:#1a1a20`, `--bg-elev:#17171d`. Lines: `--line`, `--line-2`, `--line-3`.
+- Text: `--fg`, `--fg-2`, `--fg-3`, `--fg-4`. Brand: `--flare`, `--flare-2`, `--flare-soft`.
+- Severity (OKLCH): `--crit`, `--high`, `--med`, `--low`, `--info` and `*-soft` variants (e.g. `--crit-soft`) for glows/fills.
+- Fonts: `--font-ui` (Manrope), `--font-mono` (Geist Mono — use for IDs/labels). Radii: `--r-sm/-r/-r-lg/-r-xl`.
+- Existing component classes to match the look: `.v1-page`, `.v1-page-head`, `.v1-card`, `.v1-btn`, `.v1-btn-primary`, `.v1-btn-ghost`, `.v1-badge`.
 
-1. **`cloudflareClient.js` — audited write wrappers** (all via `logger.mutation`, mirroring the
-   existing `patchZoneSetting`/`setDnssec` at `cloudflareClient.js:1855+`): `createRulesetRule` /
-   `deleteRulesetRule`, `createDNSRecord` / `deleteDNSRecord`, `putSecurityTxt`, `setLeakedCredentialChecks`,
-   `createNotificationPolicy` / `deleteNotificationPolicy`, `setZoneHold` / `removeZoneHold`.
-2. **Recipe interface** already supports arbitrary `apply`/`restore`/`verify` (see
-   `recipeRegistry.js`). Extend backup entries (`backupManager.js` `buildBundle`) with an optional
-   `createdResourceId` / `restoreOp` so **create-then-delete** recipes are reversible and stay
-   checksum-protected. No schema break — additive fields.
-3. **`remediationEngine.contextFor`** (`remediationEngine.js`) currently maps `zoneId = resourceId`.
-   Add `accountId` + honor `resourceType` so **account-scoped** recipes (notifications, account
-   rulesets, leaked-creds at account level) work. Add a `scope`-aware token-scope preflight note.
+**Finding object shape** (in `currentAssessment.findings[]`):
+```
+{ checkId, checkTitle (or title), severity: 'critical|high|medium|low|informational',
+  status: 'PASS|FAIL|WARNING', service (category, e.g. 'ssl','waf','dns','account'),
+  resourceId, resourceType: 'zone'|'account'|'certificate'|…, description,
+  metadata: { evidence, status }, remediation }
+```
+**Assessment shape:** `currentAssessment = { account:{id,name}, zones:[{id,name,plan,status}], findings:[…] }`.
 
-These unlock 🟡 create/delete recipes without weakening any safety guarantee.
+## Files to create / modify
 
----
+| Action | File | What |
+|---|---|---|
+| **Create** | `web/public/postureMap.js` | Graph build + SVG render + interactions (the engine). |
+| **Create** | `web/public/postureMap.css` | Wiz-style graph styling using the CSS vars above. |
+| **Edit** | `web/public/index.html` | Nav link, `<link>` to css, `#page-posture` container, `<script>` to js. |
+| **Edit** | `web/public/app.js` | One line in `navigateTo` + one entry in `TOPBAR_TITLES`. |
 
-## Phase 1 — Quick-win reversible recipes (SS, low risk)
+### index.html edits (exact anchors)
 
-Pure zone-setting flips: **no new client wrappers needed** (reuse `patchZoneSetting`). Each gets a
-recipe in `recipeRegistry.js` and, where missing, a check in `securityBaseline.js`. This roughly
-doubles the recipe catalog at near-zero risk and is the fastest win.
+1. In `<head>`, after `<link rel="stylesheet" href="/styles.css" />`, add
+   `<link rel="stylesheet" href="/postureMap.css" />`.
+2. In the **Workspace** nav group, after the Findings `<button class="v1-navlink" data-section="findings" …>` block, add a navlink:
+   `<button class="v1-navlink" data-section="posture" type="button"> <svg…network/graph icon…/> <span>Posture map</span> </button>`.
+3. Add the page container just before `<div id="toast-container" …>` (near the end of `.v1-main`):
+   `<div class="v1-page" id="page-posture" style="display:none"> … </div>` (structure below).
+4. After `<script src="/app.js"></script>` add `<script src="/postureMap.js"></script>`
+   (must load AFTER app.js so shared globals exist).
 
-| Service / setting | Tier | Assess | Remediate | checkId | Notes |
-|---|---|---|---|---|---|
-| TLS 1.3 (`tls_1_3`) | SS | ✅ new | 🟢 `on` | CFL-SSL-006 | pairs with existing min-TLS recipe |
-| Automatic HTTPS Rewrites (`automatic_https_rewrites`) | SS | ✅ new | 🟢 `on` | CFL-SSL-007 | fixes mixed content |
-| Opportunistic Encryption (`opportunistic_encryption`) | SS | ✅ new | 🟢 `on` | CFL-SSL-008 | |
-| Browser Integrity Check (`browser_check`) | SS | ✅ new | 🟢 `on` | CFL-WAF-009 | low-risk bot/abuse filter |
-| Email Obfuscation (`email_obfuscation`) | SS | ✅ new | 🟢 `on` | CFL-PERF-006 | anti-scraping |
-| Bot Fight Mode (`bot_fight_mode`) | SS | ✔ exists (CFL-BOT-001) | 🟢 `on` | — | promote existing manual finding to a recipe (medium risk: may challenge bots) |
+### app.js edits
 
----
+- In `TOPBAR_TITLES` add: `posture: 'Posture map',`.
+- In `navigateTo`, alongside the other `if (section === …)` loader hooks, add:
+  `if (section === 'posture' && typeof initPostureMap === 'function') initPostureMap();`
 
-## Phase 2 — High-value security detections + remediations (SS + account, medium effort)
+## `#page-posture` DOM structure
 
-Requires the architectural enablers. These are the highest **security ROI** items.
+```
+#page-posture (.v1-page)
+  .v1-page-head  → <h1>Posture map</h1> + sub "Entities, connections, and attack paths from the latest assessment"
+  .pm-toolbar
+     .pm-stats   → chips: "<n> entities", "<n> attack paths", "<n> exposed assets"
+     .pm-legend  → severity swatches (crit/high/med/low/pass) + an "attack path" dashed-red key
+     .pm-controls→ toggle "Attack paths" (default ON), buttons: Fit, Zoom +, Zoom −
+  .pm-stage      → position:relative; flex:1; holds:
+     <svg id="pm-svg">  (full-size; contains <g id="pm-viewport"> that you pan/zoom via transform)
+        <defs> arrow markers, edge gradients, soft drop-shadow filters per severity
+        <g id="pm-edges">  (render edges first so nodes sit on top)
+        <g id="pm-nodes">
+     .pm-empty    → shown when no assessment ("Run an assessment to populate the posture map.")
+  aside.pm-drawer (off-canvas right; .open class slides in) → node title, type, severity, finding list, "Remediate" link
+```
 
-| Service | Tier | Assess | Remediate | API | checkId / category |
-|---|---|---|---|---|---|
-| **Leaked Credentials Detection** | SS | ✅ is detection on? | 🟡 enable (non-blocking, detection-only) | `POST /zones/{id}/leaked-credential-checks` | `CFL-LEAK-001`, new `credentials` category |
-| **WAF managed ruleset enablement** | SS | ✔ CFL-WAF-006/007 (manual today) | 🟡 deploy Cloudflare Managed + OWASP Core via execute rule; **high risk** (can block traffic) → default to a confirmation gate, deployable in log-only first | `PUT /zones/{id}/rulesets/phases/http_request_firewall_managed/entrypoint` | promote CFL-WAF-006/007 to recipes |
-| **security.txt** | SS | ✔ CFL-SEC-001 (manual today) | 🟡 publish with operator-supplied contact/expires | `PUT /zones/{id}/security-center/securitytxt` | promote CFL-SEC-001 to recipe (low risk) |
-| **Notifications / Alerting** | SS+ENT | ✅ are security alerts configured? (cert expiry, WAF/DDoS spike, origin error, audit-log) | 🟡 create recommended policies (needs email/webhook destination input) | `GET/POST/DELETE /accounts/{id}/alerting/v3/policies` | new `notifications` category: `CFL-ALERT-001..004` |
-| **Email DNS hardening (SPF/DMARC)** | SS | ✔ CFL-EMAIL-001/003 | 🟡 create TXT records — **conservative defaults** (DMARC `p=none` reporting-only); medium risk → confirmation | `POST /zones/{id}/dns_records` | promote to recipes |
-| **DDoS managed ruleset posture** | SS+ENT | ✅ L7 ruleset not disabled/log-only/over-overridden | 🔴 advisory (override semantics too risky to auto-flip) | `GET /zones/{id}/rulesets/phases/ddos_l7/entrypoint` | `CFL-DDOS-001` |
-| **Account-level rulesets / WAF exceptions** | ENT | ✅ reusable account rulesets, skip/exception rules, account managed-ruleset coverage | 🔴 advisory | `GET /accounts/{id}/rulesets` | `CFL-ACCTWAF-001` |
+## Data model — build the graph from `currentAssessment`
 
----
+Build a **tree** (root → account → zones/account-services → zone-services). Nodes:
 
-## Phase 3 — Workers / storage ecosystem (SS, assessment-led)
+1. **Internet** (root, single): label "Internet", type `internet`. Entry point.
+2. **Account**: one node, type `account`, label = `account.name`. Child of Internet.
+3. **Zone**: one per `zones[]`, type `zone`, label = zone name. Child of Account.
+4. **Service/category nodes**: group findings into entity nodes keyed by `(scope, parentId, category)`:
+   - If `resourceType === 'account'` → child of **Account**.
+   - If `resourceType === 'zone'` (or resourceId matches a zone id) → child of that **Zone**.
+   - Else → child of Account (fallback).
+   - `category = finding.service`. One node per distinct category under each parent.
+   - **Node severity** = worst severity among that node's `status==='FAIL'` findings (use `SEVERITY_ORDER`); if it has findings but none FAIL → `pass` (green). Keep the node's full findings array for the drawer.
+   - **Node count badge** = number of FAIL findings (hide if 0).
 
-Closes the biggest detection gap (Workers coverage is ~20%). Mostly assessment; few safe writes.
+**Category → {label, icon, role}** map (role drives column + attack-path semantics). Provide a lookup; default unknown categories to `{label: titlecased, icon: 'generic', role:'asset'}`:
+- exposure/transport (role `transport`): `dns`, `ssl`, `mtls`, `securitytxt`, `ch`(custom hostnames), `insight`/`securityInsights`
+- edge protection (role `control`): `waf`, `bot`, `api`, `page-shield`, `cache`, `rules`/`cfrule`/`txrule`, `turnstile`, `performance`
+- assets/backends (role `asset`): `workers`, `pages`, `r2`, `tunnels`, `gateway`, `dlp`, `zerotrust`, `spectrum`, `ai-gateway`, `snippets`, `lb`, `email`
+- identity (role `identity`): `account`, `token`, `attack-surface`, `device`
 
-| Service | Tier | Assess | Remediate | API | checkId |
-|---|---|---|---|---|---|
-| **Workers plaintext secrets** | SS | ✅ flag `plain_text` bindings holding secret-looking values (vs `secret_text`) | 🔴 advisory (cannot move values safely) | `workers.scripts.settings` / bindings | `CFL-WORK-003` |
-| **Workers routes & cron triggers** | SS | ✅ inventory routes, unauthenticated triggers (attack-surface map) | 🔴 advisory | `workers.scripts` + zone routes | `CFL-WORK-004` |
-| **KV / D1 / Queues inventory** | SS | ✅ existence + binding exposure; D1 backup posture | 🔴 advisory | `workers/kv/namespaces`, `d1/database`, `workers/queues` | `CFL-STORE-001..003` |
-| **Zaraz third-party scripts** | SS | ✅ supply-chain: inventory third-party tags, consent config | 🔴 advisory | `/zones/{id}/settings/zaraz/*` | `CFL-ZARAZ-001` |
-| **R2 deeper posture** | SS | ✅ versioning, object-lock (extends existing public-access CFL-R2-001) | 🟡 enable versioning (reversible) | `r2/buckets/{name}/*` | extend `CFL-R2-*` |
+Icons: define a small inline-SVG path set per type (`internet`=globe, `account`=building/shield,
+`zone`=globe-dot, `ssl`/`mtls`=lock, `waf`=shield, `dns`=server, `bot`=robot/bug, `workers`=code,
+`r2`=database, `email`=mail, `zerotrust`=fingerprint, `tunnels`=plug, `dlp`=eye-off,
+`gateway`=filter, `generic`=dot). 24×24, `stroke="currentColor"`, `fill="none"`, stroke-width 1.6
+to match existing nav icons.
 
----
+## Layout — tidy left→right tree
 
-## Phase 4 — Enterprise / Cloudflare One SASE (ENT, assessment-led)
+Columns by depth: `0 Internet → 1 Account → 2 Zones (+account-services) → 3 zone-services`.
+(Account-level service nodes sit in column 2 next to zones; zone-service nodes in column 3.)
 
-High security value for Enterprise/SASE customers; almost entirely assessment (Cloudflare One config
-is rarely a safe auto-flip). Tag every finding ENT so self-serve scans don't surface noise.
+Algorithm (deterministic, no physics needed — cleaner than force-directed):
+- `x = depth * COL_W` (e.g. COL_W ≈ 240).
+- Assign `y` by leaf order: walk the tree depth-first; each **leaf** gets the next slot
+  `y = leafIndex++ * ROW_H` (ROW_H ≈ 92). Each **internal node** gets `y = average(children.y)`.
+- Compute total bounds → used by Fit.
+- Nodes are fixed-size cards (≈ 200×56) or pills; center the icon + label + count badge.
 
-| Service | Tier | Assess | Remediate | API | checkId |
-|---|---|---|---|---|---|
-| **Zone Holds** | ENT | ✅ hold enabled? (anti-takeover) | 🟡 enable hold (reversible delete) | `GET/POST/DELETE /zones/{id}/hold` | `CFL-HOLD-001` |
-| **Device Posture rules** | ENT | ✅ posture checks defined (OS, disk-encryption, firewall, AV) & bound to policies | 🔴 advisory | `zeroTrust/devices/posture` | `CFL-POSTURE-001` |
-| **Access app hardening (depth)** | ENT | ✅ no "allow everyone" policies, session duration, require-MFA/posture, purpose justification | 🔴 advisory | `zeroTrust/access/applications(.policies)` | `CFL-ZT-007..009` |
-| **CASB** | ENT | ✅ integrations connected, open critical/high findings | 🔴 advisory | `/accounts/{id}/casb/*` | `CFL-CASB-001` |
-| **Cloud Email Security (Area 1)** | ENT | ✅ policies active, detections, directory sync | 🔴 advisory | `/accounts/{id}/email-security/*` | `CFL-EMAILSEC-001` |
-| **Browser Isolation** | ENT | ✅ isolate policies for risky categories / uploads | 🔴 advisory | gateway HTTP policies (`isolate` action) | `CFL-RBI-001` |
-| **Magic Transit / Magic Firewall** | ENT | ✅ Magic Firewall ruleset presence/coverage | 🔴 advisory | `magic/*` | `CFL-MAGIC-001` |
+Edges: cubic bézier from parent right-edge to child left-edge
+(`M x1,y1 C x1+dx,y1 x2-dx,y2 x2,y2`, dx≈COL_W/2). Edge color = child severity (soft);
+on-attack-path edges get the red dashed animated treatment.
 
----
+## Attack paths
 
-## Files this roadmap will touch (per phase)
+Definition (clear + defensible): an **attack path** is any root→leaf path that **terminates at a
+node whose severity is `critical` or `high`** (i.e., reaching a serious exposure). Compute by:
+1. Mark "danger" leaves (severity ∈ {critical, high}).
+2. Walk up from each danger leaf marking all ancestor nodes and the connecting edges as `onPath`.
+3. Count distinct danger leaves → "attack paths" stat.
 
-- **Checks:** `src/core/services/securityBaseline.js` — add check definitions + `getRemediation()` strings.
-- **Assessment flow:** `src/core/services/assessmentService.js` — new `assess*` methods wired into `assessAccount`/`assessZone`.
-- **API client:** `src/core/services/cloudflareClient.js` — new read methods (all phases) + audited write wrappers (Phase 2+).
-- **Remediation:** `src/core/remediation/recipeRegistry.js` (new recipes), `backupManager.js` (create/delete reversal fields, Phase 2+), `remediationEngine.js` (account-scope ctx).
-- **Compliance:** `src/core/services/complianceEngine.js` — map new checkIds to CIS/SOC2/PCI/NIST.
-- **Surfaces:** CLI `--checks` accepts new categories automatically; web Remediate page already renders any recipe — only new category labels/badges may need touch-ups.
-- **Tests:** extend `tests/remediation.test.js` + add `tests/newChecks*.test.js` following the existing mock-client pattern.
+Render: `onPath` edges = `--crit` stroke, `stroke-dasharray` with an animated `stroke-dashoffset`
+(CSS `@keyframes pm-flow`); `onPath` nodes get a subtle crit outline/glow. A toolbar toggle
+("Attack paths", default ON) shows/hides this emphasis (toggle a class on `#pm-svg`).
 
-## Recommended sequencing
+## Interactions
 
-1. **Phase 1 first** — biggest recipe-catalog gain for the least risk/effort; no new wrappers.
-2. **Phase 2** — the security headline items (leaked credentials, alerting, WAF ruleset enablement);
-   requires the architectural enablers, which then unlock all future create/delete recipes.
-3. **Phase 3** — Workers/storage detection breadth (assessment-led, low remediation surface).
-4. **Phase 4** — Enterprise/SASE assessment coverage, gated to ENT zones to keep self-serve scans clean.
+- **Pan/zoom:** maintain `{scale, tx, ty}`; apply `transform="translate(tx,ty) scale(scale)"` to
+  `#pm-viewport`. Wheel = zoom toward cursor (clamp scale ~0.3–2.5); drag background = pan; buttons
+  Zoom±; **Fit** computes scale/translate from graph bounds vs stage size.
+- **Hover node:** add `.pm-dim` to `#pm-svg`; give the hovered node + its edges/neighbors a
+  `.pm-focus` class (so unrelated nodes fade). Remove on mouseleave.
+- **Click node:** open `.pm-drawer` with: icon + label, type, severity badge, and the node's
+  findings (reuse the visual language of `buildFindingMarkup` — id · category · severity · evidence).
+  If a finding's `checkId` is remediable, show a small "Remediable" tag and a button that calls
+  `navigateTo('remediate')`. Close on backdrop click / Esc / X.
+- **Empty state:** if `!currentAssessment || !findings.length`, show `.pm-empty` and skip rendering.
 
-## Verification (per increment)
+`initPostureMap()` is the entry point (called by `navigateTo`). It should be idempotent: rebuild
+from the current `currentAssessment` each time the section is opened (cheap; assessment can change).
 
-1. **Unit (no network):** for each new recipe, assert `read/proposed/apply/restore/verify` payloads
-   against the mock client; assert `isCompliant` short-circuits; for create/delete recipes assert
-   restore deletes the captured `createdResourceId` and the bundle stays checksum-valid.
-2. **Read-only dry-run E2E** (real token): `flareinspect remediate plan` shows the new candidates and
-   writes a before-backup; re-run `assess` to confirm **Cloudflare is unchanged**.
-3. **Apply on a disposable zone** for each new recipe → verify in dashboard, `after` backup written,
-   `verify=true`; then `rollback` and confirm restoration (re-run `assess` + `diff`).
-4. **Token-scope preflight:** confirm each new write surfaces the required edit scope in the
-   `printScopeNotice()` guidance when a read-only token is used (extends the existing notice).
-5. **Tier gating:** confirm ENT-only checks don't fire/penalize on non-Enterprise zones.
+## Aesthetic checklist (match Wiz / big-tech)
 
-## Sources
+- Dark stage (`--bg-0`), faint dotted/grid background optional (very subtle, `--line`).
+- Nodes: `--bg-elev` fill, `1px solid --line-2`, `--r` radius, slight backdrop feel; left accent bar
+  or icon chip tinted with the node's severity-soft color; label in `--fg`, sublabel/id in
+  `--font-mono`/`--fg-3`. Severity ring = 2px border in the severity color; danger nodes get a soft
+  outer glow via `filter: drop-shadow(... --crit-soft)`.
+- Edges: 1.5px, severity-soft colored, rounded; attack-path edges animated dashed `--crit`.
+- Smooth transitions (`transition: opacity/transform .18s ease`); focus/dim at ~0.25 opacity.
+- Legend + stat chips styled like `.v1-badge`/`.v1-chip`. Controls like `.v1-btn-ghost`.
+- Keep it calm and readable at 1 zoom; no clutter. Title IDs in monospace. Respect existing spacing.
 
-- Leaked credentials detection (enable, non-blocking): https://developers.cloudflare.com/waf/detections/leaked-credentials/get-started/ and https://developers.cloudflare.com/waf/managed-rules/check-for-exposed-credentials/configure-api/
-- Zone Holds: https://developers.cloudflare.com/fundamentals/account/account-security/zone-holds/ and https://developers.cloudflare.com/api/resources/zones/subresources/holds/methods/delete/
-- Notifications / Alerting policies: https://developers.cloudflare.com/api/resources/alerting/subresources/policies/methods/create/ and https://developers.cloudflare.com/notifications/
-- WAF security-event alerts: https://developers.cloudflare.com/waf/reference/alerts/
-- security.txt: https://developers.cloudflare.com/security-center/infrastructure/security-file/
-- CASB + Email Security (2025): https://developers.cloudflare.com/changelog/post/2025-04-01-casb-email-security/ and https://www.cloudflare.com/sase/products/casb/
+## Accessibility
+
+- Nav button is real `<button>`; nodes should be focusable (`tabindex="0"`, `role="button"`,
+  `aria-label`) and openable via Enter/Space. Drawer closable via Esc. Sufficient contrast (the
+  OKLCH severity colors already pass on the dark bg).
+
+## Acceptance criteria
+
+1. New **Posture map** item appears in the sidebar (Workspace group) and routes correctly.
+2. With an assessment loaded, the stage renders Internet → Account → Zones → service nodes,
+   colored by severity, with type icons and FAIL-count badges.
+3. Attack-path emphasis highlights chains to high/critical nodes; the toolbar toggle hides/shows it;
+   the "attack paths" stat matches the number of high/critical leaf exposures.
+4. Pan, wheel-zoom, Zoom± and Fit all work; hover dims unrelated nodes; clicking a node opens a
+   drawer listing that node's findings (with a Remediate link where applicable).
+5. Empty state shows when no assessment is loaded.
+6. No console errors; no CSP violations; no new npm dependencies; visual style consistent with the
+   rest of the dashboard (uses the documented CSS variables).
+
+## Verification steps
+
+1. `npm install` (if needed) then `npm run web`; open the printed `http://127.0.0.1:<port>`.
+2. If no assessment exists, run one from the **Run assessment** page (needs a read-only Cloudflare
+   token: Zone:Read, DNS:Read, SSL:Read) — or load an existing one from **History**.
+3. Open **Posture map**: confirm the graph renders, severities/icons look right, attack paths
+   animate, toggle works, pan/zoom/fit work, node click opens the drawer with that node's findings.
+4. Resize the window / collapse the sidebar: layout stays usable (Fit re-centers).
+5. Check DevTools console + network for CSP errors (should be none).
+
+## Out of scope (nice-to-haves, only if time allows)
+
+- A minimap; export-graph-as-PNG/SVG; saved layouts; cross-zone shared-origin edges (group DNS
+  records pointing at the same origin IP); diff mode (compare two assessments on the map).
+
+## Reference: prior roadmap
+
+A separate phased roadmap of *new Cloudflare services* (assessment + remediation) lives in the
+agent plans directory (`~/.claude/plans/plan-a-remidiation-automation-swift-thompson.md`). It is
+unrelated to this posture-map task but provides product context if useful.

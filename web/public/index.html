@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/styles.css" />
+ <link rel="stylesheet" href="/postureMap.css" />
 </head>
 <body class="v1-root density-comfortable">
 
@@ -47,6 +48,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>
       <span>Findings</span>
       <span class="v1-navbadge" id="nav-badge-findings">—</span>
+    </button>
+    <button class="v1-navlink" data-section="posture" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><line x1="7.5" y1="7.5" x2="11" y2="16"/><line x1="16.5" y1="7.5" x2="13" y2="16"/><line x1="8" y1="6" x2="16" y2="6"/></svg>
+      <span>Posture map</span>
     </button>
     <button class="v1-navlink" data-section="compliance" type="button">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -568,11 +573,22 @@
     </div>
   </div>
 
+  <!-- ── Posture map ── -->
+  <div class="v1-page" id="page-posture" style="display:none">
+    <div class="v1-page-head">
+      <div>
+        <h1>Posture map</h1>
+        <div class="v1-page-sub">Entities, connections, and attack paths from the latest assessment</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Toast container -->
 <div id="toast-container" class="v1-toast-container"></div>
 
 <script src="/app.js"></script>
+<script src="/postureMap.js"></script>
 </body>
 </html>

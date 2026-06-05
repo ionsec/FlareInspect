@@ -12,6 +12,7 @@ const TOPBAR_TITLES = {
   overview:   'Overview',
   assess:     'Run assessment',
   findings:   'Findings',
+  posture:    'Posture map',
   export:     'Exports',
   compliance: 'Compliance',
   report:     'Full report',
@@ -57,6 +58,7 @@ function navigateTo(section) {
   if (section === 'api')        loadHealth();
   if (section === 'export')     updateExportState();
   if (section === 'findings')   renderFindings();
+  if (section === 'posture' && typeof initPostureMap === 'function') initPostureMap();
   if (section === 'report')     refreshReport();
   if (section === 'compliance') renderComplianceCards();
   if (section === 'remediate')  initRemediate();
