@@ -269,23 +269,47 @@ class AssessmentService {
       bots: 'bot',
       cache: 'cache',
       'cache-deception-armor': 'cache',
+      credentials: 'credentials',
+      'leaked-credentials': 'credentials',
+      leakedcreds: 'credentials',
+      leak: 'credentials',
       'custom-hostnames': 'custom-hostnames',
       customhostnames: 'custom-hostnames',
       dlp: 'dlp',
       dns: 'dns',
       'dns-firewall': 'dns-firewall',
       dnsfirewall: 'dns-firewall',
+      ddos: 'ddos',
+      'ddos-l7': 'ddos',
+      'account-waf': 'account-waf',
+      'acct-waf': 'account-waf',
       email: 'email',
       'email-routing': 'email',
+      'email-security': 'email-security',
+      'cloud-email-security': 'email-security',
       gateway: 'gateway',
       loadbalancing: 'loadbalancing',
       'load-balancing': 'loadbalancing',
       loadbalancer: 'loadbalancing',
       logpush: 'logpush',
+      magic: 'magic',
+      'magic-firewall': 'magic',
+      'magic-transit': 'magic',
       mtls: 'mtls',
+      notifications: 'notifications',
+      'alerting': 'notifications',
+      'notification-policies': 'notifications',
       'page-shield': 'page-shield',
       pages: 'pages',
       performance: 'performance',
+      posture: 'posture',
+      'device-posture': 'posture',
+      'access-depth': 'access',
+      access: 'access',
+      'casb': 'casb',
+      'cloud-casb': 'casb',
+      'rbi': 'rbi',
+      'browser-isolation': 'rbi',
       rules: 'rules',
       'security-insights': 'security-insights',
       securityinsights: 'security-insights',
@@ -294,10 +318,15 @@ class AssessmentService {
       snippets: 'snippets',
       spectrum: 'spectrum',
       ssl: 'ssl',
+      storage: 'storage',
+      'kv': 'storage',
+      'd1': 'storage',
+      'queues': 'storage',
       tunnels: 'tunnels',
       turnstile: 'turnstile',
       waf: 'waf',
       workers: 'workers',
+      zaraz: 'zaraz',
       zerotrust: 'zerotrust',
       'zero-trust': 'zerotrust'
     };
@@ -513,6 +542,75 @@ class AssessmentService {
       await this.assessDeviceEnrollment(account, devicePolicy || { error: 'not available' }, assessment);
       await this.assessR2(account, r2Buckets, assessment);
 
+      // Phase 2 account-scoped: account WAF, notifications, 2FA enforcement
+      if (client.getAccountRulesets) {
+        const acctRules = await client.getAccountRulesets(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessAccountWAF(account, acctRules, assessment);
+      }
+      if (client.getNotificationPolicies) {
+        const policies = await client.getNotificationPolicies(account.id).catch(() => ({ error: 'unreadable' }));
+        const available = client.getAvailableAlerts
+          ? await client.getAvailableAlerts(account.id).catch(() => [])
+          : [];
+        await this.assessNotifications(account, policies, available, assessment);
+      }
+
+      // Phase 3 account-scoped: Workers, KV, D1, Queues inventory + plaintext secret detection
+      if (client.getWorkersScripts) {
+        const scripts = await client.getWorkersScripts(account.id).catch(() => ({ error: 'unreadable' }));
+        // For each script, fetch bindings and check for plain_text secret-shaped values
+        let allBindings = [];
+        const scriptList = Array.isArray(scripts) ? scripts : [];
+        for (const s of scriptList) {
+          if (client.getWorkersBindings) {
+            const bindings = await client.getWorkersBindings(account.id, s.name).catch(() => []);
+            allBindings = allBindings.concat((bindings || []).map(b => ({ ...b, _script: s.name })));
+          }
+        }
+        await this.assessWorkersBindings(account, scriptList, allBindings, assessment);
+      }
+      if (client.getKVNamespaces) {
+        const kv = await client.getKVNamespaces(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessStorageInventory(account, kv, 'CFL-STORE-001', 'kv', assessment);
+      }
+      if (client.getD1Databases) {
+        const d1 = await client.getD1Databases(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessStorageInventory(account, d1, 'CFL-STORE-002', 'd1', assessment);
+      }
+      if (client.getQueues) {
+        const q = await client.getQueues(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessStorageInventory(account, q, 'CFL-STORE-003', 'queues', assessment);
+      }
+
+      // Phase 4 account-scoped Enterprise / SASE checks (ENT-gated)
+      const isEnt = (account.plan?.name || '').toLowerCase().includes('enterprise');
+      if (isEnt) {
+        if (client.getDevicePosture) {
+          const posture = await client.getDevicePosture(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessDevicePosture(account, posture, assessment);
+        }
+        if (client.getAccessApplications) {
+          const apps = await client.getAccessApplications(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessAccessDepth(account, apps, assessment);
+        }
+        if (client.getCASBFindings) {
+          const casb = await client.getCASBFindings(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessCASB(account, casb, assessment);
+        }
+        if (client.getEmailSecurityPolicies) {
+          const esp = await client.getEmailSecurityPolicies(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessEmailSecurity(account, esp, assessment);
+        }
+        if (client.getBrowserIsolationPolicies) {
+          const rbi = await client.getBrowserIsolationPolicies(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessBrowserIsolation(account, rbi, assessment);
+        }
+        if (client.getMagicFirewallRulesets) {
+          const mf = await client.getMagicFirewallRulesets(account.id).catch(() => ({ error: 'unreadable' }));
+          await this.assessMagicFirewall(account, mf, assessment);
+        }
+      }
+
     } catch (error) {
       logger.error('Account assessment failed', {
         assessmentId: assessment.assessmentId,
@@ -689,6 +787,36 @@ class AssessmentService {
       await this.assessSnippets(zone, snippets || [], assessment);
       await this.assessCustomHostnames(zone, customHostnames || [], assessment);
       await this.assessOriginCertificates(zone, originCertificates || [], assessment);
+
+      // Phase 2 assessments (lazy-fetched to avoid breaking the destructure)
+      if (client.getLeakedCredChecks) {
+        const leaked = await client.getLeakedCredChecks(zone.id).catch(e => ({ value: { enabled: false }, raw: { error: e.message } }));
+        await this.assessLeakedCreds(zone, leaked, assessment);
+      }
+      if (client.getDDoSL7Ruleset) {
+        const ddos = await client.getDDoSL7Ruleset(zone.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessDDoSL7(zone, ddos, assessment);
+      }
+      if (client.getZarazConfig) {
+        const zaraz = await client.getZarazConfig(zone.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessZaraz(zone, zaraz, assessment);
+      }
+      if (client.getWorkersRoutes) {
+        const routes = await client.getWorkersRoutes(zone.id).catch(() => ({ error: 'unreadable' }));
+        // Per-zone route inventory emitted via the WORK-004 finding (already in
+        // assessWorkersBindings at account scope). For per-zone detail, we still
+        // attach the routes to assessment.configuration for the report.
+        if (!assessment.configuration.workers) assessment.configuration.workers = {};
+        if (!assessment.configuration.workers.routes) assessment.configuration.workers.routes = {};
+        assessment.configuration.workers.routes[zone.name] = Array.isArray(routes) ? routes : [];
+      }
+
+      // Phase 4 zone-scoped Enterprise / SASE checks (ENT-gated)
+      const isEntZone = (zone.plan?.name || '').toLowerCase().includes('enterprise');
+      if (isEntZone && client.getZoneHold) {
+        const hold = await client.getZoneHold(zone.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessZoneHold(zone, hold, assessment);
+      }
 
       // Run general zone security checks
       await this.checkZoneSecurity(zone, zoneDetails, analytics, assessment, allZoneSettings);
@@ -1213,6 +1341,74 @@ class AssessmentService {
       ));
     }
 
+    // --- Phase 1: TLS 1.3, Automatic HTTPS Rewrites, Opportunistic Encryption
+    const tls13Check = sslChecks.find(c => c.id === 'CFL-SSL-006');
+    const tls13Value = zoneSettings?.tls_1_3?.value || 'off';
+    if (tls13Check) {
+      const compliant = ['zrt', 'on'].includes(tls13Value);
+      findings.push(this.securityBaseline.createFinding(
+        tls13Check,
+        compliant ? 'PASS' : 'FAIL',
+        `TLS 1.3 is ${tls13Value}`,
+        'TLS 1.3 should be enabled (zrt) for stronger handshakes',
+        zoneResource,
+        {
+          evidence: {
+            summary: `TLS 1.3 mode is "${tls13Value}" for ${zone.name}.`,
+            expected: 'zrt (Zero Round-Trip) or on',
+            observed: tls13Value,
+            source: { category: 'ssl', endpoint: 'zones.settings.tls_1_3.get' },
+            raw: { tls_1_3: zoneSettings?.tls_1_3 || null },
+            reviewGuidance: 'TLS 1.3 (zrt) reduces handshake latency. Verify clients support 0-RTT safely.'
+          }
+        }
+      ));
+    }
+
+    const autoHttpsCheck = sslChecks.find(c => c.id === 'CFL-SSL-007');
+    const autoHttpsValue = zoneSettings?.automatic_https_rewrites?.value || 'off';
+    if (autoHttpsCheck) {
+      const compliant = autoHttpsValue === 'on';
+      findings.push(this.securityBaseline.createFinding(
+        autoHttpsCheck,
+        compliant ? 'PASS' : 'FAIL',
+        `Automatic HTTPS Rewrites is ${autoHttpsValue}`,
+        'Enable Automatic HTTPS Rewrites to fix mixed content',
+        zoneResource,
+        {
+          evidence: {
+            summary: `Automatic HTTPS Rewrites is "${autoHttpsValue}" for ${zone.name}.`,
+            expected: 'on',
+            observed: autoHttpsValue,
+            source: { category: 'ssl', endpoint: 'zones.settings.automatic_https_rewrites.get' },
+            raw: { automatic_https_rewrites: zoneSettings?.automatic_https_rewrites || null }
+          }
+        }
+      ));
+    }
+
+    const oeCheck = sslChecks.find(c => c.id === 'CFL-SSL-008');
+    const oeValue = zoneSettings?.opportunistic_encryption?.value || 'off';
+    if (oeCheck) {
+      const compliant = oeValue === 'on';
+      findings.push(this.securityBaseline.createFinding(
+        oeCheck,
+        compliant ? 'PASS' : 'FAIL',
+        `Opportunistic Encryption is ${oeValue}`,
+        'Enable Opportunistic Encryption for HTTP/2 over TLS without certs',
+        zoneResource,
+        {
+          evidence: {
+            summary: `Opportunistic Encryption is "${oeValue}" for ${zone.name}.`,
+            expected: 'on',
+            observed: oeValue,
+            source: { category: 'ssl', endpoint: 'zones.settings.opportunistic_encryption.get' },
+            raw: { opportunistic_encryption: zoneSettings?.opportunistic_encryption || null }
+          }
+        }
+      ));
+    }
+
     assessment.findings.push(...findings);
   }
 
@@ -1370,6 +1566,58 @@ class AssessmentService {
           }
         }
       ));
+    }
+
+    // Check Browser Integrity Check (Phase 1 — CFL-WAF-009)
+    const browserCheckValue = wafData?.settings?.browser_check?.value || 'off';
+    if (browserCheckValue !== 'on') {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-WAF-009',
+        checkTitle: 'Browser Integrity Check Disabled',
+        service: 'waf',
+        severity: 'low',
+        status: 'FAIL',
+        description: 'Browser Integrity Check is disabled — common bot/spam header challenges not applied.',
+        remediation: 'Enable Browser Integrity Check in Security > Settings > Browser Integrity Check.',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: { zoneName: zone.name },
+        evidence: {
+          summary: `Browser Integrity Check is "${browserCheckValue}" for ${zone.name}.`,
+          expected: 'on',
+          observed: browserCheckValue,
+          source: { category: 'waf', endpoint: 'zones.settings.browser_check.get' },
+          raw: { browser_check: wafData?.settings?.browser_check || null }
+        }
+      });
+    }
+
+    // Check Bot Fight Mode (Phase 1 — CFL-BOT-001, now remediable)
+    const botFightValue = wafData?.settings?.bot_fight_mode?.value || 'off';
+    if (botFightValue !== 'on') {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-BOT-001',
+        checkTitle: 'Bot Fight Mode Disabled',
+        service: 'bot',
+        severity: 'medium',
+        status: 'FAIL',
+        description: 'Bot Fight Mode is disabled.',
+        remediation: 'Enable Bot Fight Mode in Security > Bots > Bot Fight Mode (medium risk: may challenge legitimate bots).',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: { zoneName: zone.name },
+        evidence: {
+          summary: `Bot Fight Mode is "${botFightValue}" for ${zone.name}.`,
+          expected: 'on',
+          observed: botFightValue,
+          source: { category: 'bot', endpoint: 'zones.settings.bot_fight_mode.get' },
+          raw: { bot_fight_mode: wafData?.settings?.bot_fight_mode || null }
+        }
+      });
     }
 
     assessment.findings.push(...findings);
@@ -1976,6 +2224,32 @@ class AssessmentService {
         timestamp: new Date(),
         metadata: {
           zoneName: zone.name
+        }
+      });
+    }
+
+    // Check Email Obfuscation (Phase 1)
+    const emailObfs = allZoneSettings?.email_obfuscation?.value || 'off';
+    if (emailObfs !== 'on') {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-PERF-006',
+        checkTitle: 'Email Obfuscation Disabled',
+        service: 'performance',
+        severity: 'low',
+        status: 'FAIL',
+        description: 'Email Obfuscation is disabled — page email addresses are exposed to scrapers.',
+        remediation: 'Enable Email Obfuscation in Speed > Optimization > Content Optimization.',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: { zoneName: zone.name },
+        evidence: {
+          summary: `Email Obfuscation is "${emailObfs}" for ${zone.name}.`,
+          expected: 'on',
+          observed: emailObfs,
+          source: { category: 'performance', endpoint: 'zones.settings.email_obfuscation.get' },
+          raw: { email_obfuscation: allZoneSettings?.email_obfuscation || null }
         }
       });
     }
@@ -3195,6 +3469,526 @@ class AssessmentService {
         { id: account.id, type: 'account', name: account.name }
       ));
     }
+  }
+
+  // --- Phase 2-4 assess methods (added by feature work) -----------------
+
+  /**
+   * Assess Leaked Credentials Detection status for a zone.
+   * Emits CFL-LEAK-001 finding. Non-blocking check (detection only).
+   */
+  async assessLeakedCreds(zone, leaked, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('credentials').find(c => c.id === 'CFL-LEAK-001');
+    if (!check) return;
+    const enabled = !!(leaked?.value?.enabled);
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      enabled ? 'PASS' : 'FAIL',
+      enabled ? 'Leaked Credentials Detection is enabled' : 'Leaked Credentials Detection is disabled',
+      'Enable Leaked Credentials Detection in Security > WAF > Leaked Credentials.',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `Leaked Credentials Detection is ${enabled ? 'enabled' : 'disabled'} for ${zone.name}.`,
+          expected: 'enabled',
+          observed: enabled ? 'enabled' : 'disabled',
+          source: { category: 'credentials', endpoint: 'zones.leaked_credential_checks.get' },
+          raw: { enabled, error: leaked?.raw?.error || null },
+          reviewGuidance: 'Detection is non-blocking. Review false positives in Security > Events before tightening action.'
+        }
+      }
+    ));
+  }
+
+  /**
+   * Assess DDoS L7 ruleset posture (advisory — read-only finding).
+   * Emits CFL-DDOS-001 when the ruleset has been disabled or overridden.
+   */
+  async assessDDoSL7(zone, ddos, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('ddos').find(c => c.id === 'CFL-DDOS-001');
+    if (!check) return;
+    if (!ddos || ddos.error) return; // don't penalize zones we can't read
+    const rules = Array.isArray(ddos.rules) ? ddos.rules : [];
+    const disabled = rules.length === 0;
+    const overridden = rules.some(r => r.action === 'log' || r.action === 'managed_challenge');
+    let status = 'PASS';
+    let desc = 'DDoS L7 managed ruleset is in default posture';
+    if (disabled) { status = 'FAIL'; desc = 'DDoS L7 managed ruleset has been disabled'; }
+    else if (overridden) { status = 'WARNING'; desc = 'DDoS L7 managed ruleset has been overridden (e.g. log-only)'; }
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status, desc,
+      'Review the DDoS L7 ruleset — overrides can reduce protection.',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `${zone.name} DDoS L7 ruleset has ${rules.length} rules${overridden ? ' (with overrides)' : ''}.`,
+          expected: 'default posture (managed, not overridden)',
+          observed: status === 'PASS' ? 'default' : (disabled ? 'disabled' : 'overridden'),
+          source: { category: 'ddos', endpoint: 'zones.rulesets.phases.ddos_l7.entrypoint.get' },
+          raw: { ruleCount: rules.length, hasOverride: overridden },
+          reviewGuidance: 'Override semantics differ by tier; confirm with your account team before any change.'
+        }
+      }
+    ));
+  }
+
+  /**
+   * Assess account-level WAF coverage (advisory — read-only finding).
+   * Emits CFL-ACCTWAF-001.
+   */
+  async assessAccountWAF(account, rulesets, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('account-waf').find(c => c.id === 'CFL-ACCTWAF-001');
+    if (!check) return;
+    if (!rulesets || rulesets.error) return;
+    const list = Array.isArray(rulesets) ? rulesets : [];
+    const hasCustom = list.some(r => r.kind === 'custom' && r.phase === 'http_request_firewall_custom');
+    const hasManaged = list.some(r => r.phase === 'http_request_firewall_managed');
+    const status = (hasCustom || hasManaged) ? 'PASS' : 'FAIL';
+    const desc = status === 'PASS'
+      ? `Account has ${list.length} ruleset(s) with WAF coverage`
+      : 'Account has no reusable WAF rulesets or managed coverage';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check, status, desc,
+      'Create account-level custom or managed WAF rulesets for shared coverage.',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${account.name} has ${list.length} account ruleset(s) (custom=${hasCustom}, managed=${hasManaged}).`,
+          expected: 'at least one custom or managed ruleset',
+          observed: `${list.length} ruleset(s)`,
+          source: { category: 'account-waf', endpoint: 'accounts.rulesets.list' },
+          raw: { rulesetCount: list.length, hasCustom, hasManaged }
+        }
+      }
+    ));
+  }
+
+  /**
+   * Assess notification policies (security alerts) for an account.
+   * Emits CFL-ALERT-001..004 findings — one per required alert type.
+   */
+  async assessNotifications(account, policies, available, assessment) {
+    if (!policies || policies.error) return;
+    const list = Array.isArray(policies) ? policies : [];
+    const enabled = list.filter(p => p.enabled);
+    const seenAlertTypes = new Set(enabled.map(p => p.alert_type));
+
+    const requiredAlerts = [
+      { id: 'CFL-ALERT-001', alertType: 'clickhouse_alert_fw_anomaly', title: 'WAF spike alert', label: 'WAF anomalies' },
+      { id: 'CFL-ALERT-002', alertType: 'http_alert_origin_error', title: 'Origin error alert', label: 'Origin errors' },
+      { id: 'CFL-ALERT-003', alertType: 'universal_ssl_event_type', title: 'SSL/TLS cert alert', label: 'Universal SSL events' },
+      { id: 'CFL-ALERT-004', alertType: 'dos_attack_l7', title: 'L7 DDoS alert', label: 'L7 DDoS attacks' }
+    ];
+    for (const a of requiredAlerts) {
+      const check = this.securityBaseline.getChecksByCategory('notifications').find(c => c.id === a.id);
+      if (!check) continue;
+      const typeAvailable = Array.isArray(available) && available.length > 0
+        ? available.some(av => av.id === a.alertType)
+        : true; // assume available if we couldn't fetch the list
+      if (!typeAvailable) continue;
+      const has = seenAlertTypes.has(a.alertType);
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check,
+        has ? 'PASS' : 'FAIL',
+        has ? `Notification configured for ${a.label}` : `No notification configured for ${a.label}`,
+        `Create a notification policy in Cloudflare Alerts with alert_type=${a.alertType} and your preferred email/webhook.`,
+        { id: account.id, type: 'account', name: account.name },
+        {
+          evidence: {
+            summary: `${account.name} ${has ? 'has' : 'does not have'} an enabled notification for ${a.label} (${a.alertType}).`,
+            expected: `at least one enabled policy for ${a.alertType}`,
+            observed: has ? 'enabled policy' : 'no policy',
+            source: { category: 'notifications', endpoint: 'accounts.alerting.v3.policies.list' },
+            raw: { alertType: a.alertType, totalPolicies: list.length, enabledPolicies: enabled.length }
+          }
+        }
+      ));
+    }
+  }
+
+  // --- Phase 3 assess methods (Workers plaintext, routes, storage, Zaraz)
+
+  /**
+   * Workers plaintext secret binding detection.
+   * Flags any binding of type 'plain_text' whose `text` value looks like a
+   * secret (length > 16, or matches a common prefix). Also emits a route
+   * inventory finding (CFL-WORK-004).
+   */
+  async assessWorkersBindings(account, scripts, allBindings, assessment) {
+    const plaintextCheck = this.securityBaseline.getChecksByCategory('workers').find(c => c.id === 'CFL-WORK-003');
+    const routesCheck = this.securityBaseline.getChecksByCategory('workers').find(c => c.id === 'CFL-WORK-004');
+    const SECRETS_PREFIX = /^(sk-|sk_|pk-|pk_|AKIA|ghp_|gho_|xox[abpos]-|ya29\.|AIza[0-9A-Za-z_-]{35})/;
+    const flag = (text) => {
+      if (typeof text !== 'string' || text.length < 16) return false;
+      return SECRETS_PREFIX.test(text) || /[A-Za-z0-9+/]{32,}/.test(text);
+    };
+    const bindings = Array.isArray(allBindings) ? allBindings : [];
+    const risky = bindings.filter(b => b.type === 'plain_text' && flag(b.text));
+    if (plaintextCheck) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        plaintextCheck,
+        risky.length === 0 ? 'PASS' : 'FAIL',
+        risky.length === 0
+          ? `No plaintext secret bindings detected across ${scripts.length} script(s)`
+          : `Found ${risky.length} plaintext binding(s) holding secret-shaped values`,
+        'Replace plain_text bindings with secret_text bindings and store the value via `wrangler secret put`.',
+        { id: account.id, type: 'account', name: account.name },
+        {
+          evidence: {
+            summary: `${account.name}: ${scripts.length} script(s), ${bindings.length} binding(s), ${risky.length} risky plain_text.`,
+            expected: '0 plain_text bindings with secret-shaped values',
+            observed: `${risky.length} risky binding(s)`,
+            source: { category: 'workers', endpoint: 'accounts.workers.scripts.bindings.list' },
+            raw: {
+              scriptCount: scripts.length,
+              bindingCount: bindings.length,
+              riskyBindings: risky.map(b => ({ script: b._script, name: b.name, length: b.text.length }))
+            }
+          }
+        }
+      ));
+    }
+    if (routesCheck) {
+      // Routes inventory lives at zone scope; this account-level finding is informational
+      const totalScripts = scripts.length;
+      assessment.findings.push(this.securityBaseline.createFinding(
+        routesCheck,
+        totalScripts > 0 ? 'PASS' : 'INFO',
+        totalScripts > 0
+          ? `Account has ${totalScripts} Worker script(s) — review zone routes for unauthenticated access`
+          : 'No Workers scripts deployed',
+        'Inventory Worker routes; ensure each is bound to an authenticated route or behind Access.',
+        { id: account.id, type: 'account', name: account.name },
+        {
+          evidence: {
+            summary: `${account.name} has ${totalScripts} Worker script(s).`,
+            expected: 'inventory',
+            observed: `${totalScripts} script(s)`,
+            source: { category: 'workers', endpoint: 'accounts.workers.scripts.list' },
+            raw: { scriptNames: scripts.map(s => s.name) }
+          }
+        }
+      ));
+    }
+  }
+
+  /**
+   * Storage inventory assessment (KV / D1 / Queues). All advisory.
+   */
+  async assessStorageInventory(account, data, checkId, kind, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('storage').find(c => c.id === checkId);
+    if (!check) return;
+    if (!data || data.error) return; // unreadable → skip
+    const list = Array.isArray(data) ? data : [];
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      list.length > 0 ? 'PASS' : 'INFO',
+      list.length > 0
+        ? `Account has ${list.length} ${kind} resource(s)`
+        : `Account has no ${kind} resources`,
+      `Inventory ${kind} resources and review access patterns.`,
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${account.name} has ${list.length} ${kind} resource(s).`,
+          expected: 'inventory only',
+          observed: `${list.length} ${kind} resource(s)`,
+          source: { category: 'storage', endpoint: `accounts.${kind}.list` },
+          raw: { count: list.length, kind }
+        }
+      }
+    ));
+  }
+
+  /**
+   * Zaraz assessment — flags third-party tools without consent configuration.
+   * Zone-scoped.
+   */
+  async assessZaraz(zone, zaraz, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('zaraz').find(c => c.id === 'CFL-ZARAZ-001');
+    if (!check) return;
+    if (!zaraz || zaraz.error) return;
+    const tools = zaraz.tools ? Object.keys(zaraz.tools) : [];
+    const hasConsent = !!zaraz.consent && (zaraz.consent.enabled === true);
+    const risky = tools.length > 0 && !hasConsent;
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      risky ? 'FAIL' : (tools.length === 0 ? 'INFO' : 'PASS'),
+      risky
+        ? `${tools.length} Zaraz tool(s) loaded without consent configuration`
+        : (tools.length === 0 ? 'Zaraz is not in use' : 'Zaraz consent is configured'),
+      'Configure Zaraz consent management before loading third-party tools.',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `${zone.name} Zaraz: ${tools.length} tool(s), consent=${hasConsent ? 'enabled' : 'disabled'}.`,
+          expected: 'consent enabled when third-party tools are present',
+          observed: `${tools.length} tools, consent=${hasConsent ? 'on' : 'off'}`,
+          source: { category: 'zaraz', endpoint: 'zones.settings.zaraz.config.get' },
+          raw: { toolCount: tools.length, hasConsent, toolNames: tools }
+        }
+      }
+    ));
+  }
+
+  // ---------- Phase 4: Enterprise / SASE assess methods ----------
+
+  async assessZoneHold(zone, hold, assessment) {
+    const checks = this.securityBaseline.getChecksByCategory('account-waf');
+    const check = checks.find(c => c.id === 'CFL-HOLD-001') || {
+      id: 'CFL-HOLD-001',
+      title: 'Zone Hold (Anti-Takeover)',
+      description: 'Enable zone hold to prevent unauthorized transfer of the zone (Enterprise only)',
+      severity: 'high',
+      compliance: ['CIS', 'SOC2', 'NIST']
+    };
+    const isHeld = hold && (hold.hold === true || hold.hold_after);
+    const status = isHeld ? 'PASS' : 'FAIL';
+    const observed = isHeld
+      ? `hold=${hold.hold}${hold.hold_after ? ` after ${hold.hold_after}` : ''}`
+      : 'hold not set';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `Zone hold is ${isHeld ? 'enabled' : 'disabled'}`,
+      'Zone hold is enabled',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `Zone hold for ${zone.name}: ${isHeld ? 'on' : 'off'}.`,
+          expected: 'hold enabled (anti-takeover)',
+          observed,
+          source: { category: 'account-waf', endpoint: 'zones.hold.get' },
+          raw: { hold }
+        }
+      }
+    ));
+  }
+
+  async assessDevicePosture(account, posture, assessment) {
+    const check = {
+      id: 'CFL-POSTURE-001',
+      title: 'Device Posture Rules',
+      description: 'No device posture rules defined — bound to Zero Trust policies for trusted endpoints',
+      severity: 'high',
+      compliance: ['SOC2', 'PCI-DSS', 'NIST']
+    };
+    const list = Array.isArray(posture) ? posture : (posture && Array.isArray(posture.rules) ? posture.rules : []);
+    const status = list.length > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${list.length} device posture rule(s)`,
+      'At least one posture rule defined',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${list.length} device posture rule(s) configured for account ${account.name}.`,
+          expected: '≥1 posture rule',
+          observed: `${list.length} rules`,
+          source: { category: 'posture', endpoint: 'accounts.devices.posture.list' },
+          raw: { count: list.length, ruleNames: list.map(r => r.name || r.id) }
+        }
+      }
+    ));
+  }
+
+  async assessAccessDepth(account, apps, assessment) {
+    const list = Array.isArray(apps) ? apps : [];
+    const checks = {
+      allowEveryone: list.find(c => c.id === 'CFL-ZT-007') || {
+        id: 'CFL-ZT-007',
+        title: 'Access App Depth — No "Allow Everyone"',
+        severity: 'critical',
+        compliance: ['SOC2', 'NIST']
+      },
+      sessionDuration: list.find(c => c.id === 'CFL-ZT-008') || {
+        id: 'CFL-ZT-008',
+        title: 'Access App Session Duration',
+        severity: 'medium',
+        compliance: ['SOC2']
+      },
+      requireMfa: list.find(c => c.id === 'CFL-ZT-009') || {
+        id: 'CFL-ZT-009',
+        title: 'Access App Require MFA / Posture',
+        severity: 'high',
+        compliance: ['SOC2', 'NIST']
+      }
+    };
+    const resource = { id: account.id, type: 'account', name: account.name };
+
+    const everyone = list.filter(app => {
+      const policies = Array.isArray(app.policies) ? app.policies : [];
+      return policies.some(p => (p.include || []).some(inc => inc.everyone || inc.anyone) || (p.include || []).some(inc => inc.email && Array.isArray(inc.email) && inc.email.length === 0));
+    });
+    assessment.findings.push(this.securityBaseline.createFinding(
+      checks.allowEveryone,
+      everyone.length === 0 ? 'PASS' : 'FAIL',
+      `${everyone.length} Access app(s) with allow-everyone policy`,
+      'No Access app with allow-everyone',
+      resource,
+      {
+        evidence: {
+          summary: `${everyone.length} Access app(s) allow everyone without identity binding.`,
+          expected: '0',
+          observed: `${everyone.length}`,
+          affectedEntities: everyone.map(a => ({ id: a.id, name: a.name })),
+          source: { category: 'zerotrust', endpoint: 'accounts.access.applications.list' },
+          raw: { everyoneAppIds: everyone.map(a => a.id) }
+        }
+      }
+    ));
+
+    const unbounded = list.filter(app => {
+      const dur = app.session_duration || app.policies?.[0]?.session_duration;
+      return !dur || dur === '24h' || dur === '168h' || dur === '720h' || dur === '8760h';
+    });
+    assessment.findings.push(this.securityBaseline.createFinding(
+      checks.sessionDuration,
+      unbounded.length === 0 ? 'PASS' : 'WARNING',
+      `${unbounded.length} Access app(s) with default/long session duration`,
+      'Bounded session duration (≤24h)',
+      resource,
+      {
+        evidence: {
+          summary: `${unbounded.length} Access app(s) use a default or >24h session duration.`,
+          expected: '≤24h session duration on all apps',
+          observed: `${unbounded.length} unbounded apps`,
+          source: { category: 'zerotrust', endpoint: 'accounts.access.applications.list' }
+        }
+      }
+    ));
+
+    const noMfa = list.filter(app => {
+      const policies = Array.isArray(app.policies) ? app.policies : [];
+      return !policies.some(p => Array.isArray(p.require) && p.require.length > 0);
+    });
+    assessment.findings.push(this.securityBaseline.createFinding(
+      checks.requireMfa,
+      noMfa.length === 0 ? 'PASS' : 'FAIL',
+      `${noMfa.length} Access app(s) without require rules (MFA/posture)`,
+      'All sensitive apps require MFA or posture',
+      resource,
+      {
+        evidence: {
+          summary: `${noMfa.length} Access app(s) have no MFA / posture requirements.`,
+          expected: '0',
+          observed: `${noMfa.length}`,
+          affectedEntities: noMfa.map(a => ({ id: a.id, name: a.name })),
+          source: { category: 'zerotrust', endpoint: 'accounts.access.applications.list' }
+        }
+      }
+    ));
+  }
+
+  async assessCASB(account, casb, assessment) {
+    const check = {
+      id: 'CFL-CASB-001',
+      title: 'CASB Integrations and Open Findings',
+      severity: 'high',
+      compliance: ['SOC2', 'NIST']
+    };
+    const findings = Array.isArray(casb) ? casb : (casb?.findings || []);
+    const openCritical = findings.filter(f => f.status === 'open' && (f.severity === 'critical' || f.severity === 'high'));
+    const status = openCritical.length === 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${openCritical.length} open critical/high CASB finding(s)`,
+      'No open critical/high CASB findings',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${openCritical.length} open critical/high CASB findings across ${findings.length} total.`,
+          expected: '0',
+          observed: `${openCritical.length}`,
+          source: { category: 'casb', endpoint: 'accounts.casb.findings.list' },
+          raw: { total: findings.length, openCritical: openCritical.length }
+        }
+      }
+    ));
+  }
+
+  async assessEmailSecurity(account, esp, assessment) {
+    const check = {
+      id: 'CFL-EMAILSEC-001',
+      title: 'Cloud Email Security Policies',
+      severity: 'medium',
+      compliance: ['SOC2', 'NIST']
+    };
+    const list = Array.isArray(esp) ? esp : [];
+    const active = list.filter(p => p.enabled);
+    const status = active.length > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${active.length} active Cloud Email Security polic(y/ies)`,
+      'At least one active policy',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${active.length} of ${list.length} Cloud Email Security polic(y/ies) active.`,
+          expected: '≥1',
+          observed: `${active.length}`,
+          source: { category: 'email-security', endpoint: 'accounts.email_security.policies.list' },
+          raw: { activeCount: active.length, total: list.length, activeNames: active.map(p => p.name) }
+        }
+      }
+    ));
+  }
+
+  async assessBrowserIsolation(account, rbi, assessment) {
+    const check = {
+      id: 'CFL-RBI-001',
+      title: 'Browser Isolation Policies',
+      severity: 'medium',
+      compliance: ['SOC2', 'NIST']
+    };
+    const list = Array.isArray(rbi) ? rbi : [];
+    const status = list.length > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${list.length} Browser Isolation polic(y/ies)`,
+      'At least one Browser Isolation policy',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${list.length} Browser Isolation polic(y/ies) defined.`,
+          expected: '≥1',
+          observed: `${list.length}`,
+          source: { category: 'rbi', endpoint: 'accounts.browser_isolation.policies.list' }
+        }
+      }
+    ));
+  }
+
+  async assessMagicFirewall(account, mf, assessment) {
+    const check = {
+      id: 'CFL-MAGIC-001',
+      title: 'Magic Firewall / Magic Transit Ruleset',
+      severity: 'high',
+      compliance: ['CIS', 'SOC2', 'NIST']
+    };
+    const list = Array.isArray(mf) ? mf : (mf?.rulesets || []);
+    const totalRules = list.reduce((sum, r) => sum + ((r.rules || []).length), 0);
+    const status = list.length > 0 && totalRules > 0 ? 'PASS' : 'FAIL';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status,
+      `${list.length} ruleset(s), ${totalRules} total rules`,
+      'Magic Firewall ruleset with at least one rule',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${list.length} Magic Firewall ruleset(s), ${totalRules} rules total.`,
+          expected: '≥1 ruleset with ≥1 rule',
+          observed: `${list.length} / ${totalRules}`,
+          source: { category: 'magic', endpoint: 'accounts.magic_firewall.rulesets.list' }
+        }
+      }
+    ));
   }
 
 }

@@ -28,3 +28,17 @@ scoring:
 ci:
   threshold: null        # Minimum security score (0-100)
   failOn: null          # Fail on severity: critical, high, medium, low
+
+# Remediation (writes to Cloudflare) — read-only by default
+remediation:
+  enabled: false                    # Master switch (web apply also needs FLAREINSPECT_ALLOW_REMEDIATION=true)
+  backupDir: ./remediation-backups  # Where before/after rollback bundles are written
+  autoApprove: false                # If true, low-risk recipes skip per-item confirmation
+
+# AI planner — orders/annotates the fixed recipe catalog (never invents changes)
+ai:
+  provider: none              # none, anthropic, openai, ollama (local)
+  model: llama3.1             # provider-specific: claude-opus-4-8 | gpt-4o | llama3.1 | ...
+  baseUrl: http://localhost:11434  # ollama/local server (or set OLLAMA_HOST)
+  # Cloud providers read API keys from ANTHROPIC_API_KEY / OPENAI_API_KEY.
+  # Ollama needs no key and runs fully offline.

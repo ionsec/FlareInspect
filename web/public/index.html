@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,496 +7,765 @@
   <link rel="icon" type="image/svg+xml" href="/flare-inspect-glyph.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/dashboard.css">
 </head>
-<body class="v1-root density-comfortable">
+<body>
 
-<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="sidebar-overlay"></div>
 
-<!-- ── Sidebar ── -->
-<aside class="v1-sidebar" id="sidebar">
-  <div class="v1-brand">
-    <img src="/flare-inspect-logo.svg" alt="" width="22" height="22" />
-    <div>
-      <div class="v1-brand-name">Flare<em class="v1-brand-em">Inspect</em></div>
-      <div class="v1-brand-sub" id="brand-sub">by ionsec</div>
+<div class="app">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <svg class="brand-logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.35"/>
+        <g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.5">
+          <line x1="32" y1="2"  x2="32" y2="7"/><line x1="32" y1="57" x2="32" y2="62"/>
+          <line x1="2"  y1="32" x2="7"  y2="32"/><line x1="57" y1="32" x2="62" y2="32"/>
+        </g>
+        <g fill="currentColor">
+          <polygon points="32,10 34.2,21 32,23 29.8,21"/>
+          <polygon points="47.6,16.4 41.6,25.9 39.5,25.4 40,23.3"/>
+          <polygon points="54,32 43,34.2 41,32 43,29.8"/>
+          <polygon points="47.6,47.6 40,38.5 40.5,36.4 42.6,36.9"/>
+          <polygon points="32,54 29.8,43 32,41 34.2,43"/>
+          <polygon points="16.4,47.6 23.5,40 25.6,40.5 25.1,42.6"/>
+          <polygon points="10,32 21,29.8 23,32 21,34.2"/>
+          <polygon points="16.4,16.4 25.4,23.5 24.9,25.6 22.8,25.1"/>
+        </g>
+        <circle cx="32" cy="32" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="32" cy="32" r="3.2" fill="currentColor"/>
+      </svg>
+      <div>
+        <div class="brand-name">Flare<em>Inspect</em></div>
+        <div class="brand-sub" id="brand-sub">by ionsec</div>
+      </div>
     </div>
-  </div>
 
-  <div class="v1-account">
-    <div class="v1-account-label">ACCOUNT</div>
-    <button class="v1-account-picker" type="button">
-      <span class="v1-account-dot"></span>
-      <span class="v1-account-name" id="account-name">—</span>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
-    </button>
-  </div>
-
-  <nav class="v1-nav">
-    <div class="v1-nav-group">Workspace</div>
-    <button class="v1-navlink active" data-section="overview" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      <span>Overview</span>
-    </button>
-    <button class="v1-navlink" data-section="assess" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-      <span>Run assessment</span>
-    </button>
-    <button class="v1-navlink" data-section="findings" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>
-      <span>Findings</span>
-      <span class="v1-navbadge" id="nav-badge-findings">—</span>
-    </button>
-    <button class="v1-navlink" data-section="compliance" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <span>Compliance</span>
-    </button>
-    <button class="v1-navlink" data-section="history" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-      <span>History</span>
-    </button>
-
-    <div class="v1-nav-group" style="margin-top:16px">System</div>
-    <button class="v1-navlink" data-section="export" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span>Exports</span>
-    </button>
-    <button class="v1-navlink" data-section="report" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      <span>Full report</span>
-    </button>
-    <button class="v1-navlink" data-section="api" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-      <span>API health</span>
-    </button>
-  </nav>
-
-  <div class="v1-foot">
-    <div class="v1-foot-status">
-      <span class="v1-foot-dot"></span>
-      <span id="foot-status-text">System idle</span>
+    <div class="sidebar-account">
+      <div class="account-label">Account</div>
+      <button class="account-picker" type="button">
+        <span class="account-dot"></span>
+        <span class="account-name" id="account-name">—</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+      </button>
     </div>
-    <div class="v1-foot-links">
-      <a href="https://flareinspect.readthedocs.io" target="_blank" rel="noopener">Docs ↗</a>
-      <a href="https://github.com/ionsec/flareinspect" target="_blank" rel="noopener">GitHub ↗</a>
+
+    <nav class="sidebar-nav">
+      <div class="nav-group">Workspace</div>
+
+      <button class="navlink" data-section="overview" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="navlink-label">Overview</span>
+      </button>
+      <button class="navlink" data-section="assess" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        <span class="navlink-label">Run assessment</span>
+      </button>
+      <button class="navlink" data-section="findings" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>
+        <span class="navlink-label">Findings</span>
+        <span class="navlink-badge" id="nav-badge">—</span>
+      </button>
+      <button class="navlink" data-section="posture" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><line x1="7.5" y1="7.5" x2="11" y2="16"/><line x1="16.5" y1="7.5" x2="13" y2="16"/><line x1="8" y1="6" x2="16" y2="6"/></svg>
+        <span class="navlink-label">Posture map</span>
+      </button>
+      <button class="navlink" data-section="compliance" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span class="navlink-label">Compliance</span>
+      </button>
+      <button class="navlink" data-section="history" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span class="navlink-label">History</span>
+      </button>
+
+      <div class="nav-group" style="margin-top:8px">Remediation</div>
+      <button class="navlink" data-section="remediate" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a2 2 0 1 0 2.8 2.8l6-6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1 2.5-2.5z"/></svg>
+        <span class="navlink-label">Remediate</span>
+      </button>
+
+      <div class="nav-group" style="margin-top:8px">Integrations</div>
+      <button class="navlink" data-section="siem" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/></svg>
+        <span class="navlink-label">SIEM</span>
+      </button>
+      <button class="navlink" data-section="notifications" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span class="navlink-label">Notifications</span>
+      </button>
+      <button class="navlink" data-section="agents" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/><path d="M2 13v2M22 13v2"/></svg>
+        <span class="navlink-label">Agents &amp; MCP</span>
+      </button>
+
+      <div class="nav-group" style="margin-top:8px">System</div>
+      <button class="navlink" data-section="export" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span class="navlink-label">Exports</span>
+      </button>
+      <button class="navlink" data-section="report" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="navlink-label">Full report</span>
+      </button>
+      <button class="navlink" data-section="settings" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        <span class="navlink-label">Settings</span>
+      </button>
+      <button class="navlink" data-section="api" type="button">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <span class="navlink-label">API health</span>
+      </button>
+      <a class="navlink" href="/api-docs" target="_blank" rel="noopener">
+        <svg class="navlink-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span class="navlink-label">API docs</span>
+        <span class="navlink-soon">↗</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="foot-status">
+        <span class="foot-dot" id="foot-dot"></span>
+        <span id="foot-status-text">Connecting…</span>
+      </div>
+      <div class="foot-links">
+        <a href="https://flareinspect.readthedocs.io" target="_blank" rel="noopener">Docs ↗</a>
+        <a href="https://github.com/ionsec/flareinspect" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
     </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────────────────────── -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger" aria-label="Open menu" type="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="crumbs">
+          <span class="crumb-muted" id="crumb-account">—</span>
+          <span class="crumb-sep">/</span>
+          <span class="crumb-current" id="crumb-page">Overview</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <label class="search-wrap">
+          <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="global-search" placeholder="Search findings, zones…" aria-label="Search" />
+          <kbd class="search-kbd">⌘K</kbd>
+        </label>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" type="button"></button>
+        <button class="btn btn-ghost" data-section="export" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
+        <button class="btn btn-primary" data-section="assess" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+          New run
+        </button>
+      </div>
+    </header>
+
+    <div class="page-scroll">
+
+      <!-- ── Overview ───────────────────────────────────────────────── -->
+      <div class="page" id="page-overview">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Security posture</h1>
+            <div class="page-sub" id="posture-sub">Loading…</div>
+          </div>
+          <div class="page-head-right" id="ci-chip"></div>
+        </div>
+
+        <div class="overview-grid">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-kicker">Overall score</div>
+              <div class="card-actions">
+                <a class="card-link" data-section="history" href="#">History →</a>
+              </div>
+            </div>
+            <div class="overview-score-card">
+              <div class="score-ring-wrap">
+                <div id="score-ring-svg"></div>
+                <div class="score-ring-inner">
+                  <div class="score-num" id="score-num">—</div>
+                  <div class="score-grade" id="score-grade">—</div>
+                  <div class="score-delta" id="score-delta"></div>
+                </div>
+              </div>
+              <div class="score-kpis">
+                <div>
+                  <div class="score-kv-label">Previous score</div>
+                  <div class="score-kv-val" id="kpi-prev">—</div>
+                </div>
+                <div>
+                  <div class="score-kv-label">Recent trend</div>
+                  <div id="kpi-sparkline"></div>
+                </div>
+                <div>
+                  <div class="score-kv-label">Checks passed</div>
+                  <div class="score-kv-val" id="kpi-passed">—</div>
+                </div>
+              </div>
+              <div style="flex:1;min-width:175px">
+                <div class="card-kicker" style="margin-bottom:12px">By category</div>
+                <div class="breakdown-grid" id="breakdown-rows"></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-title">Open findings</div>
+                  <div class="card-sub" id="sev-sub">—</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" data-section="findings" type="button">View all →</button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div class="sev-bar-wrap">
+                  <div class="sev-seg" data-sev="critical" style="background:var(--crit)"></div>
+                  <div class="sev-seg" data-sev="high"     style="background:var(--high)"></div>
+                  <div class="sev-seg" data-sev="medium"   style="background:var(--med)"></div>
+                  <div class="sev-seg" data-sev="low"      style="background:var(--low)"></div>
+                </div>
+                <div class="sev-labels">
+                  <div class="sev-label">
+                    <div class="sev-label-head"><span class="sev-dot" style="background:var(--crit)"></span><span class="sev-label-name">Critical</span></div>
+                    <div class="sev-label-count" id="sev-count-critical" style="color:var(--crit)">0</div>
+                  </div>
+                  <div class="sev-label">
+                    <div class="sev-label-head"><span class="sev-dot" style="background:var(--high)"></span><span class="sev-label-name">High</span></div>
+                    <div class="sev-label-count" id="sev-count-high" style="color:var(--high)">0</div>
+                  </div>
+                  <div class="sev-label">
+                    <div class="sev-label-head"><span class="sev-dot" style="background:var(--med)"></span><span class="sev-label-name">Medium</span></div>
+                    <div class="sev-label-count" id="sev-count-medium" style="color:var(--med)">0</div>
+                  </div>
+                  <div class="sev-label">
+                    <div class="sev-label-head"><span class="sev-dot" style="background:var(--low)"></span><span class="sev-label-name">Low</span></div>
+                    <div class="sev-label-count" id="sev-count-low" style="color:var(--low)">0</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <div class="card-kicker">Compliance coverage</div>
+                <a class="card-link" data-section="compliance" href="#">Details →</a>
+              </div>
+              <div class="comp-list" id="compliance-rail"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attack paths -->
+        <div class="card" id="attack-paths-card" style="border-color:oklch(65% 0.21 25 / 0.4);background:oklch(65% 0.21 25 / 0.06)">
+          <div class="card-head">
+            <div style="display:flex;align-items:center;gap:10px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--crit)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div class="card-title" id="attack-paths-title" style="color:var(--crit)">Attack paths</div>
+            </div>
+            <button class="btn btn-sm" data-section="posture" type="button" style="border-color:oklch(65% 0.21 25 / 0.4);color:var(--crit)">View posture map →</button>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap" id="attack-paths-strip"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title">Top findings</div>
+              <div class="card-sub" id="top-findings-sub">Sorted by severity</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" data-section="findings" type="button">See all →</button>
+          </div>
+          <div id="top-findings"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Zones</div>
+            <div class="card-sub" id="zones-sub">Posture across Cloudflare zones</div>
+          </div>
+          <div class="zone-grid" id="zone-grid"></div>
+        </div>
+      </div>
+
+      <!-- ── Run Assessment ─────────────────────────────────────────── -->
+      <div class="page" id="page-assess">
+        <div class="page-head">
+          <h1 class="page-title">Run assessment</h1>
+        </div>
+        <div class="card" style="max-width:620px">
+          <form id="assess-form" class="form" novalidate>
+            <div class="form-row">
+              <label class="form-label" for="assess-token">Cloudflare API token <span class="form-required">*</span></label>
+              <input type="password" id="assess-token" class="input" placeholder="Cfxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" required />
+              <p class="form-hint">Requires Zone:Read, DNS:Read, SSL:Read, Firewall:Read. <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener" style="color:var(--flare)">Create token ↗</a></p>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="assess-zones">Zone filter <span class="form-optional">(optional)</span></label>
+              <input type="text" id="assess-zones" class="input" placeholder="example.com, staging.example.com" spellcheck="false" />
+              <p class="form-hint">Comma-separated zone names. Leave blank to assess all accessible zones.</p>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button type="submit" class="btn btn-primary" id="assess-submit">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                Run assessment
+              </button>
+              <button type="button" class="btn" id="btn-load-latest">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg>
+                Load latest
+              </button>
+            </div>
+          </form>
+          <div class="progress-wrap" id="progress-wrap" style="display:none;margin-top:16px">
+            <div class="progress-label-row">
+              <span id="progress-label-text">Running assessment…</span>
+              <span class="mono" id="progress-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Findings ───────────────────────────────────────────────── -->
+      <div class="page" id="page-findings">
+        <div class="page-head">
+          <div><h1 class="page-title">Findings</h1><div class="page-sub">All security findings from the latest assessment</div></div>
+          <span class="badge" id="findings-count">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="findings-filter">
+            <button class="btn btn-primary btn-sm" data-filter="all" type="button">All</button>
+            <button class="btn btn-sm" data-filter="critical" type="button" style="color:var(--crit)">Critical</button>
+            <button class="btn btn-sm" data-filter="high"     type="button" style="color:var(--high)">High</button>
+            <button class="btn btn-sm" data-filter="medium"   type="button" style="color:var(--med)">Medium</button>
+            <button class="btn btn-sm" data-filter="low"      type="button" style="color:var(--low)">Low</button>
+          </div>
+          <div class="findings-search" style="margin-left:auto">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--fg-4);flex-shrink:0"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="findings-search-input" placeholder="Filter findings…" />
+          </div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden"><div id="all-findings"></div></div>
+      </div>
+
+      <!-- ── Posture Map ────────────────────────────────────────────── -->
+      <div class="page" id="page-posture" style="gap:12px">
+        <div class="page-head">
+          <div><h1 class="page-title">Posture map</h1><div class="page-sub">Resource topology and attack paths from the latest assessment · click a node for details</div></div>
+        </div>
+        <div class="posture-map-wrap" id="pm-wrap" style="height:580px">
+          <div class="posture-toolbar">
+            <button class="btn btn-sm" id="pm-ap-toggle" type="button">Show attack paths</button>
+            <button class="btn btn-sm" id="pm-zoom-in"   type="button">+</button>
+            <button class="btn btn-sm" id="pm-zoom-out"  type="button">−</button>
+            <button class="btn btn-sm" id="pm-fit"       type="button">Fit</button>
+          </div>
+          <svg class="posture-svg" id="pm-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div class="posture-legend">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3);margin-bottom:4px">Legend</div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--crit)"></span>Critical</div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--high)"></span>High</div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--med)"></span>Medium</div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--low)"></span>Clean</div>
+            <div class="legend-row"><span class="legend-dashed" style="border-color:var(--crit)"></span>Attack path</div>
+          </div>
+          <div class="node-drawer" id="node-drawer">
+            <div class="drawer-head">
+              <div class="drawer-title">Node details</div>
+              <button class="drawer-close" id="drawer-close" aria-label="Close" type="button">✕</button>
+            </div>
+            <div class="drawer-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Compliance ─────────────────────────────────────────────── -->
+      <div class="page" id="page-compliance">
+        <div class="page-head">
+          <div><h1 class="page-title">Compliance</h1><div class="page-sub">Control mapping against industry frameworks — generated from the latest assessment</div></div>
+        </div>
+        <div class="compliance-grid" id="compliance-cards"></div>
+      </div>
+
+      <!-- ── History ────────────────────────────────────────────────── -->
+      <div class="page" id="page-history">
+        <div class="page-head">
+          <div><h1 class="page-title">Assessment history</h1><div class="page-sub">Previously saved assessments stored locally</div></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="history-list" id="history-list"></div>
+        </div>
+      </div>
+
+      <!-- ── Remediate ──────────────────────────────────────────────── -->
+      <div class="page" id="page-remediate">
+        <div class="page-head">
+          <div><h1 class="page-title">Remediate</h1><div class="page-sub">AI-assisted, safety-first fixes. Every apply is backed up and fully reversible.</div></div>
+          <span class="badge warn" id="rem-gate-badge">Edit scope required for apply</span>
+        </div>
+        <div class="card" style="max-width:620px">
+          <div class="card-head"><div class="card-title">Build a remediation plan</div></div>
+          <form class="form" id="rem-form" novalidate>
+            <div class="form-row">
+              <label class="form-label" for="rem-token">Cloudflare API token <span class="form-required">*</span></label>
+              <input type="password" id="rem-token" class="input" placeholder="Cfxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+              <p class="form-hint"><strong>Plan</strong> (dry-run) needs read scopes only. <strong>Apply</strong> requires Zone Settings:Edit and DNS:Edit scopes.</p>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="rem-zones">Zone filter <span class="form-optional">(optional)</span></label>
+              <input type="text" id="rem-zones" class="input" placeholder="example.com" spellcheck="false" />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-row">
+                <label class="form-label" for="rem-ai">AI planner</label>
+                <select id="rem-ai" class="input">
+                  <option value="none">None — rules-only</option>
+                  <option value="ollama">Ollama (local)</option>
+                  <option value="anthropic">Anthropic Claude</option>
+                  <option value="openai">OpenAI</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="rem-model">Model</label>
+                <input type="text" id="rem-model" class="input" placeholder="claude-opus-4-5 / gpt-4o" />
+              </div>
+            </div>
+            <div><button class="btn btn-primary" type="submit" id="rem-plan-btn">Build plan (dry-run)</button></div>
+          </form>
+        </div>
+        <div class="card" id="rem-plan-card" style="display:none">
+          <div class="card-head">
+            <div><div class="card-title">Proposed changes</div><div class="card-sub" id="rem-plan-sub">—</div></div>
+            <button class="btn btn-primary btn-sm" type="button" id="rem-apply-btn" disabled>Apply selected</button>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-2);margin-bottom:12px"><input type="checkbox" id="rem-force" /> Include high-risk changes (force)</label>
+          <div id="rem-plan-body"></div>
+        </div>
+        <div class="card" id="rem-manual-card" style="display:none">
+          <div class="card-head"><div class="card-title">Manual review</div></div>
+          <div id="rem-manual-body"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Backups &amp; rollback</div><button class="btn btn-sm" type="button" id="rem-refresh-backups">Refresh</button></div>
+          <div id="rem-backups-body"><div class="empty">No backups yet. Build a plan and apply it to create a backup.</div></div>
+        </div>
+      </div>
+
+      <!-- ── SIEM ───────────────────────────────────────────────────── -->
+      <div class="page" id="page-siem">
+        <div class="page-head">
+          <div><h1 class="page-title">SIEM streaming</h1><div class="page-sub">Ship findings and attack-path context to Elasticsearch or Splunk</div></div>
+          <span class="badge ok">Ready</span>
+        </div>
+        <div class="card" style="max-width:620px">
+          <div class="card-head"><div class="card-title">Ship the latest assessment</div></div>
+          <div class="form">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-row">
+                <label class="form-label" for="siem-target">Destination</label>
+                <select class="input" id="siem-target">
+                  <option value="all">Elasticsearch + Splunk</option>
+                  <option value="elastic">Elasticsearch (ECS)</option>
+                  <option value="splunk">Splunk (HEC / CIM)</option>
+                  <option value="file">File (NDJSON)</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="siem-outdir">Output dir</label>
+                <input type="text" class="input" id="siem-outdir" placeholder="./siem-export" />
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-2)"><input type="checkbox" id="siem-dryrun" checked /> Dry run (validate &amp; count, don't send)</label>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" type="button" id="siem-ship-btn">Ship now</button>
+              <button class="btn" type="button" id="siem-template-btn">Download ECS index template</button>
+            </div>
+            <div id="siem-result"></div>
+            <p class="form-hint">Credentials are read from server env: <code class="mono">FLAREINSPECT_ES_URL</code>, <code class="mono">FLAREINSPECT_SPLUNK_HEC_URL</code>. Secrets never touch the browser.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Notifications ──────────────────────────────────────────── -->
+      <div class="page" id="page-notifications">
+        <div class="page-head">
+          <div><h1 class="page-title">Notifications</h1><div class="page-sub">Alert your team on assessment, remediation, and drift events</div></div>
+          <span class="badge ok">Ready</span>
+        </div>
+        <div class="card" style="max-width:620px">
+          <div class="card-head"><div class="card-title">Send a summary</div></div>
+          <div class="form">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-row"><label class="form-label" for="notify-target">Channel</label>
+                <select class="input" id="notify-target"><option value="all">All configured</option><option value="slack">Slack</option><option value="teams">Microsoft Teams</option><option value="webhook">Generic webhook</option></select></div>
+              <div class="form-row"><label class="form-label" for="notify-threshold">Min severity</label>
+                <select class="input" id="notify-threshold"><option value="">Any</option><option value="low">Low+</option><option value="medium">Medium+</option><option value="high">High+</option><option value="critical">Critical only</option></select></div>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="notify-link">Dashboard link <span class="form-optional">(optional)</span></label>
+              <input type="text" class="input" id="notify-link" placeholder="https://flareinspect.internal/report" />
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-2)"><input type="checkbox" id="notify-dryrun" checked /> Dry run (preview payload, don't send)</label>
+            <div><button class="btn btn-primary" type="button" id="notify-send-btn">Send</button></div>
+            <div id="notify-result"></div>
+            <p class="form-hint">Channel URLs from env: <code class="mono">FLAREINSPECT_SLACK_WEBHOOK</code>, <code class="mono">FLAREINSPECT_TEAMS_WEBHOOK</code>, <code class="mono">FLAREINSPECT_WEBHOOK_URL</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Agents & MCP ───────────────────────────────────────────── -->
+      <div class="page" id="page-agents">
+        <div class="page-head">
+          <div><h1 class="page-title">Agents &amp; MCP</h1><div class="page-sub">Let autonomous agents drive the full assess → find → plan → apply → rollback loop</div></div>
+          <span class="badge warn" id="agents-gate-badge">Remediation: DISABLED</span>
+        </div>
+        <div class="card" style="max-width:700px">
+          <div class="card-head"><div class="card-title">MCP server</div><span class="badge ok">Ready (stdio)</span></div>
+          <p class="page-sub" id="agents-gate-note" style="margin-bottom:14px">A Model Context Protocol server exposes FlareInspect as tools so any MCP-aware agent (Claude Code, Hermes, OpenClaw) can connect over stdio.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+            <div class="form-label">Add to your MCP client config:</div>
+            <button class="btn btn-sm" type="button" id="agents-copy-btn">Copy</button>
+          </div>
+          <div class="code-block" id="agents-config">{
+  "mcpServers": {
+    "flareinspect": {
+      "command": "node",
+      "args": ["/path/to/flareinspect/mcp/server.mjs"],
+      "env": { "CLOUDFLARE_TOKEN": "your-token-here" }
+    }
+  }
+}</div>
+        </div>
+        <div class="card" style="max-width:700px">
+          <div class="card-head"><div class="card-title">Live remediation gate</div><span class="badge warn" id="agents-rem-badge">DISABLED</span></div>
+          <p class="page-sub" id="agents-rem-note" style="margin-bottom:12px">apply_remediation and rollback are gated off. They require the server to be started with the gate enabled and an edit-scoped token.</p>
+          <div class="form-label" style="margin-bottom:8px">Enable on the server (then restart):</div>
+          <div class="code-block">FLAREINSPECT_ALLOW_REMEDIATION=true
+FLAREINSPECT_EDIT_SCOPE=&lt;opaque-secret-or-jwt&gt;</div>
+          <p class="form-hint">For safety this cannot be toggled from the browser. Read scopes (assess, findings, plan) work without it.</p>
+        </div>
+        <div class="card" style="max-width:700px">
+          <div class="card-head"><div class="card-title">Available tools</div></div>
+          <div class="health-grid" style="grid-template-columns:1fr 1fr">
+            <div class="health-row"><span class="health-key mono">assess</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">get_findings</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">get_posture_graph</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">plan_remediation</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">apply_remediation</span><span class="badge warn" id="agents-tool-apply">gate: off</span></div>
+            <div class="health-row"><span class="health-key mono">rollback</span><span class="badge warn" id="agents-tool-rollback">gate: off</span></div>
+            <div class="health-row"><span class="health-key mono">diff</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">get_compliance</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">ship_to_siem</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">notify</span><span class="badge ok">available</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Exports ────────────────────────────────────────────────── -->
+      <div class="page" id="page-export">
+        <div class="page-head">
+          <div><h1 class="page-title">Exports</h1><div class="page-sub">Download assessment results in your preferred format</div></div>
+        </div>
+        <div class="export-grid">
+          <a href="/api/download/json" class="export-card" data-export><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="export-name">JSON</div><div class="export-desc">Full assessment data</div></a>
+          <a href="/api/download/html" class="export-card" data-export><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><div class="export-name">HTML report</div><div class="export-desc">Styled full report</div></a>
+          <a href="/api/download/sarif" class="export-card" data-export><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg></div><div class="export-name">SARIF</div><div class="export-desc">CI/CD integration</div></a>
+          <a href="/api/download/csv" class="export-card" data-export><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg></div><div class="export-name">CSV</div><div class="export-desc">Spreadsheet format</div></a>
+          <a href="/api/download/markdown" class="export-card" data-export><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></div><div class="export-name">Markdown</div><div class="export-desc">Readable document</div></a>
+          <a href="/api/download/asff" class="export-card" data-export><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="export-name">ASFF</div><div class="export-desc">AWS Security Hub</div></a>
+          <a href="#" class="export-card" data-section="siem"><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/></svg></div><div class="export-name">ECS / Splunk HEC</div><div class="export-desc">SIEM-ready formats</div></a>
+          <a href="#" class="export-card" data-section="siem"><div class="export-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div><div class="export-name">OCSF</div><div class="export-desc">Open Cybersecurity Schema</div></a>
+        </div>
+      </div>
+
+      <!-- ── Full Report ─────────────────────────────────────────────── -->
+      <div class="page" id="page-report">
+        <div class="page-head">
+          <div><h1 class="page-title">Full HTML report</h1><div class="page-sub">Embedded assessment report — generated from the latest run</div></div>
+          <div class="page-head-right">
+            <button class="btn btn-sm" type="button" id="report-refresh">Refresh</button>
+            <a class="btn btn-sm" href="/report" target="_blank" rel="noopener">Open in new tab ↗</a>
+          </div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="empty" id="report-empty" style="padding:80px 40px">Run an assessment to view the embedded HTML report here.</div>
+          <iframe id="report-frame" title="FlareInspect report" style="display:none;width:100%;height:75vh;border:0;background:#fff"></iframe>
+        </div>
+      </div>
+
+      <!-- ── API Health ──────────────────────────────────────────────── -->
+      <div class="page" id="page-api">
+        <div class="page-head">
+          <div><h1 class="page-title">API health</h1><div class="page-sub">System status and server configuration</div></div>
+          <span class="badge ok" id="api-status-badge">Healthy</span>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">System status</div></div>
+          <div class="health-grid" id="health-grid"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">API documentation</div><a class="btn btn-sm" href="/api-docs" target="_blank" rel="noopener">Open Swagger ↗</a></div>
+          <p class="page-sub">Interactive OpenAPI 3 reference for every endpoint. Raw spec: <a href="/api-docs/openapi.json" target="_blank" rel="noopener" style="color:var(--flare)">/api-docs/openapi.json</a></p>
+        </div>
+      </div>
+
+      <!-- ── Settings ───────────────────────────────────────────────── -->
+      <div class="page" id="page-settings">
+        <div class="page-head">
+          <div><h1 class="page-title">Settings</h1><div class="page-sub">Configure integrations from the dashboard. Values override the matching <code class="mono">.env</code> variable and persist to a local, git-ignored file on the server.</div></div>
+          <span class="badge" id="settings-saved-badge" style="display:none">Saved</span>
+        </div>
+
+        <div class="card" style="max-width:680px">
+          <div class="card-head"><div><div class="card-title">Notifications</div><div class="card-sub">Webhook URLs &amp; secret are write-only — saved values show a masked hint.</div></div></div>
+          <form class="form" id="settings-notify-form" novalidate>
+            <div class="form-row">
+              <label class="form-label" for="set-slackWebhook">Slack webhook URL <span class="set-status" id="status-slackWebhook"></span></label>
+              <input type="password" id="set-slackWebhook" data-key="slackWebhook" class="input" placeholder="https://hooks.slack.com/services/…" autocomplete="off" spellcheck="false" />
+              <p class="form-hint">Env: <code class="mono">FLAREINSPECT_SLACK_WEBHOOK</code></p>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="set-teamsWebhook">Microsoft Teams webhook URL <span class="set-status" id="status-teamsWebhook"></span></label>
+              <input type="password" id="set-teamsWebhook" data-key="teamsWebhook" class="input" placeholder="https://…/webhookb2/…" autocomplete="off" spellcheck="false" />
+              <p class="form-hint">Env: <code class="mono">FLAREINSPECT_TEAMS_WEBHOOK</code></p>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="set-webhookUrl">Generic webhook URL <span class="set-status" id="status-webhookUrl"></span></label>
+              <input type="password" id="set-webhookUrl" data-key="webhookUrl" class="input" placeholder="https://example.com/hook" autocomplete="off" spellcheck="false" />
+              <p class="form-hint">Env: <code class="mono">FLAREINSPECT_WEBHOOK_URL</code></p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-row">
+                <label class="form-label" for="set-webhookSecret">Webhook HMAC secret <span class="set-status" id="status-webhookSecret"></span></label>
+                <input type="password" id="set-webhookSecret" data-key="webhookSecret" class="input" placeholder="(optional)" autocomplete="off" />
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_WEBHOOK_SECRET</code></p>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="set-notifyThreshold">Default min severity <span class="set-status" id="status-notifyThreshold"></span></label>
+                <select id="set-notifyThreshold" data-key="notifyThreshold" class="input">
+                  <option value="">Any</option><option value="low">Low+</option><option value="medium">Medium+</option><option value="high">High+</option><option value="critical">Critical only</option>
+                </select>
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_NOTIFY_THRESHOLD</code></p>
+              </div>
+            </div>
+            <div><button class="btn btn-primary" type="submit">Save notifications</button></div>
+          </form>
+        </div>
+
+        <div class="card" style="max-width:680px">
+          <div class="card-head"><div><div class="card-title">AI planner</div><div class="card-sub">Used by Remediate to order &amp; annotate fixes. Keys are write-only.</div></div></div>
+          <form class="form" id="settings-ai-form" novalidate>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-row">
+                <label class="form-label" for="set-aiProvider">Provider <span class="set-status" id="status-aiProvider"></span></label>
+                <select id="set-aiProvider" data-key="aiProvider" class="input">
+                  <option value="">Default (none)</option><option value="none">None — rules-only</option><option value="ollama">Ollama (local)</option><option value="anthropic">Anthropic Claude</option><option value="openai">OpenAI</option>
+                </select>
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_AI_PROVIDER</code></p>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="set-aiModel">Model <span class="set-status" id="status-aiModel"></span></label>
+                <input type="text" id="set-aiModel" data-key="aiModel" class="input" placeholder="claude-opus-4-8 / gpt-4o / llama3.1" spellcheck="false" />
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_AI_MODEL</code></p>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="set-anthropicApiKey">Anthropic API key <span class="set-status" id="status-anthropicApiKey"></span></label>
+              <input type="password" id="set-anthropicApiKey" data-key="anthropicApiKey" class="input" placeholder="sk-ant-…" autocomplete="off" />
+              <p class="form-hint">Env: <code class="mono">ANTHROPIC_API_KEY</code></p>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="set-openaiApiKey">OpenAI API key <span class="set-status" id="status-openaiApiKey"></span></label>
+              <input type="password" id="set-openaiApiKey" data-key="openaiApiKey" class="input" placeholder="sk-…" autocomplete="off" />
+              <p class="form-hint">Env: <code class="mono">OPENAI_API_KEY</code></p>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="set-ollamaHost">Ollama host <span class="set-status" id="status-ollamaHost"></span></label>
+              <input type="text" id="set-ollamaHost" data-key="ollamaHost" class="input" placeholder="http://localhost:11434" spellcheck="false" />
+              <p class="form-hint">Env: <code class="mono">OLLAMA_HOST</code></p>
+            </div>
+            <div><button class="btn btn-primary" type="submit">Save AI settings</button></div>
+          </form>
+        </div>
+
+        <div class="card" style="max-width:680px">
+          <div class="card-head"><div><div class="card-title">SIEM credentials</div><div class="card-sub">Used by SIEM streaming. Keys/passwords are write-only.</div></div></div>
+          <form class="form" id="settings-siem-form" novalidate>
+            <div class="form-row">
+              <label class="form-label" for="set-esUrl">Elasticsearch URL <span class="set-status" id="status-esUrl"></span></label>
+              <input type="text" id="set-esUrl" data-key="esUrl" class="input" placeholder="https://es.example.com:9200" spellcheck="false" />
+              <p class="form-hint">Env: <code class="mono">FLAREINSPECT_ES_URL</code></p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-row">
+                <label class="form-label" for="set-esApiKey">ES API key <span class="set-status" id="status-esApiKey"></span></label>
+                <input type="password" id="set-esApiKey" data-key="esApiKey" class="input" placeholder="(or username + password)" autocomplete="off" />
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_ES_APIKEY</code></p>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="set-esUsername">ES username <span class="set-status" id="status-esUsername"></span></label>
+                <input type="text" id="set-esUsername" data-key="esUsername" class="input" placeholder="elastic" spellcheck="false" />
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_ES_USERNAME</code></p>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="set-esPassword">ES password <span class="set-status" id="status-esPassword"></span></label>
+              <input type="password" id="set-esPassword" data-key="esPassword" class="input" placeholder="(with username)" autocomplete="off" />
+              <p class="form-hint">Env: <code class="mono">FLAREINSPECT_ES_PASSWORD</code></p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-row">
+                <label class="form-label" for="set-hecUrl">Splunk HEC URL <span class="set-status" id="status-hecUrl"></span></label>
+                <input type="text" id="set-hecUrl" data-key="hecUrl" class="input" placeholder="https://splunk:8088" spellcheck="false" />
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_SPLUNK_HEC_URL</code></p>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="set-hecToken">Splunk HEC token <span class="set-status" id="status-hecToken"></span></label>
+                <input type="password" id="set-hecToken" data-key="hecToken" class="input" placeholder="HEC token" autocomplete="off" />
+                <p class="form-hint">Env: <code class="mono">FLAREINSPECT_SPLUNK_HEC_TOKEN</code></p>
+              </div>
+            </div>
+            <div><button class="btn btn-primary" type="submit">Save SIEM settings</button></div>
+          </form>
+        </div>
+
+        <div class="card" style="max-width:680px;border-color:var(--med-soft)">
+          <div class="card-head"><div class="card-title">Remediation &amp; edit-scope</div><span class="badge warn" id="settings-rem-badge">DISABLED</span></div>
+          <p class="page-sub" style="margin-bottom:12px">For safety, live Cloudflare writes can only be enabled from the server environment — never from this browser UI.</p>
+          <div class="code-block">FLAREINSPECT_ALLOW_REMEDIATION=true
+FLAREINSPECT_EDIT_SCOPE=&lt;opaque-secret-or-jwt&gt;</div>
+          <p class="form-hint">Set these on the server, then restart. Status is reflected on the Remediate and Agents &amp; MCP pages.</p>
+        </div>
+      </div>
+
+    </div><!-- /page-scroll -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ── Finding detail drawer ──────────────────────────────────────────── -->
+<div class="detail-scrim" id="finding-scrim"></div>
+<aside class="detail-drawer" id="finding-drawer" aria-hidden="true" aria-label="Finding details">
+  <div class="drawer-head">
+    <div class="drawer-title" id="finding-drawer-title">Finding</div>
+    <button class="drawer-close" id="finding-drawer-close" aria-label="Close" type="button">✕</button>
   </div>
+  <div class="drawer-body" id="finding-drawer-body"></div>
 </aside>
 
-<!-- ── Main ── -->
-<div class="v1-main">
+<div id="toast-container"></div>
 
-  <header class="v1-topbar">
-    <div style="display:flex;align-items:center;gap:12px;min-width:0">
-      <button class="v1-hamburger" id="hamburger" aria-label="Open menu" type="button">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      <div class="v1-crumbs">
-        <span class="v1-crumb-muted" id="crumb-account">—</span>
-        <span class="v1-crumb-sep">/</span>
-        <span class="v1-crumb" id="crumb-page">Overview</span>
-      </div>
-    </div>
-    <div class="v1-top-actions">
-      <label class="v1-search">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input id="global-search" placeholder="Search findings, zones, checks…" aria-label="Search" />
-        <kbd>⌘K</kbd>
-      </label>
-      <button class="v1-btn v1-btn-ghost" data-section="export" type="button">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Export
-      </button>
-      <button class="v1-btn v1-btn-primary" data-section="assess" type="button">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-        New run
-      </button>
-    </div>
-  </header>
-
-  <!-- ── Page: Overview ── -->
-  <div class="v1-page" id="page-overview">
-
-    <!-- Idle state when no assessment -->
-    <div id="idle-hero">
-      <div class="v1-card" style="text-align:center;padding:64px 40px">
-        <img src="/flare-inspect-logo.svg" alt="FlareInspect" style="width:64px;margin:0 auto 20px;display:block;opacity:0.72" />
-        <h2 style="font-size:20px;font-weight:700;letter-spacing:-0.01em;margin:0 0 8px;color:var(--fg)">Welcome to FlareInspect</h2>
-        <p style="color:var(--fg-3);max-width:480px;margin:0 auto 24px;line-height:1.6;font-size:13px">
-          Assess your Cloudflare configuration, discover security gaps, and generate compliance reports.
-        </p>
-        <button class="v1-btn v1-btn-primary" data-section="assess" type="button">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-          Run first assessment
-        </button>
-      </div>
-    </div>
-
-    <!-- Loaded state -->
-    <div id="score-hero" style="display:none">
-      <div class="v1-page-head">
-        <div>
-          <h1>Security posture</h1>
-          <div class="v1-page-sub" id="posture-sub">Latest assessment · —</div>
-        </div>
-        <div class="v1-page-head-meta">
-          <div class="v1-chip"><span class="v1-chip-dot" id="ci-dot" style="background:var(--fg-3)"></span><span id="ci-label">CI gate: —</span></div>
-          <div class="v1-chip">Framework · CIS</div>
-          <div class="v1-chip" id="chip-zones">Zones · —</div>
-        </div>
-      </div>
-
-      <div class="v1-grid-main">
-        <!-- Score card -->
-        <div class="v1-card v1-card-score">
-          <div class="v1-card-head">
-            <div class="v1-card-kicker">Overall score</div>
-            <div class="v1-card-act">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
-            </div>
-          </div>
-          <div class="v1-score-body">
-            <div class="v1-score-ring">
-              <svg viewBox="0 0 150 150" width="170" height="170">
-                <defs>
-                  <linearGradient id="v1-ring-g" x1="0" x2="1" y1="0" y2="1">
-                    <stop offset="0%" stop-color="oklch(72% 0.15 155)"/>
-                    <stop offset="70%" stop-color="oklch(75% 0.16 100)"/>
-                    <stop offset="100%" stop-color="oklch(72% 0.17 52)"/>
-                  </linearGradient>
-                </defs>
-                <circle cx="75" cy="75" r="62" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"/>
-                <circle id="score-ring-fill" cx="75" cy="75" r="62" fill="none" stroke="url(#v1-ring-g)" stroke-width="10"
-                        stroke-linecap="round"
-                        transform="rotate(-90 75 75)"/>
-              </svg>
-              <div class="v1-score-inner">
-                <div class="v1-score-num" id="score-num">—</div>
-                <div class="v1-score-grade" id="score-grade">—</div>
-                <div class="v1-score-delta" id="score-delta" style="display:none"></div>
-              </div>
-            </div>
-            <div class="v1-score-side">
-              <div class="v1-score-kv"><span>Previous</span><b id="score-prev">—</b></div>
-              <div class="v1-score-kv" id="kv-trend"><span>Recent trend</span><div id="score-sparkline"></div></div>
-              <div class="v1-score-kv"><span>Passed</span><b id="score-passed">— <em id="score-passed-total"></em></b></div>
-            </div>
-          </div>
-          <div class="v1-breakdown-wrap">
-            <div class="v1-card-kicker" style="margin-bottom:10px">By category</div>
-            <div class="v1-breakdown" id="breakdown-rows"></div>
-          </div>
-        </div>
-
-        <!-- Severity + compliance rail -->
-        <div class="v1-col">
-          <div class="v1-card">
-            <div class="v1-sevstrip">
-              <div class="v1-sevstrip-head">
-                <div>
-                  <div class="v1-sevstrip-title">Open findings</div>
-                  <div class="v1-sevstrip-sub" id="sevstrip-sub">—</div>
-                </div>
-                <button class="v1-btn v1-btn-ghost v1-btn-sm" data-section="findings" type="button">
-                  View all
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                </button>
-              </div>
-              <div class="v1-sevstack" id="sevstack">
-                <div class="v1-sevseg" data-sev="critical" style="flex:0;background:var(--crit)"></div>
-                <div class="v1-sevseg" data-sev="high" style="flex:0;background:var(--high)"></div>
-                <div class="v1-sevseg" data-sev="medium" style="flex:0;background:var(--med)"></div>
-                <div class="v1-sevseg" data-sev="low" style="flex:0;background:var(--low)"></div>
-              </div>
-              <div class="v1-sevlabels">
-                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--crit)"></span><span class="v1-sevlab-n" id="sev-critical">0</span><span class="v1-sevlab-l">Critical</span></div>
-                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--high)"></span><span class="v1-sevlab-n" id="sev-high">0</span><span class="v1-sevlab-l">High</span></div>
-                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--med)"></span><span class="v1-sevlab-n" id="sev-medium">0</span><span class="v1-sevlab-l">Medium</span></div>
-                <div class="v1-sevlab"><span class="v1-sevlab-dot" style="background:var(--low)"></span><span class="v1-sevlab-n" id="sev-low">0</span><span class="v1-sevlab-l">Low</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="v1-card">
-            <div class="v1-card-head">
-              <div class="v1-card-kicker">Compliance</div>
-              <a class="v1-card-link" data-section="compliance" href="#">All frameworks →</a>
-            </div>
-            <div class="v1-comp-list" id="compliance-rows">
-              <div class="v1-comp-empty" style="color:var(--fg-3);font-size:12px;padding:8px 0">Loading compliance scores…</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="v1-card">
-        <div class="v1-card-head">
-          <div>
-            <div class="v1-card-title">Top findings</div>
-            <div class="v1-card-sub" id="top-findings-sub">Sorted by severity</div>
-          </div>
-          <div class="v1-card-actions">
-            <button class="v1-btn v1-btn-ghost v1-btn-sm" data-section="findings" type="button">See all →</button>
-          </div>
-        </div>
-        <div class="v1-findings" id="recent-findings"></div>
-      </div>
-
-      <div class="v1-card">
-        <div class="v1-card-head">
-          <div>
-            <div class="v1-card-title">Zones</div>
-            <div class="v1-card-sub" id="zones-sub">—</div>
-          </div>
-        </div>
-        <div class="v1-zonegrid" id="zone-grid"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Page: Run Assessment ── -->
-  <div class="v1-page" id="page-assess" style="display:none">
-    <div class="v1-page-head">
-      <div>
-        <h1>Run assessment</h1>
-        <div class="v1-page-sub">Enter your Cloudflare API token to begin. Your token is sent only to your local server.</div>
-      </div>
-    </div>
-
-    <div class="v1-card">
-      <form id="assess-form" class="v1-form" novalidate>
-        <div class="v1-form-row">
-          <label class="v1-form-label" for="token">Cloudflare API token <span class="v1-required">*</span></label>
-          <input type="password" id="token" class="v1-input" placeholder="Cfxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" required />
-          <p class="v1-form-hint">Create a token at <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener">dash.cloudflare.com</a>. Required scopes: Zone:Read, DNS:Read, SSL and Certificates:Read.</p>
-        </div>
-
-        <div class="v1-form-row">
-          <label class="v1-form-label" for="zones">Zone filter <span class="v1-form-optional">(optional)</span></label>
-          <input type="text" id="zones" class="v1-input" placeholder="example.com, api.example.com" spellcheck="false" />
-          <p class="v1-form-hint">Comma-separated zone names. Leave blank to assess all zones the token can access.</p>
-        </div>
-
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
-          <button type="submit" class="v1-btn v1-btn-primary" id="btn-run">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-            Run assessment
-          </button>
-          <button type="button" class="v1-btn" id="btn-latest">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg>
-            Load latest
-          </button>
-        </div>
-      </form>
-
-      <div class="v1-progress" id="progress-wrap" style="display:none">
-        <div class="v1-progress-label">
-          <span id="progress-text">Running assessment…</span>
-          <span class="v1-mono" id="progress-pct">0%</span>
-        </div>
-        <div class="v1-progress-bar">
-          <div class="v1-progress-fill" id="progress-fill"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="v1-card" id="status-card" style="display:none">
-      <div class="v1-status-row">
-        <span class="v1-status-chip idle" id="status-chip">
-          <span class="v1-spinner" id="status-spinner" style="display:none"></span>
-          <span id="status-label">Idle</span>
-        </span>
-        <span class="v1-status-msg" id="status-msg">No assessment running.</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Page: Findings ── -->
-  <div class="v1-page" id="page-findings" style="display:none">
-    <div class="v1-page-head">
-      <div>
-        <h1>Findings</h1>
-        <div class="v1-page-sub" id="findings-sub">All security findings from the latest assessment</div>
-      </div>
-    </div>
-
-    <div class="v1-filter-row" id="findings-filter">
-      <button class="v1-btn v1-btn-sm v1-btn-primary" data-filter="all" type="button">All</button>
-      <button class="v1-btn v1-btn-sm" data-filter="critical" type="button">Critical</button>
-      <button class="v1-btn v1-btn-sm" data-filter="high" type="button">High</button>
-      <button class="v1-btn v1-btn-sm" data-filter="medium" type="button">Medium</button>
-      <button class="v1-btn v1-btn-sm" data-filter="low" type="button">Low</button>
-    </div>
-
-    <div class="v1-card" style="padding:0;overflow:hidden">
-      <div class="v1-findings v1-findings-bare" id="all-findings">
-        <div class="v1-empty">No assessment data. Run an assessment first.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Page: Export ── -->
-  <div class="v1-page" id="page-export" style="display:none">
-    <div class="v1-page-head">
-      <div>
-        <h1>Exports</h1>
-        <div class="v1-page-sub">Download assessment results in your preferred format</div>
-      </div>
-    </div>
-
-    <div class="v1-export-grid">
-      <a id="exp-json" href="/api/download/json" class="v1-export-card" aria-disabled="true" download>
-        <div class="v1-export-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        </div>
-        <div class="v1-export-name">JSON</div>
-        <div class="v1-export-desc">Full assessment data</div>
-      </a>
-      <a id="exp-html" href="/api/download/html" class="v1-export-card" aria-disabled="true" download>
-        <div class="v1-export-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        </div>
-        <div class="v1-export-name">HTML report</div>
-        <div class="v1-export-desc">Styled full report</div>
-      </a>
-      <a id="exp-sarif" href="/api/download/sarif" class="v1-export-card" aria-disabled="true" download>
-        <div class="v1-export-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-        </div>
-        <div class="v1-export-name">SARIF</div>
-        <div class="v1-export-desc">CI/CD integration</div>
-      </a>
-      <a id="exp-csv" href="/api/download/csv" class="v1-export-card" aria-disabled="true" download>
-        <div class="v1-export-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-        </div>
-        <div class="v1-export-name">CSV</div>
-        <div class="v1-export-desc">Spreadsheet format</div>
-      </a>
-      <a id="exp-md" href="/api/download/markdown" class="v1-export-card" aria-disabled="true" download>
-        <div class="v1-export-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-        </div>
-        <div class="v1-export-name">Markdown</div>
-        <div class="v1-export-desc">Readable document</div>
-      </a>
-      <a id="exp-asff" href="/api/download/asff" class="v1-export-card" aria-disabled="true" download>
-        <div class="v1-export-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>
-        <div class="v1-export-name">ASFF</div>
-        <div class="v1-export-desc">AWS Security Format</div>
-      </a>
-    </div>
-
-    <div class="v1-card" style="margin-top:4px">
-      <div class="v1-card-head">
-        <div class="v1-card-title">JSON preview</div>
-      </div>
-      <pre id="json-preview" class="v1-pre">Run an assessment to see the JSON output here.</pre>
-    </div>
-  </div>
-
-  <!-- ── Page: Compliance ── -->
-  <div class="v1-page" id="page-compliance" style="display:none">
-    <div class="v1-page-head">
-      <div>
-        <h1>Compliance</h1>
-        <div class="v1-page-sub">Control mapping against industry frameworks — generated from the latest assessment</div>
-      </div>
-    </div>
-
-    <div class="v1-compliance-grid">
-      <a href="/api/compliance/cis" class="v1-compliance-card" target="_blank" rel="noopener">
-        <div class="v1-compliance-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>
-        <div class="v1-compliance-name">CIS Benchmark</div>
-        <div class="v1-compliance-sub">Center for Internet Security Controls</div>
-      </a>
-      <a href="/api/compliance/soc2" class="v1-compliance-card" target="_blank" rel="noopener">
-        <div class="v1-compliance-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-        </div>
-        <div class="v1-compliance-name">SOC 2</div>
-        <div class="v1-compliance-sub">Service Organization Control 2</div>
-      </a>
-      <a href="/api/compliance/pci" class="v1-compliance-card" target="_blank" rel="noopener">
-        <div class="v1-compliance-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-        </div>
-        <div class="v1-compliance-name">PCI-DSS</div>
-        <div class="v1-compliance-sub">Payment Card Industry Data Security</div>
-      </a>
-      <a href="/api/compliance/nist" class="v1-compliance-card" target="_blank" rel="noopener">
-        <div class="v1-compliance-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg>
-        </div>
-        <div class="v1-compliance-name">NIST CSF</div>
-        <div class="v1-compliance-sub">National Institute of Standards</div>
-      </a>
-    </div>
-  </div>
-
-  <!-- ── Page: Report ── -->
-  <div class="v1-page" id="page-report" style="display:none">
-    <div class="v1-page-head">
-      <div>
-        <h1>Full HTML report</h1>
-        <div class="v1-page-sub" id="report-status">Run an assessment to see the report here.</div>
-      </div>
-      <div class="v1-page-head-meta">
-        <button class="v1-btn v1-btn-sm" id="btn-refresh-report" type="button">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          Refresh
-        </button>
-        <a href="/report" target="_blank" rel="noopener" class="v1-btn v1-btn-sm">Open in new tab ↗</a>
-      </div>
-    </div>
-    <div class="v1-card" style="padding:0;overflow:hidden">
-      <iframe id="report-frame" class="v1-report-frame" title="HTML Assessment Report" sandbox="allow-same-origin allow-scripts"></iframe>
-    </div>
-  </div>
-
-  <!-- ── Page: History ── -->
-  <div class="v1-page" id="page-history" style="display:none">
-    <div class="v1-page-head">
-      <div>
-        <h1>Assessment history</h1>
-        <div class="v1-page-sub">Previously saved assessments stored locally</div>
-      </div>
-    </div>
-    <div class="v1-card" style="padding:0;overflow:hidden">
-      <div class="v1-history" id="history-list">
-        <div class="v1-empty">No assessment history found.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Page: API Health ── -->
-  <div class="v1-page" id="page-api" style="display:none">
-    <div class="v1-page-head">
-      <div>
-        <h1>API health</h1>
-        <div class="v1-page-sub">System status and configuration</div>
-      </div>
-    </div>
-    <div class="v1-card">
-      <div class="v1-card-head">
-        <div class="v1-card-title">System status</div>
-      </div>
-      <div class="v1-health" id="health-info">
-        <div class="v1-empty">Loading system information…</div>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<!-- Toast container -->
-<div id="toast-container" class="v1-toast-container"></div>
-
-<script src="/app.js"></script>
+<script src="/dashboard.js"></script>
 </body>
 </html>

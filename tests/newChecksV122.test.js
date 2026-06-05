@@ -197,3 +197,103 @@ describe('assessWAFManagedRulesets (CFL-WAF-006/007/008)', () => {
     expect(assessment.findings.find(f => f.checkId === 'CFL-WAF-008').status).toBe('PASS');
   });
 });
+
+// ---------- Phase 2: advisory assess methods ----------
+
+describe('assessLeakedCreds (CFL-LEAK-001)', () => {
+  test('FAIL when leaked-cred-checks is disabled', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    await service.assessLeakedCreds(zoneResource, { value: { enabled: false } }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-LEAK-001');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('PASS when enabled', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    await service.assessLeakedCreds(zoneResource, { value: { enabled: true } }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-LEAK-001');
+    expect(f.status).toBe('PASS');
+  });
+});
+
+describe('assessDDoSL7 (CFL-DDOS-001)', () => {
+  test('FAIL when no L7 DDoS ruleset deployed', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    await service.assessDDoSL7(zoneResource, { rules: [] }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-DDOS-001');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('PASS when at least one L7 DDoS rule is present', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    await service.assessDDoSL7(zoneResource, { rules: [{ action: 'execute' }] }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-DDOS-001');
+    expect(f.status).toBe('PASS');
+  });
+});
+
+describe('assessAccountWAF (CFL-ACCTWAF-001)', () => {
+  test('PASS when account rulesets are present', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    await service.assessAccountWAF(accountResource, [
+      { id: 'r1', phase: 'http_request_firewall_custom', kind: 'custom', rules: [{ id: 'x' }] }
+    ], assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-ACCTWAF-001');
+    expect(f.status).toBe('PASS');
+  });
+
+  test('PASS when account has a managed ruleset in the managed phase', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    await service.assessAccountWAF(accountResource, [
+      { id: 'r1', phase: 'http_request_firewall_managed', kind: 'managed', rules: [] }
+    ], assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-ACCTWAF-001');
+    expect(f.status).toBe('PASS');
+  });
+
+  test('FAIL when no account rulesets', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    await service.assessAccountWAF(accountResource, [], assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-ACCTWAF-001');
+    expect(f.status).toBe('FAIL');
+  });
+});
+
+describe('assessNotifications (CFL-ALERT-001..004)', () => {
+  test('emits one FAIL per missing alert type', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    const available = [
+      { id: 'clickhouse_alert_fw_anomaly' },
+      { id: 'http_alert_origin_error' },
+      { id: 'universal_ssl_event_type' },
+      { id: 'dos_attack_l7' }
+    ];
+    await service.assessNotifications(accountResource, [], available, assessment);
+    const ids = assessment.findings.map(f => f.checkId).sort();
+    expect(ids).toEqual(['CFL-ALERT-001', 'CFL-ALERT-002', 'CFL-ALERT-003', 'CFL-ALERT-004']);
+    for (const f of assessment.findings) expect(f.status).toBe('FAIL');
+  });
+
+  test('PASS when each alert type is covered', async () => {
+    const service = new AssessmentService({ useSpinner: false });
+    const assessment = makeAssessment();
+    const policies = [
+      { alert_type: 'clickhouse_alert_fw_anomaly', enabled: true },
+      { alert_type: 'http_alert_origin_error', enabled: true },
+      { alert_type: 'universal_ssl_event_type', enabled: true },
+      { alert_type: 'dos_attack_l7', enabled: true }
+    ];
+    const available = policies.map(p => ({ id: p.alert_type }));
+    await service.assessNotifications(accountResource, policies, available, assessment);
+    for (const f of assessment.findings) expect(f.status).toBe('PASS');
+  });
+});
+

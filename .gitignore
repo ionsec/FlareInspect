@@ -18,10 +18,20 @@ reports/
 !package-lock.json
 !templates/*.html
 !web/public/index.html
+!index.html
+!web/openapi.json
+
+# Runtime settings overlay — may contain webhook URLs / API keys (local only)
+web/data/settings.json
 
 # Logs
 logs/
 *.log
+
+# Remediation backup bundles (contain Cloudflare config snapshots)
+remediation-backups/
+web/data/remediation/
+*.backup.json
 
 # OS files
 .DS_Store
