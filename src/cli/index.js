@@ -14,6 +14,7 @@ const exportCommand = require('./commands/export');
 const diffCommand = require('./commands/diff');
 const remediateCommand = require('./commands/remediate');
 const helpCommand = require('./commands/help');
+const notifyCommand = require('./commands/notify');
 const pkg = require('../../package.json');
 
 // Error handling
@@ -76,6 +77,21 @@ program
 
 // Remediate command (plan | apply | rollback)
 remediateCommand.register(program);
+
+// Notify command
+program
+  .command('notify')
+  .description('Dispatch an assessment summary to Slack / Teams / generic webhook')
+  .requiredOption('-i, --input <file>', 'Input assessment file (JSON)')
+  .option('--target <target>', 'Target channel (slack|teams|webhook|all). Defaults to "all" — uses env if set.', 'all')
+  .option('--threshold <severity>', 'Minimum severity to notify on (critical|high|medium|low)')
+  .option('--slack <url>', 'Slack incoming webhook URL (overrides FLAREINSPECT_SLACK_WEBHOOK)')
+  .option('--teams <url>', 'Teams Power Automate webhook URL (overrides FLAREINSPECT_TEAMS_WEBHOOK)')
+  .option('--webhook <url>', 'Generic webhook URL (overrides FLAREINSPECT_WEBHOOK_URL)')
+  .option('--secret <secret>', 'HMAC-SHA256 secret for the generic webhook (overrides FLAREINSPECT_WEBHOOK_SECRET)')
+  .option('--link <url>', 'Dashboard link to include in the message')
+  .option('--dry-run', 'Build the payloads but do not POST')
+  .action(notifyCommand.execute);
 
 // Help command (custom)
 program

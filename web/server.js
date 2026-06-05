@@ -15,6 +15,10 @@ const CloudflareClient = require('../src/core/services/cloudflareClient');
 const remediationEngine = require('../src/core/remediation/remediationEngine');
 const backupManager = require('../src/core/remediation/backupManager');
 const { createPlanner } = require('../src/core/ai/remediationPlanner');
+const { buildResourceGraph } = require('../src/core/graph/resourceGraph');
+const { findAttackPaths, RULES } = require('../src/core/graph/attackPaths');
+const { SEVERITY_ORDER } = require('../src/core/graph/severity');
+const notificationService = require('../src/core/integrations/notify/notificationService');
 const logger = require('../src/core/utils/logger');
 const pkg = require('../package.json');
 const ASSESSMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -367,6 +371,83 @@ app.get('/api/assessments/:id', async (req, res) => {
     return sendError(res, 404, 'Assessment not found.', req);
   }
   return res.json({ assessment });
+});
+
+// Resource graph + attack paths (Foundation phase — single source of truth
+// shared by the Posture map UI, the SIEM exporters, and the MCP server).
+app.get('/api/posture/graph', async (req, res) => {
+  try {
+    const assessmentId = req.query.assessmentId ? String(req.query.assessmentId) : null;
+    if (assessmentId && !isValidAssessmentId(assessmentId)) {
+      return sendError(res, 400, 'Invalid assessmentId.', req);
+    }
+    const assessment = assessmentId
+      ? await loadAssessmentById(assessmentId)
+      : (lastAssessment || await loadLatestAssessmentFromDisk());
+    if (!assessment) {
+      return sendError(res, 404, 'No assessment available yet.', req);
+    }
+    if (assessmentId) lastAssessment = assessment;
+
+    const graph = buildResourceGraph(assessment);
+    const paths = findAttackPaths(graph, assessment);
+    return res.json({
+      meta: {
+        assessmentId: assessment.assessmentId,
+        generatedAt: new Date().toISOString(),
+        rules: RULES.map(kind => ({ kind })),
+        severityOrder: SEVERITY_ORDER
+      },
+      graph,
+      paths
+    });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'posture-graph');
+  }
+});
+
+// Notification endpoint — POST /api/notify
+// Body: { assessment: { ... } | assessmentId?, target?: 'all'|'slack'|'teams'|'webhook',
+//                      threshold?, link?, dryRun? }
+// Secrets come from env (FLAREINSPECT_*_WEBHOOK) — never from the request body.
+app.post('/api/notify', async (req, res) => {
+  try {
+    const body = req.body || {};
+    let assessment = body.assessment;
+    if (!assessment && body.assessmentId) {
+      if (!isValidAssessmentId(body.assessmentId)) return sendError(res, 400, 'Invalid assessmentId.', req);
+      assessment = await loadAssessmentById(body.assessmentId);
+      if (!assessment) return sendError(res, 404, 'Assessment not found.', req);
+    }
+    if (!assessment) {
+      assessment = lastAssessment || await loadLatestAssessmentFromDisk();
+    }
+    if (!assessment) return sendError(res, 400, 'Provide an assessment, assessmentId, or run /api/assess first.', req);
+
+    const envTargets = notificationService.targetsFromEnv();
+    const target = String(body.target || 'all').toLowerCase();
+    const want = (k) => target === 'all' || target === k;
+    const targets = {
+      slack:   want('slack')   ? envTargets.slack   : null,
+      teams:   want('teams')   ? envTargets.teams   : null,
+      webhook: want('webhook') ? envTargets.webhook : null,
+      secret:  envTargets.secret,
+      threshold: body.threshold || envTargets.threshold,
+      dryRun: !!body.dryRun
+    };
+
+    const summary = notificationService.buildSummary(assessment, {
+      link: body.link || null,
+      attackPathCount: body.attackPathCount
+    });
+    const result = await notificationService.dispatch(summary, targets);
+    if (body.dryRun) {
+      return res.json({ ok: result.ok, sent: result.sent, skipped: result.skipped, errors: result.errors, payloads: result.payloads });
+    }
+    return res.json({ ok: result.ok, sent: result.sent, skipped: result.skipped, errors: result.errors });
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'notify');
+  }
 });
 
 // Compliance endpoint
