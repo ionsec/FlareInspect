@@ -542,6 +542,19 @@ class AssessmentService {
       await this.assessDeviceEnrollment(account, devicePolicy || { error: 'not available' }, assessment);
       await this.assessR2(account, r2Buckets, assessment);
 
+      // Phase 2 account-scoped: account WAF, notifications, 2FA enforcement
+      if (client.getAccountRulesets) {
+        const acctRules = await client.getAccountRulesets(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessAccountWAF(account, acctRules, assessment);
+      }
+      if (client.getNotificationPolicies) {
+        const policies = await client.getNotificationPolicies(account.id).catch(() => ({ error: 'unreadable' }));
+        const available = client.getAvailableAlerts
+          ? await client.getAvailableAlerts(account.id).catch(() => [])
+          : [];
+        await this.assessNotifications(account, policies, available, assessment);
+      }
+
     } catch (error) {
       logger.error('Account assessment failed', {
         assessmentId: assessment.assessmentId,
@@ -718,6 +731,16 @@ class AssessmentService {
       await this.assessSnippets(zone, snippets || [], assessment);
       await this.assessCustomHostnames(zone, customHostnames || [], assessment);
       await this.assessOriginCertificates(zone, originCertificates || [], assessment);
+
+      // Phase 2 assessments (lazy-fetched to avoid breaking the destructure)
+      if (client.getLeakedCredChecks) {
+        const leaked = await client.getLeakedCredChecks(zone.id).catch(e => ({ value: { enabled: false }, raw: { error: e.message } }));
+        await this.assessLeakedCreds(zone, leaked, assessment);
+      }
+      if (client.getDDoSL7Ruleset) {
+        const ddos = await client.getDDoSL7Ruleset(zone.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessDDoSL7(zone, ddos, assessment);
+      }
 
       // Run general zone security checks
       await this.checkZoneSecurity(zone, zoneDetails, analytics, assessment, allZoneSettings);
@@ -3368,6 +3391,142 @@ class AssessmentService {
         hasPolicy ? 'Device enrollment policy is configured' : 'Device enrollment policy is not configured',
         'Device enrollment and posture checks configured',
         { id: account.id, type: 'account', name: account.name }
+      ));
+    }
+  }
+
+  // --- Phase 2-4 assess methods (added by feature work) -----------------
+
+  /**
+   * Assess Leaked Credentials Detection status for a zone.
+   * Emits CFL-LEAK-001 finding. Non-blocking check (detection only).
+   */
+  async assessLeakedCreds(zone, leaked, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('credentials').find(c => c.id === 'CFL-LEAK-001');
+    if (!check) return;
+    const enabled = !!(leaked?.value?.enabled);
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      enabled ? 'PASS' : 'FAIL',
+      enabled ? 'Leaked Credentials Detection is enabled' : 'Leaked Credentials Detection is disabled',
+      'Enable Leaked Credentials Detection in Security > WAF > Leaked Credentials.',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `Leaked Credentials Detection is ${enabled ? 'enabled' : 'disabled'} for ${zone.name}.`,
+          expected: 'enabled',
+          observed: enabled ? 'enabled' : 'disabled',
+          source: { category: 'credentials', endpoint: 'zones.leaked_credential_checks.get' },
+          raw: { enabled, error: leaked?.raw?.error || null },
+          reviewGuidance: 'Detection is non-blocking. Review false positives in Security > Events before tightening action.'
+        }
+      }
+    ));
+  }
+
+  /**
+   * Assess DDoS L7 ruleset posture (advisory — read-only finding).
+   * Emits CFL-DDOS-001 when the ruleset has been disabled or overridden.
+   */
+  async assessDDoSL7(zone, ddos, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('ddos').find(c => c.id === 'CFL-DDOS-001');
+    if (!check) return;
+    if (!ddos || ddos.error) return; // don't penalize zones we can't read
+    const rules = Array.isArray(ddos.rules) ? ddos.rules : [];
+    const disabled = rules.length === 0;
+    const overridden = rules.some(r => r.action === 'log' || r.action === 'managed_challenge');
+    let status = 'PASS';
+    let desc = 'DDoS L7 managed ruleset is in default posture';
+    if (disabled) { status = 'FAIL'; desc = 'DDoS L7 managed ruleset has been disabled'; }
+    else if (overridden) { status = 'WARNING'; desc = 'DDoS L7 managed ruleset has been overridden (e.g. log-only)'; }
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      status, desc,
+      'Review the DDoS L7 ruleset — overrides can reduce protection.',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `${zone.name} DDoS L7 ruleset has ${rules.length} rules${overridden ? ' (with overrides)' : ''}.`,
+          expected: 'default posture (managed, not overridden)',
+          observed: status === 'PASS' ? 'default' : (disabled ? 'disabled' : 'overridden'),
+          source: { category: 'ddos', endpoint: 'zones.rulesets.phases.ddos_l7.entrypoint.get' },
+          raw: { ruleCount: rules.length, hasOverride: overridden },
+          reviewGuidance: 'Override semantics differ by tier; confirm with your account team before any change.'
+        }
+      }
+    ));
+  }
+
+  /**
+   * Assess account-level WAF coverage (advisory — read-only finding).
+   * Emits CFL-ACCTWAF-001.
+   */
+  async assessAccountWAF(account, rulesets, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('account-waf').find(c => c.id === 'CFL-ACCTWAF-001');
+    if (!check) return;
+    if (!rulesets || rulesets.error) return;
+    const list = Array.isArray(rulesets) ? rulesets : [];
+    const hasCustom = list.some(r => r.kind === 'custom' && r.phase === 'http_request_firewall_custom');
+    const hasManaged = list.some(r => r.phase === 'http_request_firewall_managed');
+    const status = (hasCustom || hasManaged) ? 'PASS' : 'FAIL';
+    const desc = status === 'PASS'
+      ? `Account has ${list.length} ruleset(s) with WAF coverage`
+      : 'Account has no reusable WAF rulesets or managed coverage';
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check, status, desc,
+      'Create account-level custom or managed WAF rulesets for shared coverage.',
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${account.name} has ${list.length} account ruleset(s) (custom=${hasCustom}, managed=${hasManaged}).`,
+          expected: 'at least one custom or managed ruleset',
+          observed: `${list.length} ruleset(s)`,
+          source: { category: 'account-waf', endpoint: 'accounts.rulesets.list' },
+          raw: { rulesetCount: list.length, hasCustom, hasManaged }
+        }
+      }
+    ));
+  }
+
+  /**
+   * Assess notification policies (security alerts) for an account.
+   * Emits CFL-ALERT-001..004 findings — one per required alert type.
+   */
+  async assessNotifications(account, policies, available, assessment) {
+    if (!policies || policies.error) return;
+    const list = Array.isArray(policies) ? policies : [];
+    const enabled = list.filter(p => p.enabled);
+    const seenAlertTypes = new Set(enabled.map(p => p.alert_type));
+
+    const requiredAlerts = [
+      { id: 'CFL-ALERT-001', alertType: 'clickhouse_alert_fw_anomaly', title: 'WAF spike alert', label: 'WAF anomalies' },
+      { id: 'CFL-ALERT-002', alertType: 'http_alert_origin_error', title: 'Origin error alert', label: 'Origin errors' },
+      { id: 'CFL-ALERT-003', alertType: 'universal_ssl_event_type', title: 'SSL/TLS cert alert', label: 'Universal SSL events' },
+      { id: 'CFL-ALERT-004', alertType: 'dos_attack_l7', title: 'L7 DDoS alert', label: 'L7 DDoS attacks' }
+    ];
+    for (const a of requiredAlerts) {
+      const check = this.securityBaseline.getChecksByCategory('notifications').find(c => c.id === a.id);
+      if (!check) continue;
+      const typeAvailable = Array.isArray(available) && available.length > 0
+        ? available.some(av => av.id === a.alertType)
+        : true; // assume available if we couldn't fetch the list
+      if (!typeAvailable) continue;
+      const has = seenAlertTypes.has(a.alertType);
+      assessment.findings.push(this.securityBaseline.createFinding(
+        check,
+        has ? 'PASS' : 'FAIL',
+        has ? `Notification configured for ${a.label}` : `No notification configured for ${a.label}`,
+        `Create a notification policy in Cloudflare Alerts with alert_type=${a.alertType} and your preferred email/webhook.`,
+        { id: account.id, type: 'account', name: account.name },
+        {
+          evidence: {
+            summary: `${account.name} ${has ? 'has' : 'does not have'} an enabled notification for ${a.label} (${a.alertType}).`,
+            expected: `at least one enabled policy for ${a.alertType}`,
+            observed: has ? 'enabled policy' : 'no policy',
+            source: { category: 'notifications', endpoint: 'accounts.alerting.v3.policies.list' },
+            raw: { alertType: a.alertType, totalPolicies: list.length, enabledPolicies: enabled.length }
+          }
+        }
       ));
     }
   }

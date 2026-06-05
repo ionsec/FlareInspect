@@ -150,6 +150,92 @@ const dnssecRecipe = {
   }
 };
 
+// --- Phase 2a: Leaked Credentials + WAF Managed Rulesets ---------------
+
+/**
+ * Leaked Credentials Detection: enables a non-blocking detection-only check.
+ * Reversible (disable by setting enabled=false).
+ */
+const leakedCredsRecipe = {
+  checkId: 'CFL-LEAK-001',
+  title: 'Enable Leaked Credentials Detection',
+  scope: 'zone',
+  risk: 'low', // non-blocking, detection-only
+  reversible: true,
+  setting: 'leaked-credential-checks',
+  async read(client, ctx) {
+    const { value } = await client.getLeakedCredChecks(ctx.zoneId);
+    return { enabled: !!value?.enabled };
+  },
+  isCompliant(currentValue) {
+    return !!currentValue?.enabled;
+  },
+  proposed() {
+    return { enabled: true };
+  },
+  async apply(client, ctx) {
+    return client.setLeakedCredChecks(ctx.zoneId, true);
+  },
+  async restore(client, ctx, backupValue) {
+    if (!backupValue || backupValue.enabled === false) return null;
+    return client.setLeakedCredChecks(ctx.zoneId, false);
+  },
+  async verify(client, ctx) {
+    const { value } = await client.getLeakedCredChecks(ctx.zoneId);
+    return !!value?.enabled;
+  }
+};
+
+/**
+ * WAF Managed Ruleset (OWASP Core Ruleset) — deploy in log mode by default
+ * to avoid blocking traffic. Promotes CFL-WAF-006/007 from manual to remediable.
+ * Risk: high — managed rulesets CAN affect traffic if escalated to block.
+ * Restore: removes the ruleset from the entrypoint.
+ */
+const OWASP_RULESET_ID = '4814384a9e5d4991b9815dcfc25d2f1f';
+const MANAGED_RULESET_ID = 'efb7b8c949ac4650b0977fbeabe3113f'; // Cloudflare Managed
+
+function wafManagedRulesetRecipe({ checkId, title, rulesetId, risk }) {
+  return {
+    checkId,
+    title,
+    scope: 'zone',
+    risk,
+    reversible: true,
+    setting: 'http_request_firewall_managed',
+    async read(client, ctx) {
+      const ep = await client.getRulesetPhase(ctx.zoneId, 'http_request_firewall_managed');
+      const rules = Array.isArray(ep?.rules) ? ep.rules : [];
+      const deployed = rules.some(r => r.action === 'execute' && r.action_parameters?.id === rulesetId);
+      return { deployed, rulesetId, ruleCount: rules.length };
+    },
+    isCompliant(currentValue) {
+      return !!currentValue?.deployed;
+    },
+    proposed() {
+      return { deployed: true, rulesetId, action: 'log' };
+    },
+    async apply(client, ctx) {
+      // Add the ruleset in LOG mode — never block from a recipe
+      return client.putRulesetPhase(ctx.zoneId, 'http_request_firewall_managed', [
+        { action: 'execute', expression: 'true', action_parameters: { id: rulesetId } }
+      ]);
+    },
+    async restore(client, ctx, backupValue) {
+      // If previously empty, put empty rules array
+      if (!backupValue || !backupValue.deployed) {
+        return client.putRulesetPhase(ctx.zoneId, 'http_request_firewall_managed', []);
+      }
+      return null; // nothing to remove — it was already deployed
+    },
+    async verify(client, ctx) {
+      const ep = await client.getRulesetPhase(ctx.zoneId, 'http_request_firewall_managed');
+      const rules = Array.isArray(ep?.rules) ? ep.rules : [];
+      return rules.some(r => r.action === 'execute' && r.action_parameters?.id === rulesetId);
+    }
+  };
+}
+
 const RECIPES = [
   zoneSettingRecipe({
     checkId: 'CFL-SSL-001',
@@ -259,8 +345,25 @@ const RECIPES = [
     target: 'on',
     acceptable: ['on'],
     risk: 'medium'
+  }),
+
+  // --- Phase 2a: Leaked Credentials + WAF Managed Rulesets ---------------
+  leakedCredsRecipe,
+  wafManagedRulesetRecipe({
+    checkId: 'CFL-WAF-006',
+    title: 'Deploy Cloudflare Managed Ruleset (log mode)',
+    rulesetId: MANAGED_RULESET_ID,
+    risk: 'high'
+  }),
+  wafManagedRulesetRecipe({
+    checkId: 'CFL-WAF-007',
+    title: 'Deploy OWASP Core Ruleset (log mode)',
+    rulesetId: OWASP_RULESET_ID,
+    risk: 'high'
   })
 ];
+
+
 
 const REGISTRY = new Map(RECIPES.map(r => [r.checkId, r]));
 
