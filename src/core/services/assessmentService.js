@@ -555,6 +555,33 @@ class AssessmentService {
         await this.assessNotifications(account, policies, available, assessment);
       }
 
+      // Phase 3 account-scoped: Workers, KV, D1, Queues inventory + plaintext secret detection
+      if (client.getWorkersScripts) {
+        const scripts = await client.getWorkersScripts(account.id).catch(() => ({ error: 'unreadable' }));
+        // For each script, fetch bindings and check for plain_text secret-shaped values
+        let allBindings = [];
+        const scriptList = Array.isArray(scripts) ? scripts : [];
+        for (const s of scriptList) {
+          if (client.getWorkersBindings) {
+            const bindings = await client.getWorkersBindings(account.id, s.name).catch(() => []);
+            allBindings = allBindings.concat((bindings || []).map(b => ({ ...b, _script: s.name })));
+          }
+        }
+        await this.assessWorkersBindings(account, scriptList, allBindings, assessment);
+      }
+      if (client.getKVNamespaces) {
+        const kv = await client.getKVNamespaces(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessStorageInventory(account, kv, 'CFL-STORE-001', 'kv', assessment);
+      }
+      if (client.getD1Databases) {
+        const d1 = await client.getD1Databases(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessStorageInventory(account, d1, 'CFL-STORE-002', 'd1', assessment);
+      }
+      if (client.getQueues) {
+        const q = await client.getQueues(account.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessStorageInventory(account, q, 'CFL-STORE-003', 'queues', assessment);
+      }
+
     } catch (error) {
       logger.error('Account assessment failed', {
         assessmentId: assessment.assessmentId,
@@ -740,6 +767,19 @@ class AssessmentService {
       if (client.getDDoSL7Ruleset) {
         const ddos = await client.getDDoSL7Ruleset(zone.id).catch(() => ({ error: 'unreadable' }));
         await this.assessDDoSL7(zone, ddos, assessment);
+      }
+      if (client.getZarazConfig) {
+        const zaraz = await client.getZarazConfig(zone.id).catch(() => ({ error: 'unreadable' }));
+        await this.assessZaraz(zone, zaraz, assessment);
+      }
+      if (client.getWorkersRoutes) {
+        const routes = await client.getWorkersRoutes(zone.id).catch(() => ({ error: 'unreadable' }));
+        // Per-zone route inventory emitted via the WORK-004 finding (already in
+        // assessWorkersBindings at account scope). For per-zone detail, we still
+        // attach the routes to assessment.configuration for the report.
+        if (!assessment.configuration.workers) assessment.configuration.workers = {};
+        if (!assessment.configuration.workers.routes) assessment.configuration.workers.routes = {};
+        assessment.configuration.workers.routes[zone.name] = Array.isArray(routes) ? routes : [];
       }
 
       // Run general zone security checks
@@ -3529,6 +3569,131 @@ class AssessmentService {
         }
       ));
     }
+  }
+
+  // --- Phase 3 assess methods (Workers plaintext, routes, storage, Zaraz)
+
+  /**
+   * Workers plaintext secret binding detection.
+   * Flags any binding of type 'plain_text' whose `text` value looks like a
+   * secret (length > 16, or matches a common prefix). Also emits a route
+   * inventory finding (CFL-WORK-004).
+   */
+  async assessWorkersBindings(account, scripts, allBindings, assessment) {
+    const plaintextCheck = this.securityBaseline.getChecksByCategory('workers').find(c => c.id === 'CFL-WORK-003');
+    const routesCheck = this.securityBaseline.getChecksByCategory('workers').find(c => c.id === 'CFL-WORK-004');
+    const SECRETS_PREFIX = /^(sk-|sk_|pk-|pk_|AKIA|ghp_|gho_|xox[abpos]-|ya29\.|AIza[0-9A-Za-z_-]{35})/;
+    const flag = (text) => {
+      if (typeof text !== 'string' || text.length < 16) return false;
+      return SECRETS_PREFIX.test(text) || /[A-Za-z0-9+/]{32,}/.test(text);
+    };
+    const bindings = Array.isArray(allBindings) ? allBindings : [];
+    const risky = bindings.filter(b => b.type === 'plain_text' && flag(b.text));
+    if (plaintextCheck) {
+      assessment.findings.push(this.securityBaseline.createFinding(
+        plaintextCheck,
+        risky.length === 0 ? 'PASS' : 'FAIL',
+        risky.length === 0
+          ? `No plaintext secret bindings detected across ${scripts.length} script(s)`
+          : `Found ${risky.length} plaintext binding(s) holding secret-shaped values`,
+        'Replace plain_text bindings with secret_text bindings and store the value via `wrangler secret put`.',
+        { id: account.id, type: 'account', name: account.name },
+        {
+          evidence: {
+            summary: `${account.name}: ${scripts.length} script(s), ${bindings.length} binding(s), ${risky.length} risky plain_text.`,
+            expected: '0 plain_text bindings with secret-shaped values',
+            observed: `${risky.length} risky binding(s)`,
+            source: { category: 'workers', endpoint: 'accounts.workers.scripts.bindings.list' },
+            raw: {
+              scriptCount: scripts.length,
+              bindingCount: bindings.length,
+              riskyBindings: risky.map(b => ({ script: b._script, name: b.name, length: b.text.length }))
+            }
+          }
+        }
+      ));
+    }
+    if (routesCheck) {
+      // Routes inventory lives at zone scope; this account-level finding is informational
+      const totalScripts = scripts.length;
+      assessment.findings.push(this.securityBaseline.createFinding(
+        routesCheck,
+        totalScripts > 0 ? 'PASS' : 'INFO',
+        totalScripts > 0
+          ? `Account has ${totalScripts} Worker script(s) — review zone routes for unauthenticated access`
+          : 'No Workers scripts deployed',
+        'Inventory Worker routes; ensure each is bound to an authenticated route or behind Access.',
+        { id: account.id, type: 'account', name: account.name },
+        {
+          evidence: {
+            summary: `${account.name} has ${totalScripts} Worker script(s).`,
+            expected: 'inventory',
+            observed: `${totalScripts} script(s)`,
+            source: { category: 'workers', endpoint: 'accounts.workers.scripts.list' },
+            raw: { scriptNames: scripts.map(s => s.name) }
+          }
+        }
+      ));
+    }
+  }
+
+  /**
+   * Storage inventory assessment (KV / D1 / Queues). All advisory.
+   */
+  async assessStorageInventory(account, data, checkId, kind, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('storage').find(c => c.id === checkId);
+    if (!check) return;
+    if (!data || data.error) return; // unreadable → skip
+    const list = Array.isArray(data) ? data : [];
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      list.length > 0 ? 'PASS' : 'INFO',
+      list.length > 0
+        ? `Account has ${list.length} ${kind} resource(s)`
+        : `Account has no ${kind} resources`,
+      `Inventory ${kind} resources and review access patterns.`,
+      { id: account.id, type: 'account', name: account.name },
+      {
+        evidence: {
+          summary: `${account.name} has ${list.length} ${kind} resource(s).`,
+          expected: 'inventory only',
+          observed: `${list.length} ${kind} resource(s)`,
+          source: { category: 'storage', endpoint: `accounts.${kind}.list` },
+          raw: { count: list.length, kind }
+        }
+      }
+    ));
+  }
+
+  /**
+   * Zaraz assessment — flags third-party tools without consent configuration.
+   * Zone-scoped.
+   */
+  async assessZaraz(zone, zaraz, assessment) {
+    const check = this.securityBaseline.getChecksByCategory('zaraz').find(c => c.id === 'CFL-ZARAZ-001');
+    if (!check) return;
+    if (!zaraz || zaraz.error) return;
+    const tools = zaraz.tools ? Object.keys(zaraz.tools) : [];
+    const hasConsent = !!zaraz.consent && (zaraz.consent.enabled === true);
+    const risky = tools.length > 0 && !hasConsent;
+    assessment.findings.push(this.securityBaseline.createFinding(
+      check,
+      risky ? 'FAIL' : (tools.length === 0 ? 'INFO' : 'PASS'),
+      risky
+        ? `${tools.length} Zaraz tool(s) loaded without consent configuration`
+        : (tools.length === 0 ? 'Zaraz is not in use' : 'Zaraz consent is configured'),
+      'Configure Zaraz consent management before loading third-party tools.',
+      { id: zone.id, type: 'zone', name: zone.name },
+      {
+        evidence: {
+          summary: `${zone.name} Zaraz: ${tools.length} tool(s), consent=${hasConsent ? 'enabled' : 'disabled'}.`,
+          expected: 'consent enabled when third-party tools are present',
+          observed: `${tools.length} tools, consent=${hasConsent ? 'on' : 'off'}`,
+          source: { category: 'zaraz', endpoint: 'zones.settings.zaraz.config.get' },
+          raw: { toolCount: tools.length, hasConsent, toolNames: tools }
+        }
+      }
+    ));
   }
 
 }
