@@ -15,6 +15,7 @@ const diffCommand = require('./commands/diff');
 const remediateCommand = require('./commands/remediate');
 const helpCommand = require('./commands/help');
 const notifyCommand = require('./commands/notify');
+const shipCommand = require('./commands/ship');
 const pkg = require('../../package.json');
 
 // Error handling
@@ -92,6 +93,27 @@ program
   .option('--link <url>', 'Dashboard link to include in the message')
   .option('--dry-run', 'Build the payloads but do not POST')
   .action(notifyCommand.execute);
+
+// Ship command (push to a SIEM: elastic | splunk | all | file)
+program
+  .command('ship')
+  .description('Push an assessment to Elasticsearch, Splunk, or both (or write NDJSON to disk)')
+  .requiredOption('-i, --input <file>', 'Input assessment file (JSON)')
+  .option('--target <target>', 'Target SIEM (elastic|splunk|all|file). Defaults to "all".', 'all')
+  // Elastic
+  .option('--es-url <url>',     'Elasticsearch base URL (overrides FLAREINSPECT_ES_URL)')
+  .option('--es-api-key <key>', 'Elasticsearch API key (overrides FLAREINSPECT_ES_APIKEY)')
+  .option('--es-username <u>',  'Elasticsearch basic-auth username (overrides FLAREINSPECT_ES_USERNAME)')
+  .option('--es-password <p>',  'Elasticsearch basic-auth password (overrides FLAREINSPECT_ES_PASSWORD)')
+  .option('--index-name <name>','Index name (default: flareinspect-findings)')
+  // Splunk
+  .option('--hec-url <url>',    'Splunk HEC base URL (overrides FLAREINSPECT_SPLUNK_HEC_URL)')
+  .option('--hec-token <tok>',  'Splunk HEC token (overrides FLAREINSPECT_SPLUNK_HEC_TOKEN)')
+  .option('--splunk-index <name>','Splunk index (default: main)')
+  // File mode
+  .option('--out-dir <dir>',     'If set, write NDJSON to this directory and skip the live HTTP ship')
+  .option('--dry-run',           'Build payloads but do not POST / do not write')
+  .action(shipCommand.execute);
 
 // Help command (custom)
 program

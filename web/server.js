@@ -19,6 +19,10 @@ const { buildResourceGraph } = require('../src/core/graph/resourceGraph');
 const { findAttackPaths, RULES } = require('../src/core/graph/attackPaths');
 const { SEVERITY_ORDER } = require('../src/core/graph/severity');
 const notificationService = require('../src/core/integrations/notify/notificationService');
+const { shipFindings: shipElastic, buildIndexTemplate: buildEsTemplate } = require('../src/core/integrations/siem/elastic');
+const { shipFindings: shipSplunk } = require('../src/core/integrations/siem/splunk');
+const EcsExporter = require('../src/exporters/ecs');
+const SplunkHecExporter = require('../src/exporters/splunkHec');
 const logger = require('../src/core/utils/logger');
 const pkg = require('../package.json');
 const ASSESSMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -450,6 +454,81 @@ app.post('/api/notify', async (req, res) => {
   }
 });
 
+// SIEM ship endpoint — POST /api/integrations/ship
+// Body: { assessment?, assessmentId?, target: 'elastic'|'splunk'|'all'|'file',
+//         esUrl?, esApiKey?, esUsername?, esPassword?, hecUrl?, hecToken?,
+//         indexName?, splunkIndex?, outDir?, dryRun? }
+// Secrets are read from request body OR env (FLAREINSPECT_ES_URL/_ES_APIKEY, etc.).
+app.post('/api/integrations/ship', async (req, res) => {
+  try {
+    const body = req.body || {};
+    let assessment = body.assessment;
+    if (!assessment && body.assessmentId) {
+      if (!isValidAssessmentId(body.assessmentId)) return sendError(res, 400, 'Invalid assessmentId.', req);
+      assessment = await loadAssessmentById(body.assessmentId);
+      if (!assessment) return sendError(res, 404, 'Assessment not found.', req);
+    }
+    if (!assessment) {
+      assessment = lastAssessment || await loadLatestAssessmentFromDisk();
+    }
+    if (!assessment) return sendError(res, 400, 'Provide an assessment, assessmentId, or run /api/assess first.', req);
+
+    const target = String(body.target || 'all').toLowerCase();
+    const want = (k) => target === 'all' || target === k;
+
+    // File export branch — no live HTTP, just NDJSON to disk.
+    if (target === 'file' || body.outDir) {
+      const dir = body.outDir || `./out-${Date.now()}`;
+      const ecs = new EcsExporter({ indexName: body.indexName || 'flareinspect-findings' });
+      const hec = new SplunkHecExporter();
+      const ecsR = await ecs.exportToFile(assessment, dir);
+      const hecR = await hec.exportToFile(assessment, dir);
+      return res.json({ ok: true, target: 'file', dir, files: { ecs: ecsR.file, hec: ecsR.file }, counts: { ecs: ecsR.count, hec: hecR.count } });
+    }
+
+    const result = { ok: true, target, elastic: null, splunk: null };
+
+    if (want('elastic')) {
+      const esUrl    = body.esUrl    || process.env.FLAREINSPECT_ES_URL    || null;
+      const apiKey   = body.esApiKey || process.env.FLAREINSPECT_ES_APIKEY || null;
+      const username = body.esUsername || process.env.FLAREINSPECT_ES_USERNAME || null;
+      const password = body.esPassword || process.env.FLAREINSPECT_ES_PASSWORD || null;
+      if (!esUrl) return sendError(res, 400, 'Missing esUrl (or FLAREINSPECT_ES_URL env).', req);
+      if (!apiKey && !(username && password)) {
+        return sendError(res, 400, 'Missing credentials: provide esApiKey OR (esUsername + esPassword).', req);
+      }
+      result.elastic = await shipElastic({
+        esUrl, apiKey, username, password, assessment,
+        indexName: body.indexName || 'flareinspect-findings',
+        dryRun: !!body.dryRun
+      });
+      if (!result.elastic.ok) result.ok = false;
+    }
+
+    if (want('splunk')) {
+      const hecUrl   = body.hecUrl   || process.env.FLAREINSPECT_SPLUNK_HEC_URL   || null;
+      const hecToken = body.hecToken || process.env.FLAREINSPECT_SPLUNK_HEC_TOKEN || null;
+      if (!hecUrl)   return sendError(res, 400, 'Missing hecUrl (or FLAREINSPECT_SPLUNK_HEC_URL env).', req);
+      if (!hecToken) return sendError(res, 400, 'Missing hecToken (or FLAREINSPECT_SPLUNK_HEC_TOKEN env).', req);
+      result.splunk = await shipSplunk({ hecUrl, hecToken, assessment, dryRun: !!body.dryRun });
+      if (!result.splunk.ok) result.ok = false;
+    }
+
+    // Echo the index template (so dashboards can be wired off the same response).
+    if (body.includeTemplate) {
+      result.indexTemplate = buildEsTemplate();
+    }
+    return res.json(result);
+  } catch (error) {
+    return sendUnexpectedError(res, error, req, 'ship');
+  }
+});
+
+// GET /api/integrations/template/elastic — returns the recommended ES index template
+app.get('/api/integrations/template/elastic', (req, res) => {
+  res.json(buildEsTemplate());
+});
+
 // Compliance endpoint
 app.get('/api/compliance/:framework', (req, res) => {
   const respondWithCompliance = (assessment) => {
@@ -803,14 +882,19 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-const server = app.listen(port, host, () => {
-  const address = server.address();
-  const actualPort = address && typeof address === 'object' ? address.port : port;
-  console.log(`FlareInspect web app running on http://${host}:${actualPort}`);
-  if (API_KEY) {
-    console.log('API key authentication enabled');
-  }
-});
+// Only start listening when this file is the process entry point. When
+// `require()`'d (e.g. from tests), we expose `app` for an in-process
+// `supertest`/raw-http test harness without auto-binding a port.
+if (require.main === module) {
+  const server = app.listen(port, host, () => {
+    const address = server.address();
+    const actualPort = address && typeof address === 'object' ? address.port : port;
+    console.log(`FlareInspect web app running on http://${host}:${actualPort}`);
+    if (API_KEY) {
+      console.log('API key authentication enabled');
+    }
+  });
+}
 
 app.use((err, req, res, next) => {
   if (res.headersSent) {
@@ -818,3 +902,5 @@ app.use((err, req, res, next) => {
   }
   return sendUnexpectedError(res, err, req, 'middleware');
 });
+
+module.exports = { app };
