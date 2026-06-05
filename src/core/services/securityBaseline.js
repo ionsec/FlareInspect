@@ -133,6 +133,30 @@ class SecurityBaseline {
         severity: 'medium',
         compliance: ['PCI-DSS', 'NIST']
       },
+      {
+        id: 'CFL-SSL-006',
+        category: 'ssl',
+        title: 'TLS 1.3',
+        description: 'Enable TLS 1.3 (zrt) for stronger handshake with 0-RTT support',
+        severity: 'medium',
+        compliance: ['NIST', 'CIS']
+      },
+      {
+        id: 'CFL-SSL-007',
+        category: 'ssl',
+        title: 'Automatic HTTPS Rewrites',
+        description: 'Rewrite HTTP URLs in HTML to HTTPS to fix mixed content',
+        severity: 'low',
+        compliance: ['NIST']
+      },
+      {
+        id: 'CFL-SSL-008',
+        category: 'ssl',
+        title: 'Opportunistic Encryption',
+        description: 'Serve HTTP/2 over TLS without certificates for supported clients',
+        severity: 'low',
+        compliance: ['NIST']
+      },
 
       // WAF Security Checks
       {
@@ -266,6 +290,14 @@ class SecurityBaseline {
         description: 'Consider enabling Rocket Loader for JavaScript optimization',
         severity: 'informational',
         compliance: ['CIS']
+      },
+      {
+        id: 'CFL-PERF-006',
+        category: 'performance',
+        title: 'Email Obfuscation',
+        description: 'Obfuscate email addresses on the page to prevent scrapers from harvesting them',
+        severity: 'low',
+        compliance: ['NIST']
       },
 
       // Workers Security Checks
@@ -666,7 +698,15 @@ class SecurityBaseline {
         description: 'Detect production zones where managed rulesets are still in log-only mode (drift)',
         severity: 'medium',
         compliance: ['OWASP', 'NIST']
-      }
+      },
+      {
+        id: 'CFL-WAF-009',
+        category: 'waf',
+        title: 'Browser Integrity Check',
+        description: 'Enable Browser Integrity Check to challenge common bot/spam headers',
+        severity: 'low',
+        compliance: ['OWASP']
+      },
 
     ];
   }
@@ -779,12 +819,20 @@ class SecurityBaseline {
       'CFL-SSL-003': 'Monitor certificate expiration in SSL/TLS > Edge Certificates.',
       'CFL-SSL-004': 'Enable HSTS in SSL/TLS > Edge Certificates.',
       'CFL-SSL-005': 'Enable Always Use HTTPS in SSL/TLS > Edge Certificates.',
+
+      'CFL-SSL-006': 'Enable TLS 1.3 (Zero Round-Trip) in Network > TLS/SSL > TLS 1.3.',
+      'CFL-SSL-007': 'Enable Automatic HTTPS Rewrites in SSL/TLS > Edge Certificates.',
+      'CFL-SSL-008': 'Enable Opportunistic Encryption in Network > TLS/SSL > Opportunistic Encryption.',
       
       'CFL-WAF-001': 'Set security level to High in Security > Settings.',
       'CFL-WAF-002': 'Create custom firewall rules in Security > WAF.',
       'CFL-WAF-003': 'Configure rate limiting in Security > Rate Limiting.',
       'CFL-WAF-004': 'Enable Bot Fight Mode in Security > Bots.',
       'CFL-WAF-005': 'Enable managed rulesets in Security > WAF.',
+      'CFL-WAF-006': 'Deploy the Cloudflare Managed Ruleset in Security > WAF > Managed Rules.',
+      'CFL-WAF-007': 'Deploy the OWASP Core Ruleset in Security > WAF > Managed Rules.',
+      'CFL-WAF-008': 'Move WAF managed rulesets out of log-only mode once verified in dashboard.',
+      'CFL-WAF-009': 'Enable Browser Integrity Check in Security > Settings > Browser Integrity Check.',
       
       'CFL-ZT-001': 'Configure identity providers in Zero Trust > Settings > Authentication.',
       'CFL-ZT-002': 'Create access policies in Zero Trust > Access > Applications.',
@@ -798,6 +846,7 @@ class SecurityBaseline {
       'CFL-PERF-003': 'Enable HTTP/3 (QUIC) in Network settings.',
       'CFL-PERF-004': 'Enable minification for JS, CSS, and HTML in Speed > Optimization.',
       'CFL-PERF-005': 'Enable Rocket Loader in Speed > Optimization > Content Optimization.',
+      'CFL-PERF-006': 'Enable Email Obfuscation in Speed > Optimization > Content Optimization.',
       
       'CFL-WORK-001': 'Add try-catch blocks and proper error handling to Workers scripts.',
       'CFL-WORK-002': 'Implement rate limiting logic in Workers using KV or Durable Objects.',

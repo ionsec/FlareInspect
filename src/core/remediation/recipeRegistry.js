@@ -211,7 +211,55 @@ const RECIPES = [
     risk: 'low'
   }),
   hstsRecipe,
-  dnssecRecipe
+  dnssecRecipe,
+
+  // --- Phase 1: low-risk reversible zone-setting recipes ------------------
+  zoneSettingRecipe({
+    checkId: 'CFL-SSL-006',
+    title: 'Enable TLS 1.3 (zrt)',
+    setting: 'tls_1_3',
+    target: 'zrt',
+    acceptable: ['zrt', 'on'],
+    risk: 'low'
+  }),
+  zoneSettingRecipe({
+    checkId: 'CFL-SSL-007',
+    title: 'Enable Automatic HTTPS Rewrites',
+    setting: 'automatic_https_rewrites',
+    target: 'on',
+    risk: 'low'
+  }),
+  zoneSettingRecipe({
+    checkId: 'CFL-SSL-008',
+    title: 'Enable Opportunistic Encryption',
+    setting: 'opportunistic_encryption',
+    target: 'on',
+    risk: 'low'
+  }),
+  zoneSettingRecipe({
+    checkId: 'CFL-WAF-009',
+    title: 'Enable Browser Integrity Check',
+    setting: 'browser_check',
+    target: 'on',
+    risk: 'low'
+  }),
+  zoneSettingRecipe({
+    checkId: 'CFL-PERF-006',
+    title: 'Enable Email Obfuscation',
+    setting: 'email_obfuscation',
+    target: 'on',
+    risk: 'low'
+  }),
+  // Bot Fight Mode: medium-risk (may challenge legitimate bots). Recipe marked
+  // reversible + medium so the apply gate re-prompts before toggling.
+  zoneSettingRecipe({
+    checkId: 'CFL-BOT-001',
+    title: 'Enable Bot Fight Mode',
+    setting: 'bot_fight_mode',
+    target: 'on',
+    acceptable: ['on'],
+    risk: 'medium'
+  })
 ];
 
 const REGISTRY = new Map(RECIPES.map(r => [r.checkId, r]));

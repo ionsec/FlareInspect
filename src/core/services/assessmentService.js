@@ -1242,6 +1242,74 @@ class AssessmentService {
       ));
     }
 
+    // --- Phase 1: TLS 1.3, Automatic HTTPS Rewrites, Opportunistic Encryption
+    const tls13Check = sslChecks.find(c => c.id === 'CFL-SSL-006');
+    const tls13Value = zoneSettings?.tls_1_3?.value || 'off';
+    if (tls13Check) {
+      const compliant = ['zrt', 'on'].includes(tls13Value);
+      findings.push(this.securityBaseline.createFinding(
+        tls13Check,
+        compliant ? 'PASS' : 'FAIL',
+        `TLS 1.3 is ${tls13Value}`,
+        'TLS 1.3 should be enabled (zrt) for stronger handshakes',
+        zoneResource,
+        {
+          evidence: {
+            summary: `TLS 1.3 mode is "${tls13Value}" for ${zone.name}.`,
+            expected: 'zrt (Zero Round-Trip) or on',
+            observed: tls13Value,
+            source: { category: 'ssl', endpoint: 'zones.settings.tls_1_3.get' },
+            raw: { tls_1_3: zoneSettings?.tls_1_3 || null },
+            reviewGuidance: 'TLS 1.3 (zrt) reduces handshake latency. Verify clients support 0-RTT safely.'
+          }
+        }
+      ));
+    }
+
+    const autoHttpsCheck = sslChecks.find(c => c.id === 'CFL-SSL-007');
+    const autoHttpsValue = zoneSettings?.automatic_https_rewrites?.value || 'off';
+    if (autoHttpsCheck) {
+      const compliant = autoHttpsValue === 'on';
+      findings.push(this.securityBaseline.createFinding(
+        autoHttpsCheck,
+        compliant ? 'PASS' : 'FAIL',
+        `Automatic HTTPS Rewrites is ${autoHttpsValue}`,
+        'Enable Automatic HTTPS Rewrites to fix mixed content',
+        zoneResource,
+        {
+          evidence: {
+            summary: `Automatic HTTPS Rewrites is "${autoHttpsValue}" for ${zone.name}.`,
+            expected: 'on',
+            observed: autoHttpsValue,
+            source: { category: 'ssl', endpoint: 'zones.settings.automatic_https_rewrites.get' },
+            raw: { automatic_https_rewrites: zoneSettings?.automatic_https_rewrites || null }
+          }
+        }
+      ));
+    }
+
+    const oeCheck = sslChecks.find(c => c.id === 'CFL-SSL-008');
+    const oeValue = zoneSettings?.opportunistic_encryption?.value || 'off';
+    if (oeCheck) {
+      const compliant = oeValue === 'on';
+      findings.push(this.securityBaseline.createFinding(
+        oeCheck,
+        compliant ? 'PASS' : 'FAIL',
+        `Opportunistic Encryption is ${oeValue}`,
+        'Enable Opportunistic Encryption for HTTP/2 over TLS without certs',
+        zoneResource,
+        {
+          evidence: {
+            summary: `Opportunistic Encryption is "${oeValue}" for ${zone.name}.`,
+            expected: 'on',
+            observed: oeValue,
+            source: { category: 'ssl', endpoint: 'zones.settings.opportunistic_encryption.get' },
+            raw: { opportunistic_encryption: zoneSettings?.opportunistic_encryption || null }
+          }
+        }
+      ));
+    }
+
     assessment.findings.push(...findings);
   }
 
@@ -1399,6 +1467,58 @@ class AssessmentService {
           }
         }
       ));
+    }
+
+    // Check Browser Integrity Check (Phase 1 — CFL-WAF-009)
+    const browserCheckValue = wafData?.settings?.browser_check?.value || 'off';
+    if (browserCheckValue !== 'on') {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-WAF-009',
+        checkTitle: 'Browser Integrity Check Disabled',
+        service: 'waf',
+        severity: 'low',
+        status: 'FAIL',
+        description: 'Browser Integrity Check is disabled — common bot/spam header challenges not applied.',
+        remediation: 'Enable Browser Integrity Check in Security > Settings > Browser Integrity Check.',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: { zoneName: zone.name },
+        evidence: {
+          summary: `Browser Integrity Check is "${browserCheckValue}" for ${zone.name}.`,
+          expected: 'on',
+          observed: browserCheckValue,
+          source: { category: 'waf', endpoint: 'zones.settings.browser_check.get' },
+          raw: { browser_check: wafData?.settings?.browser_check || null }
+        }
+      });
+    }
+
+    // Check Bot Fight Mode (Phase 1 — CFL-BOT-001, now remediable)
+    const botFightValue = wafData?.settings?.bot_fight_mode?.value || 'off';
+    if (botFightValue !== 'on') {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-BOT-001',
+        checkTitle: 'Bot Fight Mode Disabled',
+        service: 'bot',
+        severity: 'medium',
+        status: 'FAIL',
+        description: 'Bot Fight Mode is disabled.',
+        remediation: 'Enable Bot Fight Mode in Security > Bots > Bot Fight Mode (medium risk: may challenge legitimate bots).',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: { zoneName: zone.name },
+        evidence: {
+          summary: `Bot Fight Mode is "${botFightValue}" for ${zone.name}.`,
+          expected: 'on',
+          observed: botFightValue,
+          source: { category: 'bot', endpoint: 'zones.settings.bot_fight_mode.get' },
+          raw: { bot_fight_mode: wafData?.settings?.bot_fight_mode || null }
+        }
+      });
     }
 
     assessment.findings.push(...findings);
@@ -2005,6 +2125,32 @@ class AssessmentService {
         timestamp: new Date(),
         metadata: {
           zoneName: zone.name
+        }
+      });
+    }
+
+    // Check Email Obfuscation (Phase 1)
+    const emailObfs = allZoneSettings?.email_obfuscation?.value || 'off';
+    if (emailObfs !== 'on') {
+      findings.push({
+        id: uuidv4(),
+        checkId: 'CFL-PERF-006',
+        checkTitle: 'Email Obfuscation Disabled',
+        service: 'performance',
+        severity: 'low',
+        status: 'FAIL',
+        description: 'Email Obfuscation is disabled — page email addresses are exposed to scrapers.',
+        remediation: 'Enable Email Obfuscation in Speed > Optimization > Content Optimization.',
+        resourceId: zone.id,
+        resourceType: 'zone',
+        timestamp: new Date(),
+        metadata: { zoneName: zone.name },
+        evidence: {
+          summary: `Email Obfuscation is "${emailObfs}" for ${zone.name}.`,
+          expected: 'on',
+          observed: emailObfs,
+          source: { category: 'performance', endpoint: 'zones.settings.email_obfuscation.get' },
+          raw: { email_obfuscation: allZoneSettings?.email_obfuscation || null }
         }
       });
     }
