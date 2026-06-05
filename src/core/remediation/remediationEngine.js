@@ -17,10 +17,15 @@ const DEFAULT_CONCURRENCY = 4;
 
 /**
  * Build a recipe execution context from a finding (or a backup entry).
+ * Threads `accountId` separately from `zoneId` for account-scope recipes.
  */
 function contextFor(source) {
+  // resourceId = account.id when scope = 'account' (set by assess* methods).
+  // resourceId = zone.id when scope = 'zone'.
+  const isAccount = (source.resourceType || '').toLowerCase() === 'account';
   return {
-    zoneId: source.resourceId,
+    zoneId: isAccount ? null : source.resourceId,
+    accountId: source.accountId || (isAccount ? source.resourceId : null),
     resourceId: source.resourceId,
     resourceType: source.resourceType,
     finding: source.finding || null
@@ -167,6 +172,7 @@ function itemToEntry(item) {
     resourceId: item.resourceId,
     resourceType: item.resourceType,
     resourceName: item.resourceName,
+    accountId: item.accountId || null,
     setting: item.setting,
     risk: item.risk,
     valueBefore: item.valueBefore ?? null,
@@ -174,7 +180,11 @@ function itemToEntry(item) {
     valueAfter: item.valueAfter ?? null,
     applied: !!item.applied,
     verified: !!item.verified,
-    error: item.error || null
+    error: item.error || null,
+    // Create-then-delete recipes: id captured during apply → delete on rollback.
+    createdResourceId: item.createdResourceId || null,
+    createdResourceType: item.createdResourceType || null,
+    restoreOp: item.restoreOp || 'patch'
   };
 }
 
@@ -207,8 +217,22 @@ async function apply(items, { client, backupDir, filePath, assessment, concurren
     const recipe = recipeRegistry.get(item.checkId);
     const ctx = contextFor(item);
     try {
-      await recipe.apply(client, ctx);
+      const applyResult = await recipe.apply(client, ctx);
       item.applied = true;
+      // Create-recipes return the new resource id; capture it for delete-on-rollback.
+      if (applyResult && typeof applyResult === 'object' && applyResult.id && typeof recipe.captureCreatedResourceId === 'function') {
+        item.createdResourceId = applyResult.id;
+        item.createdResourceType = applyResult.resourceType || recipe.createdResourceType || null;
+        item.restoreOp = 'delete';
+      } else if (typeof recipe.captureCreatedResourceId === 'function') {
+        // Some recipes capture the id from a side channel
+        const captured = await recipe.captureCreatedResourceId(client, ctx, applyResult);
+        if (captured && captured.id) {
+          item.createdResourceId = captured.id;
+          item.createdResourceType = captured.resourceType || recipe.createdResourceType || null;
+          item.restoreOp = 'delete';
+        }
+      }
       item.valueAfter = await recipe.read(client, ctx);
       item.verified = await recipe.verify(client, ctx);
       if (!item.verified) {
@@ -265,14 +289,26 @@ async function rollback(bundle, { client, backupDir, concurrency } = {}) {
       result.error = 'Recipe is not reversible';
     } else {
       try {
-        await recipe.restore(client, ctx, entry.valueBefore);
-        result.applied = true;
-        const restored = await recipe.read(client, ctx);
-        result.valueAfter = restored;
-        // Verified if restored value matches the original (or original was null/skip)
-        result.verified = entry.valueBefore === null || entry.valueBefore === undefined
-          ? true
-          : JSON.stringify(restored) === JSON.stringify(entry.valueBefore);
+        // For create-then-delete recipes, pass the captured resource id to restore.
+        if (entry.restoreOp === 'delete') {
+          if (!entry.createdResourceId) {
+            result.error = 'No createdResourceId captured — cannot delete on rollback';
+          } else {
+            await recipe.restore(client, ctx, entry.createdResourceId);
+            result.applied = true;
+            result.valueAfter = null; // resource should no longer exist
+            result.verified = true;
+          }
+        } else {
+          await recipe.restore(client, ctx, entry.valueBefore);
+          result.applied = true;
+          const restored = await recipe.read(client, ctx);
+          result.valueAfter = restored;
+          // Verified if restored value matches the original (or original was null/skip)
+          result.verified = entry.valueBefore === null || entry.valueBefore === undefined
+            ? true
+            : JSON.stringify(restored) === JSON.stringify(entry.valueBefore);
+        }
       } catch (err) {
         result.error = err.message;
         logger.fail(`Rollback failed for ${entry.checkId} on ${entry.resourceId}: ${err.message}`);

@@ -27,6 +27,10 @@ const SCHEMA_VERSION = 1;
  * @property {boolean} applied
  * @property {boolean} verified
  * @property {string|null} error
+ * @property {string} [accountId]              Account-scope recipes thread accountId
+ * @property {string} [createdResourceId]      Set by create-recipes for delete-on-rollback
+ * @property {string} [createdResourceType]    E.g. 'dns_record', 'notification_policy'
+ * @property {string} [restoreOp]              'patch' (default) | 'delete' for created resources
  */
 
 /**
