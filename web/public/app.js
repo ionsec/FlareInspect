@@ -16,9 +16,12 @@ const TOPBAR_TITLES = {
   export:     'Exports',
   compliance: 'Compliance',
   report:     'Full report',
-  history:    'History',
-  api:        'API health',
-  remediate:  'Remediate',
+  history:       'History',
+  api:           'API health',
+  remediate:     'Remediate',
+  siem:          'SIEM streaming',
+  notifications: 'Notifications',
+  agents:        'Agents & MCP',
 };
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -62,6 +65,9 @@ function navigateTo(section) {
   if (section === 'report')     refreshReport();
   if (section === 'compliance') renderComplianceCards();
   if (section === 'remediate')  initRemediate();
+  if (section === 'siem')         initSiem();
+  if (section === 'notifications') initNotifications();
+  if (section === 'agents')       initAgents();
 
   $('sidebar')?.classList.remove('open');
   $('sidebar-overlay')?.classList.remove('open');
@@ -983,6 +989,162 @@ async function rollbackRemediation(bundleFile) {
     showToast(failed ? `Rollback completed with ${failed} failure(s).` : 'Rollback completed.', failed ? 'error' : 'success');
   } catch (err) {
     showToast(err.message, 'error');
+  }
+}
+
+// ── Integrations: SIEM ───────────────────────────────────────────────────────
+let siemBound = false;
+function initSiem() {
+  if (siemBound) return;
+  siemBound = true;
+  $('siem-ship-btn')?.addEventListener('click', shipSiem);
+  $('siem-template-btn')?.addEventListener('click', downloadEcsTemplate);
+}
+
+function integrationResult(el, data, { dryRun } = {}) {
+  if (!el) return;
+  const ok = data.ok !== false;
+  const lines = [];
+  const fmt = (label, r) => r ? `${label}: ${r.ok === false ? '✗' : '✓'} ${r.count != null ? r.count + ' docs' : ''}${r.error ? ' — ' + escHtml(r.error) : ''}` : null;
+  if (data.elastic) lines.push(fmt('Elasticsearch', data.elastic));
+  if (data.splunk) lines.push(fmt('Splunk', data.splunk));
+  if (data.target === 'file' && data.dir) lines.push(`Files written to ${escHtml(data.dir)} (${data.counts?.ecs ?? 0} ECS, ${data.counts?.hec ?? 0} HEC)`);
+  el.innerHTML = `<div class="v1-badge ${ok ? 'ok' : 'bad'}">${ok ? (dryRun ? 'Dry run OK' : 'Shipped') : 'Failed'}</div>
+    <div style="margin-top:8px;font-size:13px;color:var(--fg-2)">${lines.filter(Boolean).map(l => `<div>${l}</div>`).join('') || 'Done.'}</div>`;
+}
+
+async function shipSiem() {
+  const target = $('siem-target')?.value || 'all';
+  const dryRun = $('siem-dryrun')?.checked ?? true;
+  const body = { target, dryRun };
+  if (target === 'file') body.outDir = ($('siem-outdir')?.value || '').trim() || undefined;
+  if (currentAssessment?.assessmentId) body.assessmentId = currentAssessment.assessmentId;
+  const btn = $('siem-ship-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Shipping…'; }
+  try {
+    const res = await fetch('/api/integrations/ship', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Ship failed.');
+    integrationResult($('siem-result'), data, { dryRun });
+    showToast(dryRun ? 'Dry run complete.' : 'Findings shipped.', data.ok === false ? 'error' : 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+    if ($('siem-result')) $('siem-result').innerHTML = `<div class="v1-badge bad">Failed</div><div style="margin-top:8px;font-size:13px;color:var(--crit)">${escHtml(err.message)}</div>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Ship now'; }
+  }
+}
+
+async function downloadEcsTemplate() {
+  try {
+    const res = await fetch('/api/integrations/template/elastic');
+    if (!res.ok) throw new Error('Template unavailable.');
+    const tpl = await res.json();
+    const blob = new Blob([JSON.stringify(tpl, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'flareinspect-ecs-index-template.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast('ECS index template downloaded.', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ── Integrations: Notifications ────────────────────────────────────────────────
+let notifyBound = false;
+function initNotifications() {
+  if (notifyBound) return;
+  notifyBound = true;
+  $('notify-send-btn')?.addEventListener('click', sendNotification);
+}
+
+async function sendNotification() {
+  const target = $('notify-target')?.value || 'all';
+  const threshold = $('notify-threshold')?.value || undefined;
+  const link = ($('notify-link')?.value || '').trim() || undefined;
+  const dryRun = $('notify-dryrun')?.checked ?? true;
+  const body = { target, threshold, link, dryRun };
+  if (currentAssessment?.assessmentId) body.assessmentId = currentAssessment.assessmentId;
+  const btn = $('notify-send-btn');
+  if (btn) { btn.disabled = true; btn.textContent = dryRun ? 'Previewing…' : 'Sending…'; }
+  try {
+    const res = await fetch('/api/notify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Notify failed.');
+    const sent = (data.sent || []).join(', ') || '—';
+    const skipped = (data.skipped || []).join(', ') || '—';
+    const errs = (data.errors || []).map(e => typeof e === 'string' ? e : (e.channel ? `${e.channel}: ${e.error}` : JSON.stringify(e)));
+    const el = $('notify-result');
+    if (el) {
+      let html = `<div class="v1-badge ${data.ok === false ? 'bad' : 'ok'}">${dryRun ? 'Preview' : (data.ok === false ? 'Errors' : 'Sent')}</div>
+        <div style="margin-top:8px;font-size:13px;color:var(--fg-2)"><div>Sent: ${escHtml(sent)}</div><div>Skipped: ${escHtml(skipped)}</div>${errs.length ? `<div style="color:var(--crit)">Errors: ${escHtml(errs.join('; '))}</div>` : ''}</div>`;
+      if (dryRun && data.payloads) {
+        html += `<pre class="v1-mono" style="margin-top:8px;padding:12px;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:auto;font-size:11px;max-height:320px">${escHtml(JSON.stringify(data.payloads, null, 2))}</pre>`;
+      }
+      el.innerHTML = html;
+    }
+    showToast(dryRun ? 'Payload preview ready.' : 'Notification dispatched.', data.ok === false ? 'error' : 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
+  }
+}
+
+// ── Integrations: Agents & MCP ─────────────────────────────────────────────────
+const MCP_TOOLS = ['assess', 'list_findings', 'get_attack_paths', 'plan_remediation', 'apply_remediation*', 'rollback*'];
+let agentsBound = false;
+function initAgents() {
+  if (!agentsBound) {
+    agentsBound = true;
+    $('agents-copy-btn')?.addEventListener('click', () => {
+      const cfg = $('agents-config')?.textContent || '';
+      navigator.clipboard?.writeText(cfg).then(
+        () => showToast('MCP config copied.', 'success'),
+        () => showToast('Copy failed — select manually.', 'error')
+      );
+    });
+    // Render the MCP client config snippet + tool chips (static, but real).
+    const cfg = {
+      mcpServers: {
+        flareinspect: {
+          command: 'npx',
+          args: ['-y', 'flareinspect-mcp'],
+          env: { CLOUDFLARE_TOKEN: '<token>', FLAREINSPECT_ALLOW_REMEDIATION: 'false' }
+        }
+      }
+    };
+    if ($('agents-config')) $('agents-config').textContent = JSON.stringify(cfg, null, 2);
+    if ($('agents-tools')) {
+      $('agents-tools').innerHTML = MCP_TOOLS.map(t =>
+        `<span class="v1-badge">${escHtml(t)}</span>`).join('');
+    }
+  }
+  refreshAgentsGate();
+}
+
+async function refreshAgentsGate() {
+  const badge = $('agents-gate-badge');
+  const note = $('agents-gate-note');
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    const enabled = data.remediation === 'enabled';
+    if (badge) {
+      badge.textContent = enabled ? 'Apply enabled' : 'Apply disabled (read-only)';
+      badge.className = `v1-badge ${enabled ? 'warn' : 'ok'}`;
+    }
+    if (note) note.textContent = enabled
+      ? 'apply_remediation and rollback are ENABLED on this server (FLAREINSPECT_ALLOW_REMEDIATION=true). Agents can mutate Cloudflare with an edit-scoped token.'
+      : 'apply_remediation and rollback (marked *) are gated off. Set FLAREINSPECT_ALLOW_REMEDIATION=true on the server to allow agents to apply fixes.';
+  } catch {
+    if (badge) { badge.textContent = 'unknown'; badge.className = 'v1-badge'; }
   }
 }
 

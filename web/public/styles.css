@@ -23,17 +23,25 @@
   --flare-2:    oklch(78% 0.14 52);
   --flare-soft: oklch(72% 0.17 52 / 0.12);
 
+  /* Severity ramp. NOTE: --high is intentionally a red-orange (hue 40),
+     distinct from the brand --flare (hue 52), so "high severity" never reads
+     as a brand/CTA accent on a security product. */
   --crit: oklch(65% 0.21 25);
-  --high: oklch(72% 0.17 52);
+  --high: oklch(70% 0.19 40);
   --med:  oklch(80% 0.14 85);
   --low:  oklch(72% 0.15 155);
   --info: oklch(70% 0.14 240);
 
   --crit-soft: oklch(65% 0.21 25 / 0.14);
-  --high-soft: oklch(72% 0.17 52 / 0.14);
+  --high-soft: oklch(70% 0.19 40 / 0.14);
   --med-soft:  oklch(80% 0.14 85 / 0.14);
   --low-soft:  oklch(72% 0.15 155 / 0.14);
   --info-soft: oklch(70% 0.14 240 / 0.14);
+
+  /* Semantic intent aliases — feature code should reference intent, not raw severity. */
+  --danger:  var(--crit);
+  --warning: var(--med);
+  --success: var(--low);
 
   --font-ui:   'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -42,6 +50,13 @@
   --r:    10px;
   --r-lg: 14px;
   --r-xl: 20px;
+
+  /* Motion tokens — enter ease-out, exit ease-in (exit ~70% of enter duration). */
+  --dur-fast: 150ms;
+  --dur:      220ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:  cubic-bezier(0.4, 0, 1, 1);
 }
 
 * { box-sizing: border-box; }
@@ -68,7 +83,21 @@ body {
 
 a { color: inherit; }
 
-.v1-mono { font-family: var(--font-mono); font-size: 0.92em; }
+/* Tabular figures for all mono/data contexts so numeric columns, scores,
+   counts and timers don't jitter as values change. */
+.v1-mono { font-family: var(--font-mono); font-size: 0.92em; font-variant-numeric: tabular-nums; }
+.v1-tnum { font-variant-numeric: tabular-nums; }
+
+/* Accessibility: honor reduced-motion globally — neutralize transitions,
+   animations and smooth scroll for users who request it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 .v1-root {
   display: flex;
@@ -173,6 +202,18 @@ a { color: inherit; }
 .v1-foot-links { display: flex; gap: 12px; font-size: 11px; }
 .v1-foot-links a { color: var(--fg-3); text-decoration: none; }
 .v1-foot-links a:hover { color: var(--fg); }
+
+/* Generic status chip (page-head meta, gate states, integration status). */
+.v1-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums;
+  background: var(--bg-3); color: var(--fg-2); border: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+.v1-badge.ok   { background: var(--low-soft);  color: var(--low);  border-color: transparent; }
+.v1-badge.warn { background: var(--med-soft);  color: var(--med);  border-color: transparent; }
+.v1-badge.bad  { background: var(--crit-soft); color: var(--crit); border-color: transparent; }
 
 /* ── Main ── */
 .v1-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
