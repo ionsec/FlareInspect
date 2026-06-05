@@ -67,33 +67,60 @@ Options
 Check Categories
 -----------------
 
-The following 21 check categories can be targeted with ``--checks``:
+The following 34 check categories can be targeted with ``--checks``:
 
-====================  ===========================================
-Category              Description                                
-====================  ===========================================
-``account``           Account-level settings and configuration   
-``dns``               DNS record security and resolution         
-``ssl``               SSL/TLS certificate and configuration      
-``waf``               Web Application Firewall rules and policies
-``zerotrust``         Zero Trust network access configuration    
-``workers``           Cloudflare Workers security settings       
-``pages``             Cloudflare Pages deployment security       
-``api``               API gateway and shielding configuration    
-``bot``               Bot management and mitigation              
-``logpush``           Log push destination and coverage          
-``mtls``              Mutual TLS authentication settings         
-``securitytxt``       Security.txt presence and validity         
-``attack-surface``    Attack surface reduction rules             
-``dlp``               Data Loss Prevention policies              
-``tunnels``           Cloudflare Tunnels configuration           
-``gateway``           Secure Web Gateway policies                
-``page-shield``       Page Shield script monitoring              
-``cache``             Cache security and configuration           
-``snippets``          Cache and transform snippets               
-``custom-hostnames``  Custom hostname security                   
-``ai-gateway``        AI Gateway security configuration          
-====================  ===========================================
+===========================  ===========================================
+Category                     Description
+===========================  ===========================================
+``account``                  Account-level settings and configuration
+``account-waf``              Account-scope WAF / DDoS coverage
+``access``                   Cloudflare Access application depth (allow-everyone, MFA, posture)
+``ai-gateway``               AI Gateway security configuration
+``api``                      API gateway and shielding configuration
+``attack-surface``           Attack surface reduction rules
+``bot``                      Bot management and mitigation
+``cache``                    Cache security and configuration
+``casb``                     CASB open critical/high findings
+``credentials``              Leaked credentials detection
+``custom-hostnames``         Custom hostname security
+``ddos``                     L7 DDoS posture
+``dlp``                      Data Loss Prevention policies
+``dns``                      DNS record security and resolution
+``email``                    Email routing & SPF / DKIM / DMARC
+``email-security``           Cloud Email Security policies
+``gateway``                  Secure Web Gateway policies
+``loadbalancing``            Load Balancing posture
+``logpush``                  Log push destination and coverage
+``magic``                    Magic Firewall / Magic Transit rulesets
+``mtls``                     Mutual TLS authentication settings
+``notifications``            Security notification policies (4 alert types)
+``page-shield``              Page Shield script monitoring
+``pages``                    Cloudflare Pages deployment security
+``performance``              Performance settings (Brotli, HTTP/2-3, cache deception armor)
+``posture``                  Device posture rules
+``rbi``                      Browser Isolation policies
+``rules``                    Rules / rate-limit rules
+``security-insights``        Security Center insights
+``securitytxt``              Security.txt presence and validity
+``snippets``                 Cache and transform snippets
+``spectrum``                 Spectrum (TCP/UDP) configuration
+``ssl``                      SSL/TLS certificate and configuration
+``storage``                  Workers KV / D1 / Queues inventory
+``tunnels``                  Cloudflare Tunnels configuration
+``turnstile``                Turnstile configuration
+``waf``                      Web Application Firewall rules and policies
+``workers``                  Workers script inventory and plaintext-secret bindings
+``zaraz``                    Zaraz third-party tools and consent
+``zerotrust``                Zero Trust network access configuration
+===========================  ===========================================
+
+.. note::
+
+   Several category names have **aliases** (e.g. ``leaked-credentials``
+   → ``credentials``, ``magic-firewall`` → ``magic``,
+   ``device-posture`` → ``posture``, ``browser-isolation`` → ``rbi``).
+   The full alias map is in
+   ``src/core/services/assessmentService.js``.
 
 CI Mode
 --------
