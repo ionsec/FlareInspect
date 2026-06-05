@@ -242,3 +242,89 @@
   .pm-stage { min-height: 480px; }
   .pm-drawer { width: 100vw; }
 }
+
+/* ── Attack paths panel ──────────────────────────────────────────────── */
+.pm-paths-panel {
+  display: flex; flex-direction: column;
+  padding: 18px 32px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+  gap: 12px;
+}
+.pm-paths-panel-head {
+  display: flex; align-items: center; gap: 12px;
+}
+.pm-paths-panel-title {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--fg-2);
+}
+.pm-paths-panel-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.pm-paths-empty {
+  color: var(--fg-3);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  padding: 6px 4px;
+}
+.pm-path-card {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  position: relative;
+}
+.pm-path-card:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.pm-path-card.active {
+  border-color: var(--flare);
+  box-shadow: 0 0 0 1px var(--flare) inset;
+}
+.pm-path-card-head {
+  display: flex; align-items: center; gap: 8px;
+}
+.pm-path-card-sev {
+  font-family: var(--font-mono);
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--bg-0); color: var(--fg-2);
+  border: 1px solid var(--line);
+}
+.pm-path-card-sev.critical { color: var(--crit); border-color: var(--crit); }
+.pm-path-card-sev.high     { color: var(--high); border-color: var(--high); }
+.pm-path-card-sev.medium   { color: var(--med);  border-color: var(--med); }
+.pm-path-card-sev.low      { color: var(--low);  border-color: var(--low); }
+.pm-path-card-title { font-size: 13px; color: var(--fg); font-weight: 500; }
+.pm-path-card-meta {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-3); letter-spacing: 0.06em;
+}
+.pm-path-card-explain {
+  font-size: 12px; color: var(--fg-2); line-height: 1.45;
+}
+.pm-path-card-actions {
+  display: flex; justify-content: flex-end; margin-top: 4px;
+}
+
+/* ── On-graph path highlight (driven by JS data-pm-* selectors) ──── */
+#pm-svg.pm-paths-mode [data-pm-node]:not(.pm-on-path) { opacity: 0.25; }
+#pm-svg.pm-paths-mode [data-pm-edge]:not(.pm-on-path) { opacity: 0.12; }
+#pm-svg [data-pm-node].pm-on-path .pm-node-bg {
+  stroke: var(--flare); stroke-width: 1.5;
+}
+#pm-svg [data-pm-edge].pm-on-path {
+  stroke: var(--flare);
+  stroke-width: 2.2;
+  stroke-dasharray: 6 4;
+  animation: pm-pulse 1.6s linear infinite;
+}
+@keyframes pm-pulse {
+  to { stroke-dashoffset: -20; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #pm-svg [data-pm-edge].pm-on-path { animation: none; }
+}

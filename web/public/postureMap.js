@@ -98,9 +98,16 @@ const PM = (() => {
   // ── Module state ────────────────────────────────────────────────────────
   let svg, viewport, edgesG, nodesG, drawer, drawerBody, drawerTitle, drawerIcon,
       drawerSub, drawerClose, drawerBackdrop, emptyEl, stats, pathsToggle, stage;
+  let pathsListEl, pathsListBody;       // ranked attack-paths panel
   let currentView = null;     // { nodes, edges, bounds, attackNodes, attackEdges, dangerLeaves }
   let camera = { scale: 1, tx: 0, ty: 0 };
   let bound = false;
+  // Server-provided attack paths (loaded from /api/posture/graph).
+  // Shape: [{ id, title, severity, kind, nodes, edges, remediableCheckIds, ... }]
+  let serverPaths = [];
+  let serverPathIndex = new Map();       // pathId -> path
+  let activePathId = null;
+  let serverGraphReady = false;
 
   // ── Build the graph from currentAssessment ──────────────────────────────
   function buildGraph(assessment) {
@@ -320,6 +327,8 @@ const PM = (() => {
       stage = page.querySelector('.pm-stage') || createStage();
       // Drawer + backdrop
       createDrawer();
+      // Ranked attack-paths panel (lives in the toolbar right column)
+      ensurePathsPanel(toolbar);
     }
 
     const assessment = (typeof currentAssessment !== 'undefined') ? currentAssessment : null;
@@ -327,6 +336,7 @@ const PM = (() => {
     if (!assessment || findings.length === 0) {
       showEmpty(true);
       updateStats(null);
+      renderPathsPanel([]);   // clear
       return;
     }
     showEmpty(false);
@@ -338,6 +348,149 @@ const PM = (() => {
     paintGraph(currentView);
     updateStats(graph);
     fit();
+
+    // Best-effort: load the server's ranked paths so we can deep-link to Remediate.
+    loadServerPaths(assessment).catch(() => { /* silent — local graph is the source of truth */ });
+  }
+
+  // ── Server attack paths (best-effort, async) ────────────────────────────
+  async function loadServerPaths(assessment) {
+    if (!assessment || !assessment.assessmentId) return;
+    try {
+      const url = `/api/posture/graph?assessmentId=${encodeURIComponent(assessment.assessmentId)}`;
+      const res = await fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) return;                          // 404 is fine — graph endpoint optional
+      const payload = await res.json();
+      serverPaths = Array.isArray(payload.paths) ? payload.paths : [];
+      serverPathIndex = new Map(serverPaths.map(p => [p.id, p]));
+      serverGraphReady = true;
+      renderPathsPanel(serverPaths);
+    } catch (_) { /* never break the map for a missing graph */ }
+  }
+
+  function ensurePathsPanel(toolbar) {
+    if (pathsListEl) return;
+    pathsListEl = document.createElement('div');
+    pathsListEl.className = 'pm-paths-panel';
+    pathsListEl.setAttribute('aria-label', 'Ranked attack paths');
+    pathsListEl.innerHTML = `
+      <div class="pm-paths-panel-head">
+        <div class="pm-paths-panel-title">Attack paths</div>
+        <button type="button" class="v1-btn v1-btn-ghost v1-btn-sm" id="pm-paths-clear" hidden>Clear</button>
+      </div>
+      <div class="pm-paths-panel-body" id="pm-paths-body">
+        <div class="pm-paths-empty">No attack paths detected yet.</div>
+      </div>
+    `;
+    toolbar.parentNode.insertBefore(pathsListEl, toolbar.nextSibling);
+    pathsListBody = pathsListEl.querySelector('#pm-paths-body');
+    pathsListEl.querySelector('#pm-paths-clear').addEventListener('click', () => {
+      clearPathHighlight();
+    });
+  }
+
+  function renderPathsPanel(paths) {
+    if (!pathsListEl) return;
+    const list = (paths || []).slice().sort((a, b) => {
+      const order = { critical: 0, high: 1, medium: 2, low: 3, informational: 4, pass: 5 };
+      const sa = order[a.severity] ?? 9, sb = order[b.severity] ?? 9;
+      if (sa !== sb) return sa - sb;
+      if (a.hopCount !== b.hopCount) return (a.hopCount || 0) - (b.hopCount || 0);
+      return String(a.title || '').localeCompare(String(b.title || ''));
+    });
+    if (list.length === 0) {
+      pathsListBody.innerHTML = `<div class="pm-paths-empty">No attack paths detected yet.</div>`;
+      return;
+    }
+    const remediableIds = (window.__REMEDIABLE_CHECK_IDS__ instanceof Set) ? window.__REMEDIABLE_CHECK_IDS__ : null;
+    pathsListBody.innerHTML = list.map(p => {
+      const remediable = (p.remediableCheckIds || []).filter(id => !remediableIds || remediableIds.has(id));
+      const remediableHtml = remediable.length
+        ? `<div class="pm-path-card-actions">
+             <button type="button" class="v1-btn v1-btn-sm v1-btn-primary" data-remediate-path="${escHtml(p.id)}">
+               Remediate ${remediable.length} check${remediable.length === 1 ? '' : 's'}
+             </button>
+           </div>`
+        : '';
+      return `
+        <div class="pm-path-card ${escHtml(p.severity || 'low')}" data-path-id="${escHtml(p.id)}">
+          <div class="pm-path-card-head">
+            <span class="pm-path-card-sev ${escHtml(p.severity || 'low')}">${escHtml(p.severity || 'low')}</span>
+            <span class="pm-path-card-title">${escHtml(p.title || p.id)}</span>
+          </div>
+          <div class="pm-path-card-meta">${p.hopCount || (p.nodes || []).length} hops · ${escHtml(p.kind || '')}</div>
+          ${p.explanation ? `<div class="pm-path-card-explain">${escHtml(p.explanation)}</div>` : ''}
+          ${remediableHtml}
+        </div>
+      `;
+    }).join('');
+
+    // Bind clicks
+    pathsListBody.querySelectorAll('.pm-path-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('[data-remediate-path]')) return;  // let the button handler take it
+        highlightPath(card.dataset.pathId);
+      });
+    });
+    pathsListBody.querySelectorAll('[data-remediate-path]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.remediatePath;
+        const path = serverPathIndex.get(id);
+        if (!path) return;
+        // Deep-link to the Remediate page with the path's remediable checkIds preselected.
+        try {
+          sessionStorage.setItem('flareinspect.remediate.prefill', JSON.stringify({
+            checkIds: path.remediableCheckIds || [],
+            from: 'attack-path',
+            pathId: id,
+            pathTitle: path.title
+          }));
+        } catch (_) { /* sessionStorage may be unavailable */ }
+        if (typeof navigateTo === 'function') navigateTo('remediate');
+      });
+    });
+  }
+
+  function highlightPath(pathId) {
+    const path = serverPathIndex.get(pathId);
+    if (!path) return;
+    activePathId = pathId;
+    const nodeIds = new Set(path.nodes || []);
+    const edgeKeys = new Set((path.edges || []).map(e => `${e.from}->${e.to}`));
+    if (svg) {
+      svg.classList.add('pm-paths-mode');
+      svg.classList.toggle('pm-path-active', true);
+      svg.querySelectorAll('[data-pm-node]').forEach(el => {
+        el.classList.toggle('pm-on-path', nodeIds.has(el.dataset.pmNode));
+      });
+      svg.querySelectorAll('[data-pm-edge]').forEach(el => {
+        el.classList.toggle('pm-on-path', edgeKeys.has(el.dataset.pmEdge));
+      });
+    }
+    // Toggle active card style
+    if (pathsListBody) {
+      pathsListBody.querySelectorAll('.pm-path-card').forEach(c => {
+        c.classList.toggle('active', c.dataset.pathId === pathId);
+      });
+    }
+    const clearBtn = pathsListEl && pathsListEl.querySelector('#pm-paths-clear');
+    if (clearBtn) clearBtn.hidden = false;
+  }
+
+  function clearPathHighlight() {
+    activePathId = null;
+    if (svg) {
+      svg.classList.remove('pm-paths-mode');
+      svg.classList.remove('pm-path-active');
+      svg.querySelectorAll('[data-pm-node]').forEach(el => el.classList.remove('pm-on-path'));
+      svg.querySelectorAll('[data-pm-edge]').forEach(el => el.classList.remove('pm-on-path'));
+    }
+    if (pathsListBody) {
+      pathsListBody.querySelectorAll('.pm-path-card').forEach(c => c.classList.remove('active'));
+    }
+    const clearBtn = pathsListEl && pathsListEl.querySelector('#pm-paths-clear');
+    if (clearBtn) clearBtn.hidden = true;
   }
 
   function createToolbar() {
@@ -557,6 +710,7 @@ const PM = (() => {
       path.setAttribute('class', `pm-edge sev-${edge.node.severity || 'pass'}`);
       path.dataset.from = edge.from;
       path.dataset.to = edge.to;
+      path.dataset.pmEdge = `${edge.from}->${edge.to}`;
       if (graph.attackEdges.has(`${edge.from}->${edge.to}`)) path.classList.add('on-path');
       edgesG.appendChild(path);
     }
@@ -574,6 +728,7 @@ const PM = (() => {
       g.dataset.nodeId = n.id;
       const ariaLabel = `${n.label || ''} — ${n.type}${n.findings && n.findings.length ? ' — ' + n.findings.length + ' findings' : ''}`;
       g.setAttribute('aria-label', ariaLabel);
+      g.dataset.pmNode = n.id;
 
       // Background card
       const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
