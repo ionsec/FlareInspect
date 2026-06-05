@@ -4,7 +4,8 @@
   "description": "FlareInspect - Cloudflare Security Assessment CLI Tool by IONSEC.IO",
   "main": "src/cli/index.js",
   "bin": {
-    "flareinspect": "./src/cli/index.js"
+    "flareinspect": "./src/cli/index.js",
+    "flareinspect-mcp": "./mcp/server.mjs"
   },
   "scripts": {
     "start": "node src/cli/index.js",
@@ -48,6 +49,7 @@
   },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "openai": "^4.77.0"
   },
   "devDependencies": {
@@ -82,5 +84,6 @@
     "test-exclude": "^7.0.1",
     "formdata-node": "^6.0.3",
     "glob": "^11.0.0"
-  }
+  },
+  "_mcpNote": "MCP SDK is optionalDependency; if ajv@8 peer is required, run `npm install --no-save ajv@8 ajv-formats@3` to satisfy it (the security override keeps ajv@6 for the rest of the project)."
 }
