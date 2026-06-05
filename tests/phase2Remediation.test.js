@@ -329,3 +329,257 @@ describe('engine: create-then-delete recipes (phase 2)', () => {
     expect(client.calls.find(c => c.op === 'delete-dns-record')).toBeTruthy();
   });
 });
+
+// ---------- Phase 3: Workers / storage / Zaraz advisory ----------
+
+describe('Phase 3: Workers plaintext secret bindings (CFL-WORK-003)', () => {
+  const AssessmentService = require('../src/core/services/assessmentService');
+  const accountResource = { id: 'acc-1', name: 'Test', type: 'account' };
+
+  test('FAIL on plain_text binding with secret-shaped value', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    const scripts = [{ id: 'w1', name: 'api-edge' }];
+    const bindings = [{ type: 'plain_text', name: 'API_KEY', text: 'sk-test-1234567890abcdef', _script: 'api-edge' }];
+    await svc.assessWorkersBindings(accountResource, scripts, bindings, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-WORK-003');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('PASS on no plain_text bindings with secret-shaped values', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    const scripts = [{ id: 'w1', name: 'safe' }];
+    const bindings = [{ type: 'plain_text', name: 'INERT', text: 'hello' }];
+    await svc.assessWorkersBindings(accountResource, scripts, bindings, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-WORK-003');
+    expect(f.status).toBe('PASS');
+  });
+});
+
+describe('Phase 3: Storage inventory (CFL-STORE-001..003)', () => {
+  const AssessmentService = require('../src/core/services/assessmentService');
+  const accountResource = { id: 'acc-1', name: 'Test', type: 'account' };
+
+  test.each([
+    ['CFL-STORE-001', 'kv', [{ id: 'kv-1', title: 'CACHE' }]],
+    ['CFL-STORE-002', 'd1', [{ uuid: 'd1-1', name: 'app-db' }]],
+    ['CFL-STORE-003', 'queues', [{ queue_id: 'q-1', queue_name: 'events' }]]
+  ])('%s: PASS when %s resources exist', async (checkId, kind, list) => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessStorageInventory(accountResource, list, checkId, kind, assessment);
+    const f = assessment.findings.find(x => x.checkId === checkId);
+    expect(f.status).toBe('PASS');
+  });
+
+  test('INFO when storage is empty (advisory — not a fail)', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessStorageInventory(accountResource, [], 'CFL-STORE-001', 'kv', assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-STORE-001');
+    expect(f.status).toBe('INFO');
+  });
+});
+
+describe('Phase 3: Zaraz consent (CFL-ZARAZ-001)', () => {
+  const AssessmentService = require('../src/core/services/assessmentService');
+  const zoneResource = { id: 'z-1', name: 'example.com' };
+
+  test('FAIL on third-party tools without consent', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessZaraz(zoneResource, {
+      tools: { ga4: {}, facebook: {} },
+      consent: null
+    }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-ZARAZ-001');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('PASS when consent is enabled alongside third-party tools', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessZaraz(zoneResource, {
+      tools: { ga4: {} },
+      consent: { enabled: true }
+    }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-ZARAZ-001');
+    expect(f.status).toBe('PASS');
+  });
+});
+
+// ---------- Phase 4: Enterprise / SASE advisory ----------
+
+describe('Phase 4: Zone Hold (CFL-HOLD-001)', () => {
+  const AssessmentService = require('../src/core/services/assessmentService');
+  const zoneResource = { id: 'z-1', name: 'ent.example.com' };
+
+  test('FAIL when zone hold is off', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessZoneHold(zoneResource, { hold: false, hold_after: null }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-HOLD-001');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('PASS when zone hold is enabled', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessZoneHold(zoneResource, { hold: true, hold_after: null }, assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-HOLD-001');
+    expect(f.status).toBe('PASS');
+  });
+});
+
+describe('Phase 4: Device Posture (CFL-POSTURE-001)', () => {
+  const AssessmentService = require('../src/core/services/assessmentService');
+  const accountResource = { id: 'acc-1', name: 'ENT', type: 'account' };
+
+  test('FAIL when no posture rules defined', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessDevicePosture(accountResource, [], assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-POSTURE-001');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('PASS when posture rules present', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessDevicePosture(accountResource, [
+      { id: 'p-1', name: 'Disk encryption', type: 'disk_encryption' }
+    ], assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-POSTURE-001');
+    expect(f.status).toBe('PASS');
+  });
+});
+
+describe('Phase 4: Access app depth (CFL-ZT-007/008/009)', () => {
+  const AssessmentService = require('../src/core/services/assessmentService');
+  const accountResource = { id: 'acc-1', name: 'ENT', type: 'account' };
+
+  test('FAIL CFL-ZT-007 when an app has everyone-allow', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessAccessDepth(accountResource, [
+      { id: 'a-1', name: 'public', policies: [{ include: [{ everyone: {} }] }] }
+    ], assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-ZT-007');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('FAIL CFL-ZT-009 when an app has no require rules', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessAccessDepth(accountResource, [
+      { id: 'a-1', name: 'no-mfa', policies: [{ include: [{ email: ['u@x.com'] }] }] }
+    ], assessment);
+    const f = assessment.findings.find(x => x.checkId === 'CFL-ZT-009');
+    expect(f.status).toBe('FAIL');
+  });
+
+  test('all PASS for hardened apps', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessAccessDepth(accountResource, [
+      {
+        id: 'a-1',
+        name: 'hardened',
+        session_duration: '12h',
+        policies: [{
+          include: [{ email: ['u@x.com'] }],
+          require: [{ email: true }]
+        }]
+      }
+    ], assessment);
+    expect(assessment.findings.find(x => x.checkId === 'CFL-ZT-007').status).toBe('PASS');
+    expect(assessment.findings.find(x => x.checkId === 'CFL-ZT-008').status).toBe('PASS');
+    expect(assessment.findings.find(x => x.checkId === 'CFL-ZT-009').status).toBe('PASS');
+  });
+});
+
+describe('Phase 4: CASB / Email Security / RBI / Magic', () => {
+  const AssessmentService = require('../src/core/services/assessmentService');
+  const accountResource = { id: 'acc-1', name: 'ENT', type: 'account' };
+
+  test('CFL-CASB-001: FAIL on open critical findings', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessCASB(accountResource, [
+      { severity: 'critical', status: 'open' },
+      { severity: 'low', status: 'open' }
+    ], assessment);
+    expect(assessment.findings.find(x => x.checkId === 'CFL-CASB-001').status).toBe('FAIL');
+  });
+
+  test('CFL-EMAILSEC-001: PASS when ≥1 active policy', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessEmailSecurity(accountResource, [
+      { id: 'esp-1', name: 'Anti-spoof', enabled: true },
+      { id: 'esp-2', name: 'Phishing', enabled: false }
+    ], assessment);
+    expect(assessment.findings.find(x => x.checkId === 'CFL-EMAILSEC-001').status).toBe('PASS');
+  });
+
+  test('CFL-RBI-001: PASS when ≥1 policy defined', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessBrowserIsolation(accountResource, [
+      { id: 'iso-1', name: 'Isolate uploads' }
+    ], assessment);
+    expect(assessment.findings.find(x => x.checkId === 'CFL-RBI-001').status).toBe('PASS');
+  });
+
+  test('CFL-MAGIC-001: PASS when ruleset has rules', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessMagicFirewall(accountResource, [
+      { id: 'mf-1', phase: 'magic_transit', rules: [{ id: 'mfr-1', action: 'block' }] }
+    ], assessment);
+    expect(assessment.findings.find(x => x.checkId === 'CFL-MAGIC-001').status).toBe('PASS');
+  });
+
+  test('CFL-MAGIC-001: FAIL on ruleset with no rules', async () => {
+    const svc = new AssessmentService({ useSpinner: false });
+    const assessment = { findings: [], configuration: {} };
+    await svc.assessMagicFirewall(accountResource, [
+      { id: 'mf-1', phase: 'magic_transit', rules: [] }
+    ], assessment);
+    expect(assessment.findings.find(x => x.checkId === 'CFL-MAGIC-001').status).toBe('FAIL');
+  });
+});
+
+// ---------- Recipe registry safety guard (Phases 1-4) ----------
+
+describe('recipeRegistry final safety guard', () => {
+  test('all recipes are reversible and expose the full lifecycle', () => {
+    for (const r of recipeRegistry.all()) {
+      expect(r.reversible).toBe(true);
+      expect(typeof r.read).toBe('function');
+      expect(typeof r.isCompliant).toBe('function');
+      expect(typeof r.proposed).toBe('function');
+      expect(typeof r.apply).toBe('function');
+      expect(typeof r.restore).toBe('function');
+      expect(typeof r.verify).toBe('function');
+      // Risk must be one of the three
+      expect(['low', 'medium', 'high']).toContain(r.risk);
+      // Scope is zone or account
+      expect(['zone', 'account']).toContain(r.scope);
+    }
+  });
+
+  test('every Phase 2/3/4 remediable check has a recipe', () => {
+    const remediableIds = [
+      'CFL-LEAK-001', 'CFL-WAF-006', 'CFL-WAF-007',
+      'CFL-SEC-001',
+      'CFL-ALERT-001', 'CFL-ALERT-002', 'CFL-ALERT-003', 'CFL-ALERT-004',
+      'CFL-EMAIL-001', 'CFL-EMAIL-003',
+      'CFL-HOLD-001'
+    ];
+    for (const id of remediableIds) {
+      expect(recipeRegistry.has(id)).toBe(true);
+    }
+  });
+});
