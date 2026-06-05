@@ -383,7 +383,13 @@ function dnsTxtRecordRecipe({ checkId, title, recordName, content, risk = 'mediu
       const records = await client.getDNSRecords(ctx.zoneId);
       const list = Array.isArray(records) ? records : [];
       const existing = list.find(r => r.type === 'TXT' && r.name === recordName);
-      return { hasMatching: !!existing, recordId: existing && existing.id, content: existing && existing.content };
+      // Always return a 3-key shape — `JSON.stringify` drops `undefined` values,
+      // so omitting the keys would break checksum stability across read→write→read.
+      return {
+        hasMatching: !!existing,
+        recordId: (existing && existing.id) || null,
+        content: (existing && existing.content) || null
+      };
     },
     isCompliant(currentValue) {
       return !!(currentValue && currentValue.hasMatching);
@@ -400,6 +406,13 @@ function dnsTxtRecordRecipe({ checkId, title, recordName, content, risk = 'mediu
       }
       const created = await client.createDNSRecord(ctx.zoneId, body);
       return { id: created && created.id, resourceType: 'dns_record' };
+    },
+    // The apply() return value is already shaped for the engine to capture
+    // (see remediationEngine.js `apply` block). We expose this as a no-op so
+    // the engine's `recipe.captureCreatedResourceId?.(client, ctx, result)`
+    // path is taken and the id is stashed on the item.
+    async captureCreatedResourceId(client, ctx, result) {
+      return { id: result && result.id, resourceType: result && result.resourceType };
     },
     async restore(client, ctx, capturedId) {
       if (!capturedId) return null;
