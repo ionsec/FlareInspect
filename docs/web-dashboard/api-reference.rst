@@ -13,6 +13,26 @@ By default the dashboard runs at ``http://127.0.0.1:<PORT>``. The
 port is displayed on startup (or set via the ``PORT`` environment
 variable).
 
+Interactive docs (Swagger / OpenAPI)
+------------------------------------
+
+A bundled, interactive **Swagger UI** is served by the dashboard:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - URL
+     - Description
+   * - ``/api-docs``
+     - Swagger UI — browse every endpoint and *Try it out* against the running server
+   * - ``/api-docs/openapi.json``
+     - The raw OpenAPI 3 specification (machine-readable; import into Postman/Insomnia)
+
+The same link is available from the dashboard sidebar (**API docs**) and the
+**API health** page. When ``FLAREINSPECT_API_KEY`` is set, use the *Authorize*
+button in Swagger UI to supply your key for *Try it out* requests.
+
 Authentication
 --------------
 
@@ -37,6 +57,9 @@ Endpoints
    * - Endpoint
      - Method
      - Description
+   * - ``/api/assessment``
+     - GET
+     - Get the latest assessment
    * - ``/api/assessments``
      - GET
      - List all saved assessments
@@ -46,15 +69,15 @@ Endpoints
    * - ``/api/assess``
      - POST
      - Run a new assessment
-   * - ``/api/compliance/:id/:framework``
+   * - ``/api/compliance/:framework``
      - GET
-     - Get compliance report for an assessment
+     - Map the latest assessment's findings to a compliance framework
    * - ``/api/diff``
      - POST
      - Compare two assessments for drift
-   * - ``/api/export/:id/:format``
-     - GET
-     - Download an assessment in a specific format
+   * - ``/api/settings``
+     - GET / PUT
+     - Read (masked) or update the runtime settings overlay — notifications, AI, SIEM (v2.0)
    * - ``/api/posture/graph``
      - GET
      - Resource graph + attack paths for an assessment (v2.0)
@@ -162,6 +185,33 @@ The server reads the following env vars at boot.
    * - ``FLAREINSPECT_WEBHOOK_SECRET``
      - unset
      - HMAC-SHA256 secret used to sign the generic webhook payload
+   * - ``FLAREINSPECT_NOTIFY_THRESHOLD``
+     - unset
+     - Default minimum severity for notifications (``critical|high|medium|low|informational``)
+   * - ``FLAREINSPECT_AI_PROVIDER`` / ``FLAREINSPECT_AI_MODEL``
+     - unset
+     - Default AI planner provider (``none|anthropic|openai|ollama``) and model
    * - ``ANTHROPIC_API_KEY`` / ``OPENAI_API_KEY``
      - unset
      - Optional AI keys for the remediation planner (Claude / OpenAI SDKs are optional deps)
+   * - ``OLLAMA_HOST``
+     - ``http://localhost:11434``
+     - Base URL for a local Ollama server (offline AI planner)
+
+Runtime settings overlay
+------------------------
+
+Notifications, the AI planner, and SIEM credentials can be configured from the
+dashboard's **Settings** page instead of (or in addition to) the environment.
+Values are persisted to a local, git-ignored ``web/data/settings.json`` (mode
+``0600``) and **override** the matching environment variable at request time.
+
+Resolution precedence for every key is: **saved settings value → environment
+variable → unset**. Reading the overlay (``GET /api/settings``) never returns
+secrets in the clear — only whether each key is ``configured``, its ``source``
+(``settings`` / ``env`` / ``none``), and a short masked ``hint``.
+
+The remediation gate (``FLAREINSPECT_ALLOW_REMEDIATION``) and edit-scope token
+(``FLAREINSPECT_EDIT_SCOPE``) are intentionally **not** part of this overlay —
+they remain env-only so live Cloudflare writes can never be enabled from the
+browser.
