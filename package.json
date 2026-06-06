@@ -84,7 +84,10 @@
     "qs": "^6.14.2",
     "test-exclude": "^7.0.1",
     "formdata-node": "^6.0.3",
-    "glob": "^11.0.0"
+    "glob": "^11.0.0",
+    "@modelcontextprotocol/sdk": {
+      "ajv": "^8.17.1"
+    }
   },
-  "_mcpNote": "MCP SDK is optionalDependency; if ajv@8 peer is required, run `npm install --no-save ajv@8 ajv-formats@3` to satisfy it (the security override keeps ajv@6 for the rest of the project)."
+  "_mcpNote": "MCP SDK is an optionalDependency. Its ajv@8 requirement is satisfied by the nested `@modelcontextprotocol/sdk` override above, while the rest of the project (eslint) keeps ajv@6. No manual install needed."
 }
