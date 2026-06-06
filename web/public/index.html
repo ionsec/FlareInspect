@@ -542,11 +542,11 @@
   "mcpServers": {
     "flareinspect": {
       "command": "node",
-      "args": ["/path/to/flareinspect/mcp/server.mjs"],
-      "env": { "CLOUDFLARE_TOKEN": "your-token-here" }
+      "args": ["/path/to/flareinspect/mcp/server.mjs"]
     }
   }
 }</div>
+          <p class="form-hint" style="margin-top:8px">No Cloudflare token is stored on the server. The agent passes its token when calling <code class="mono">flareinspect_assess</code>; results &amp; reports are then read back by <code class="mono">assessmentId</code> with no token (<code class="mono">flareinspect_get_assessment</code>, <code class="mono">flareinspect_list_findings</code>, <code class="mono">flareinspect_get_report</code>).</p>
         </div>
         <div class="card" style="max-width:700px">
           <div class="card-head"><div class="card-title">Live remediation gate</div><span class="badge warn" id="agents-rem-badge">DISABLED</span></div>
@@ -559,16 +559,15 @@ FLAREINSPECT_EDIT_SCOPE=&lt;opaque-secret-or-jwt&gt;</div>
         <div class="card" style="max-width:700px">
           <div class="card-head"><div class="card-title">Available tools</div></div>
           <div class="health-grid" style="grid-template-columns:1fr 1fr">
-            <div class="health-row"><span class="health-key mono">assess</span><span class="badge ok">available</span></div>
-            <div class="health-row"><span class="health-key mono">get_findings</span><span class="badge ok">available</span></div>
-            <div class="health-row"><span class="health-key mono">get_posture_graph</span><span class="badge ok">available</span></div>
-            <div class="health-row"><span class="health-key mono">plan_remediation</span><span class="badge ok">available</span></div>
-            <div class="health-row"><span class="health-key mono">apply_remediation</span><span class="badge warn" id="agents-tool-apply">gate: off</span></div>
-            <div class="health-row"><span class="health-key mono">rollback</span><span class="badge warn" id="agents-tool-rollback">gate: off</span></div>
-            <div class="health-row"><span class="health-key mono">diff</span><span class="badge ok">available</span></div>
-            <div class="health-row"><span class="health-key mono">get_compliance</span><span class="badge ok">available</span></div>
-            <div class="health-row"><span class="health-key mono">ship_to_siem</span><span class="badge ok">available</span></div>
-            <div class="health-row"><span class="health-key mono">notify</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_assess</span><span class="badge info">needs token</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_list_assessments</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_get_assessment</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_list_findings</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_get_attack_paths</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_get_report</span><span class="badge ok">available</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_plan_remediation</span><span class="badge info">needs token</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_apply_remediation</span><span class="badge warn" id="agents-tool-apply">gate: off</span></div>
+            <div class="health-row"><span class="health-key mono">flareinspect_rollback</span><span class="badge warn" id="agents-tool-rollback">gate: off</span></div>
           </div>
         </div>
       </div>
