@@ -53,6 +53,7 @@ const backupManagerMod     = require(resolve(repoRoot, 'src/core/remediation/bac
 const resourceGraphMod     = require(resolve(repoRoot, 'src/core/graph/resourceGraph.js'));
 const attackPathsMod       = require(resolve(repoRoot, 'src/core/graph/attackPaths.js'));
 const editScopeMod         = require(resolve(repoRoot, 'src/core/auth/editScope.js'));
+const assessmentStore      = require(resolve(repoRoot, 'src/core/services/assessmentStore.js'));
 
 const AssessmentService = assessmentServiceMod;
 const remediationEngine = remediationEngineMod;
@@ -65,7 +66,8 @@ const isRemediationEnabled = editScopeMod.isRemediationEnabled;
 /* ── Tool: assess ─────────────────────────────────────────────────────── */
 
 export async function toolAssess({ token, zones, concurrency, note, compliance }) {
-  if (!token) throw new Error('token is required');
+  // The token is supplied by the caller per request — the server stores nothing.
+  if (!token) throw new Error('token is required — pass your Cloudflare API token in the tool call.');
   const svc = new AssessmentService({ useSpinner: false });
   const opts = {};
   if (Array.isArray(zones) && zones.length) opts.zones = zones;
@@ -76,42 +78,101 @@ export async function toolAssess({ token, zones, concurrency, note, compliance }
     const complianceEngine = new (require(resolve(repoRoot, 'src/core/services/complianceEngine.js')))();
     assessment.complianceReport = complianceEngine.getComplianceReport(assessment.findings || []);
   }
-  // Best-effort persist (in case the web server shares this dir)
-  try { await backupManager.persistAssessment(assessment); } catch (_) { /* optional */ }
+  // Persist so the results/reports can be read back by id WITHOUT a token.
+  let stored = false;
+  try { assessmentStore.persist(assessment); stored = true; } catch (_) { /* non-fatal */ }
   return {
     assessmentId: assessment.assessmentId,
-    score: assessment.score || null,
-    grade: assessment.grade || null,
+    score: assessment.score && assessment.score.overallScore != null ? assessment.score.overallScore : null,
+    grade: (assessment.score && assessment.score.grade) || assessment.grade || null,
+    summary: assessment.summary || null,
     findingsCount: (assessment.findings || []).length,
-    zones: (assessment.zones || []).map(z => ({ id: z.id, name: z.name }))
+    zones: (assessment.zones || []).map(z => ({ id: z.id, name: z.name })),
+    stored,
+    hint: 'Use flareinspect_get_assessment / flareinspect_list_findings / flareinspect_get_report with this assessmentId — no token needed to read results.'
   };
 }
 
 /* ── Tool: list_findings ──────────────────────────────────────────────── */
 
-export async function toolListFindings({ assessment, severity, status, limit = 100 }) {
-  const findings = (assessment && assessment.findings) || [];
+export async function toolListFindings({ assessment, assessmentId, severity, status, limit = 100 }) {
+  const a = resolveAssessment(assessment, assessmentId);
+  const findings = (a && a.findings) || [];
   let out = findings;
   if (severity) out = out.filter(f => String(f.severity).toLowerCase() === String(severity).toLowerCase());
   if (status)   out = out.filter(f => String(f.status).toLowerCase() === String(status).toLowerCase());
-  return { count: out.length, findings: out.slice(0, limit) };
+  return { assessmentId: a.assessmentId, count: out.length, returned: Math.min(out.length, limit), findings: out.slice(0, limit) };
 }
 
 /* ── Tool: get_attack_paths ───────────────────────────────────────────── */
 
-export async function toolGetAttackPaths({ assessment }) {
-  const graph = buildResourceGraph(assessment);
-  const paths = findAttackPaths(graph, assessment);
+export async function toolGetAttackPaths({ assessment, assessmentId }) {
+  const a = resolveAssessment(assessment, assessmentId);
+  const graph = buildResourceGraph(a);
+  const paths = findAttackPaths(graph, a);
   return {
+    assessmentId: a.assessmentId,
     graph: { nodeCount: graph.nodes.length, edgeCount: graph.edges.length, stats: graph.stats },
     paths
   };
 }
 
+/* ── Read helpers (no token — stored results only) ────────────────────── */
+
+// Accept an inline assessment object OR load a stored one by id (or latest).
+function resolveAssessment(assessment, assessmentId) {
+  if (assessment && typeof assessment === 'object') return assessment;
+  return assessmentStore.loadById(assessmentId);
+}
+
+/* ── Tool: list_assessments ───────────────────────────────────────────── */
+
+export async function toolListAssessments() {
+  return { assessments: assessmentStore.list() };
+}
+
+/* ── Tool: get_assessment (compact summary by id) ─────────────────────── */
+
+export async function toolGetAssessment({ assessmentId }) {
+  const a = assessmentStore.loadById(assessmentId);
+  return {
+    assessmentId: a.assessmentId,
+    account: a.account || null,
+    score: a.score || null,
+    grade: (a.score && a.score.grade) || a.grade || null,
+    summary: a.summary || null,
+    zones: (a.zones || []).map(z => ({ id: z.id, name: z.name, plan: z.plan })),
+    completedAt: a.completedAt || a.startedAt || null
+  };
+}
+
+/* ── Tool: get_report (rendered report by id) ─────────────────────────── */
+
+export async function toolGetReport({ assessmentId, format = 'markdown' }) {
+  const a = assessmentStore.loadById(assessmentId);
+  const fmt = String(format).toLowerCase();
+  if (fmt === 'json') return { assessmentId: a.assessmentId, format: 'json', report: a };
+  const exporters = {
+    html: 'src/exporters/html.js',
+    markdown: 'src/exporters/markdown.js',
+    md: 'src/exporters/markdown.js',
+    sarif: 'src/exporters/sarif.js',
+    csv: 'src/exporters/csv.js',
+    asff: 'src/exporters/asff.js'
+  };
+  const modPath = exporters[fmt];
+  if (!modPath) throw new Error(`Unknown report format "${format}". Use json|markdown|html|sarif|csv|asff.`);
+  const Exporter = require(resolve(repoRoot, modPath));
+  const data = await new Exporter().export(a);
+  const report = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  return { assessmentId: a.assessmentId, format: fmt, report };
+}
+
 /* ── Tool: plan_remediation ───────────────────────────────────────────── */
 
 export async function toolPlanRemediation({ assessment, checks, zones, excludeZones, concurrency, token }) {
-  if (!token) throw new Error('token is required to plan remediation');
+  token = token || process.env.CLOUDFLARE_TOKEN;
+  if (!token) throw new Error('token is required to plan remediation (argument or CLOUDFLARE_TOKEN env)');
   const client = new (require(resolve(repoRoot, 'src/core/services/cloudflareClient.js')))(token);
   const opts = { client, checks, zones, excludeZones, concurrency };
   const plan = await remediationEngine.buildPlan(assessment, opts);
@@ -204,8 +265,9 @@ async function startServer() {
   // list_findings
   server.tool(
     'flareinspect_list_findings',
-    'List findings from an assessment object (passed as a JSON string).',
+    'List findings from a stored assessment (by assessmentId, no token needed) or an inline assessment object.',
     {
+      assessmentId: z.string().optional(),
       assessment: z.union([z.string(), z.any()]).optional(),
       severity: z.string().optional(),
       status: z.string().optional(),
@@ -214,7 +276,7 @@ async function startServer() {
     async (args) => {
       try {
         const a = typeof args.assessment === 'string' ? JSON.parse(args.assessment) : args.assessment;
-        const out = await toolListFindings({ assessment: a, severity: args.severity, status: args.status, limit: args.limit });
+        const out = await toolListFindings({ assessment: a, assessmentId: args.assessmentId, severity: args.severity, status: args.status, limit: args.limit });
         return { content: [{ type: 'text', text: JSON.stringify(out, null, 2) }] };
       } catch (e) { return { isError: true, content: [{ type: 'text', text: e.message }] }; }
     }
@@ -223,15 +285,60 @@ async function startServer() {
   // get_attack_paths
   server.tool(
     'flareinspect_get_attack_paths',
-    'Compute the resource graph + ranked attack paths for an assessment object.',
+    'Compute the resource graph + ranked attack paths for a stored assessment (by assessmentId, no token) or an inline assessment object.',
     {
-      assessment: z.union([z.string(), z.any()])
+      assessmentId: z.string().optional(),
+      assessment: z.union([z.string(), z.any()]).optional()
     },
     async (args) => {
       try {
         const a = typeof args.assessment === 'string' ? JSON.parse(args.assessment) : args.assessment;
-        const out = await toolGetAttackPaths({ assessment: a });
+        const out = await toolGetAttackPaths({ assessment: a, assessmentId: args.assessmentId });
         return { content: [{ type: 'text', text: JSON.stringify(out, null, 2) }] };
+      } catch (e) { return { isError: true, content: [{ type: 'text', text: e.message }] }; }
+    }
+  );
+
+  // list_assessments (no token — stored results)
+  server.tool(
+    'flareinspect_list_assessments',
+    'List saved assessments (id, account, score, grade, findings, date). No token required.',
+    {},
+    async () => {
+      try {
+        const out = await toolListAssessments();
+        return { content: [{ type: 'text', text: JSON.stringify(out, null, 2) }] };
+      } catch (e) { return { isError: true, content: [{ type: 'text', text: e.message }] }; }
+    }
+  );
+
+  // get_assessment (no token — compact summary by id)
+  server.tool(
+    'flareinspect_get_assessment',
+    'Read back a stored assessment summary (score, grade, severity counts, zones) by assessmentId. Omit id for the latest. No token required.',
+    {
+      assessmentId: z.string().optional()
+    },
+    async (args) => {
+      try {
+        const out = await toolGetAssessment({ assessmentId: args.assessmentId });
+        return { content: [{ type: 'text', text: JSON.stringify(out, null, 2) }] };
+      } catch (e) { return { isError: true, content: [{ type: 'text', text: e.message }] }; }
+    }
+  );
+
+  // get_report (no token — rendered report by id)
+  server.tool(
+    'flareinspect_get_report',
+    'Render a stored assessment as a report. format: json|markdown|html|sarif|csv|asff. Omit id for the latest. No token required.',
+    {
+      assessmentId: z.string().optional(),
+      format: z.enum(['json', 'markdown', 'md', 'html', 'sarif', 'csv', 'asff']).optional()
+    },
+    async (args) => {
+      try {
+        const out = await toolGetReport({ assessmentId: args.assessmentId, format: args.format });
+        return { content: [{ type: 'text', text: typeof out.report === 'string' ? out.report : JSON.stringify(out.report, null, 2) }] };
       } catch (e) { return { isError: true, content: [{ type: 'text', text: e.message }] }; }
     }
   );
